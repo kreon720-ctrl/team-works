@@ -5,6 +5,7 @@
 | 버전 | 날짜 | 작성자 | 변경 내용 |
 |------|------|--------|-----------|
 | 1.0 | 2026-04-07 | - | 최초 작성 |
+| 1.1 | 2026-04-08 | - | Semantic 컬러 설명에서 "초대" 표현 제거, 상태 배지 예시를 가입 신청 상태(PENDING/APPROVED/REJECTED)로 교체, 아이콘 매핑에서 "팀원 초대" → "가입 신청" 수정 |
 
 ---
 
@@ -85,10 +86,10 @@ module.exports = {
 
 | 역할 | 이름 | HEX | Tailwind 클래스 | 사용처 |
 |------|------|-----|-----------------|--------|
-| 성공 (Success) | `success-500` | `#22C55E` | `text-success-500`, `bg-success-50` | 초대 수락 성공, 저장 완료, 인라인 유효성 통과 메시지 |
+| 성공 (Success) | `success-500` | `#22C55E` | `text-success-500`, `bg-success-50` | 가입 신청 승인 성공, 저장 완료, 인라인 유효성 통과 메시지 |
 | 경고 (Warning) | `warning-500` | `#F59E0B` | `text-warning-500`, `bg-warning-50` | 폴링 갱신 안내, 주의 필요 상태 |
 | 에러 (Error) | `error-500` | `#EF4444` | `text-error-500`, `bg-error-50` | 로그인 실패, 폼 유효성 오류, API 에러, Danger 버튼 |
-| 정보 (Info) | `info-500` | `#3B82F6` | `text-info-500`, `bg-info-50` | 일반 안내 메시지, 초대 대기 상태 |
+| 정보 (Info) | `info-500` | `#3B82F6` | `text-info-500`, `bg-info-50` | 일반 안내 메시지, 가입 신청 대기 상태 |
 
 **Tailwind CSS 커스텀 설정:**
 
@@ -563,15 +564,15 @@ className="inline-flex items-center gap-1 rounded-md px-2 py-0.5
 #### 일반 태그 / 상태 배지
 
 ```
-PENDING(초대 대기):
+PENDING(신청 대기):
   className="inline-flex items-center rounded-md px-2 py-0.5
              text-xs font-medium bg-yellow-100 text-yellow-700"
 
-ACCEPTED(수락):
+APPROVED(승인):
   className="inline-flex items-center rounded-md px-2 py-0.5
              text-xs font-medium bg-green-100 text-green-700"
 
-DECLINED(거절):
+REJECTED(거절):
   className="inline-flex items-center rounded-md px-2 py-0.5
              text-xs font-medium bg-gray-100 text-gray-500"
 ```
@@ -734,7 +735,7 @@ npm install lucide-react
 | 더보기 메뉴 | `<MoreVertical />` |
 | 로그아웃 | `<LogOut />` |
 | 일정 추가 | `<CalendarPlus />` |
-| 팀원 초대 | `<UserPlus />` |
+| 가입 신청 (팀 탐색) | `<UserPlus />` |
 | 일정 변경 요청 | `<MessageSquare />` |
 | 에러 경고 | `<AlertCircle />` |
 | 성공 체크 | `<CheckCircle />` |

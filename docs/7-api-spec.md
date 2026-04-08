@@ -6,6 +6,7 @@
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-08 | 섹션 4(Invitations) 전면 제거 → 섹션 4(Join Requests)로 교체. GET /api/teams/public, POST /api/teams/:teamId/join-requests, GET /api/teams/:teamId/join-requests, PATCH /api/teams/:teamId/join-requests/:requestId, GET /api/me/tasks 추가. 엔드포인트 요약 테이블 갱신 |
+| 1.2 | 2026-04-08 | POST /api/teams 비즈니스 규칙에서 잘못된 BR-03 참조 제거 (BR-01, FR-02-1 으로 수정) |
 
 ---
 
@@ -324,7 +325,7 @@ Authorization: Bearer <accessToken>
 | 400 | "팀 이름은 최대 100자까지 입력 가능합니다." | name 길이 초과 |
 | 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
 
-**비즈니스 규칙**: BR-01, BR-03, FR-02-1
+**비즈니스 규칙**: BR-01, FR-02-1
 
 ---
 
@@ -892,6 +893,68 @@ Authorization: Bearer <accessToken>
 
 **비즈니스 규칙**: BR-01, BR-02, BR-06, FR-04-1, FR-04-4, FR-04-6
 
+### GET /api/teams/:teamId/schedules/:scheduleId
+
+**설명**: 특정 팀 일정의 상세 정보를 조회합니다. LEADER와 MEMBER 모두 접근할 수 있습니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (해당 팀 소속 구성원)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| scheduleId | string (UUID) | 조회할 일정 UUID |
+
+- Body: 없음
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{
+  "id": "f6a7b8c9-d0e1-2345-fabc-de6789012345",
+  "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+  "title": "팀 전체 회의",
+  "description": "분기별 성과 공유 및 다음 스프린트 계획 논의",
+  "startAt": "2026-04-14T06:00:00.000Z",
+  "endAt": "2026-04-14T07:00:00.000Z",
+  "createdBy": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "createdAt": "2026-04-05T10:00:00.000Z",
+  "updatedAt": "2026-04-05T10:00:00.000Z"
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | string | 일정 UUID |
+| teamId | string | 소속 팀 UUID |
+| title | string | 일정 제목 |
+| description | string \| null | 일정 상세 설명 |
+| startAt | string | 시작 일시 (UTC ISO 8601) |
+| endAt | string | 종료 일시 (UTC ISO 8601) |
+| createdBy | string | 생성한 팀장의 사용자 UUID |
+| createdAt | string | 레코드 생성 일시 (UTC ISO 8601) |
+| updatedAt | string | 최종 수정 일시 (UTC ISO 8601) |
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "팀을 찾을 수 없습니다." | 존재하지 않는 teamId |
+| 404 | "일정을 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 scheduleId |
+
+**비즈니스 규칙**: BR-01, BR-06, FR-03-4, FR-03-5
+
 ---
 
 ### PATCH /api/teams/:teamId/schedules/:scheduleId
@@ -1190,8 +1253,9 @@ Authorization: Bearer <accessToken>
 | GET | /api/teams/:teamId/join-requests | 팀 PENDING 가입 신청 목록 조회 | 필요 | LEADER만 |
 | PATCH | /api/teams/:teamId/join-requests/:requestId | 가입 신청 승인/거절 | 필요 | LEADER만 |
 | GET | /api/me/tasks | 나의 할 일 목록 (전체 팀 PENDING 신청) | 필요 | LEADER만 |
-| GET | /api/teams/:teamId/schedules | 팀 일정 조회 | 필요 | LEADER·MEMBER |
+| GET | /api/teams/:teamId/schedules | 팀 일정 목록 조회 (월/주/일) | 필요 | LEADER·MEMBER |
 | POST | /api/teams/:teamId/schedules | 팀 일정 생성 | 필요 | LEADER만 |
+| GET | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 상세 조회 | 필요 | LEADER·MEMBER |
 | PATCH | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 수정 | 필요 | LEADER만 |
 | DELETE | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 삭제 | 필요 | LEADER만 |
 | GET | /api/teams/:teamId/messages | 채팅 메시지 조회 | 필요 | LEADER·MEMBER |

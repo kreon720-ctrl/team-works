@@ -3,7 +3,7 @@
   "info": {
     "title": "Team CalTalk API",
     "description": "팀 단위 캘린더 기반 일정관리 + 채팅 애플리케이션 API",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "servers": [
     {
@@ -1303,7 +1303,69 @@
       }
     },
     "/teams/{teamId}/schedules/{scheduleId}": {
-      "put": {
+      "get": {
+        "tags": ["Schedules"],
+        "summary": "팀 일정 상세 조회",
+        "description": "특정 팀 일정의 상세 정보를 조회합니다. LEADER와 MEMBER 모두 접근할 수 있습니다.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "소속 팀 UUID"
+          },
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "조회할 일정 UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "일정 상세 조회 성공",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Schedule" }
+              }
+            }
+          },
+          "401": {
+            "description": "인증 필요",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "인증이 필요합니다." }
+              }
+            }
+          },
+          "403": {
+            "description": "권한 없음",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "해당 팀에 접근 권한이 없습니다." }
+              }
+            }
+          },
+          "404": {
+            "description": "리소스 없음",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "team_not_found": { "value": { "error": "팀을 찾을 수 없습니다." } },
+                  "schedule_not_found": { "value": { "error": "일정을 찾을 수 없습니다." } }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
         "tags": ["Schedules"],
         "summary": "팀 일정 수정",
         "description": "기존 팀 일정을 수정합니다. 팀장(LEADER)만 실행할 수 있습니다. 최소 1개 이상의 필드를 포함해야 합니다.",

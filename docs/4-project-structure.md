@@ -6,6 +6,7 @@
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-08 | TeamInvitation → TeamJoinRequest 반영: invitations 관련 디렉토리·엔드포인트 제거, join-requests·teams/public·me/tasks 라우트 추가, ERD/API 명세 경로 수정 |
+| 1.2 | 2026-04-08 | 컴포넌트명 예시의 TeamInviteModal → JoinRequestActions 로 수정 |
 
 ---
 
@@ -69,7 +70,7 @@
 ### 컴포넌트명
 
 - PascalCase 필수
-- 도메인 + 역할 조합: `ScheduleForm`, `TeamInviteModal`, `ChatMessageList`
+- 도메인 + 역할 조합: `ScheduleForm`, `JoinRequestActions`, `ChatMessageList`
 
 ### 함수명
 
@@ -102,6 +103,7 @@ GET    /api/me/tasks
 
 GET    /api/teams/[teamId]/schedules
 POST   /api/teams/[teamId]/schedules
+GET    /api/teams/[teamId]/schedules/[scheduleId]
 PATCH  /api/teams/[teamId]/schedules/[scheduleId]
 DELETE /api/teams/[teamId]/schedules/[scheduleId]
 
@@ -310,7 +312,7 @@ app/api/
 │       ├── schedules/
 │       │   ├── route.ts           # GET, POST /api/teams/[teamId]/schedules
 │       │   └── [scheduleId]/
-│       │       └── route.ts       # PATCH, DELETE
+│       │       └── route.ts       # GET, PATCH, DELETE
 │       └── messages/route.ts     # GET, POST /api/teams/[teamId]/messages
 ├── me/
 │   └── tasks/route.ts            # GET /api/me/tasks

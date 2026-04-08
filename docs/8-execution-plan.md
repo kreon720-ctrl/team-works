@@ -6,6 +6,7 @@
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-08 | TeamInvitation → TeamJoinRequest 전면 반영: DB 스키마, 쿼리 파일, API 엔드포인트, 프론트엔드 화면·훅, E2E 시나리오 전수 갱신 |
+| 1.2 | 2026-04-08 | BE-11 일정 API에 GET /api/teams/:teamId/schedules/:id (일정 상세 조회) 추가 |
 
 ---
 
@@ -133,7 +134,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 | DB-04 | `lib/db/queries/userQueries.ts` | createUser, getUserByEmail, getUserById |
 | DB-05 | `lib/db/queries/teamQueries.ts` | createTeam, getTeamById, getUserTeams, addTeamMember, getUserTeamRole |
 | DB-06 | `lib/db/queries/joinRequestQueries.ts` | createJoinRequest, getJoinRequestById, getPendingJoinRequestsByTeam, getPendingJoinRequestsByLeader, updateJoinRequestStatus |
-| DB-07 | `lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, updateSchedule, deleteSchedule |
+| DB-07 | `lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, getScheduleById, updateSchedule, deleteSchedule |
 | DB-08 | `lib/db/queries/chatQueries.ts` | createChatMessage, getMessagesByDate (KST 기준), getMessagesByTeam |
 
 **완료 조건 (공통)**:
@@ -273,11 +274,13 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 |-----------|------|
 | GET /api/teams/:teamId/schedules | `app/api/teams/[teamId]/schedules/route.ts` |
 | POST /api/teams/:teamId/schedules | `app/api/teams/[teamId]/schedules/route.ts` |
+| GET /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
 | PATCH /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
 | DELETE /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
 
 **완료 조건**:
-- [ ] GET: `?view=month|week|day&date=YYYY-MM-DD` 파라미터로 KST 기준 범위 조회
+- [ ] GET (목록): `?view=month|week|day&date=YYYY-MM-DD` 파라미터로 KST 기준 범위 조회
+- [ ] GET (상세): scheduleId로 단건 조회, 비소속 팀원 403, 비존재 404
 - [ ] POST: LEADER 전용, `startAt < endAt` 검증, 201
 - [ ] PATCH: 부분 수정 지원, MEMBER 403
 - [ ] DELETE: LEADER 전용, 비존재 404
@@ -455,7 +458,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 ### Day 5 — 통합 화면 + 배포
 
-**목표**: S-05 팀 메인 화면 완성, 반응형 UI, 초대 화면, Vercel 배포
+**목표**: S-05 팀 메인 화면 완성, 반응형 UI, 나의 할 일 화면 완성, Vercel 배포
 
 ---
 

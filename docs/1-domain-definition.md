@@ -7,6 +7,7 @@
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-07 | 추적성·검증성 보강, TeamInvitation 추가, 수락 조건 추가 |
 | 1.2 | 2026-04-08 | 팀 가입 신청(TeamJoinRequest) 방식으로 팀원 합류 흐름 전면 변경 — TeamInvitation 제거, TeamJoinRequest 추가, 나의 할 일(My Tasks) 개념 추가, 팀 공개 목록 조회 추가 |
+| 1.3 | 2026-04-08 | 4.2 Team 엔티티에 팀장 생성 시점(팀 생성 시 자동 LEADER) 명시, UC-02 연관 규칙 BR-01 추가 |
 
 ---
 
@@ -66,6 +67,8 @@
 | name | String | not null, 최대 100자 |
 | leaderId | UUID | FK → User.id, not null |
 
+> **팀장 생성 시점:** 팀이 생성될 때 요청자가 자동으로 해당 팀의 `leaderId`로 설정되고, 동시에 `TeamMember(role: LEADER)` 레코드가 원자적으로 생성됩니다. 즉, **팀 생성 = LEADER 생성**입니다.
+>
 > **규칙:** `leaderId`가 권위(source of truth). 팀장 변경 시 `leaderId` 업데이트 + 기존 LEADER의 TeamMember.role → MEMBER로 동시 전환.
 
 ### 4.3 TeamMember (팀 구성원)
@@ -147,7 +150,7 @@
 | ID | 유스케이스 | 주체 | 연관 규칙 |
 |----|-----------|------|-----------|
 | UC-01 | 회원가입 / 로그인 | 비인증 사용자 | - |
-| UC-02 | 팀 생성 | 팀장 | BR-01 |
+| UC-02 | 팀 생성 (생성자는 자동으로 LEADER 등록) | 로그인 사용자 | BR-01 |
 | UC-02B | 팀 공개 목록 조회 및 가입 신청 | 로그인 사용자 | BR-07 |
 | UC-02C | 가입 신청 승인/거절 (나의 할 일) | 팀장 | BR-03 |
 | UC-03 | 월·주·일 단위 팀 일정 조회 | 팀장, 팀원 | BR-01, BR-06 |
@@ -165,6 +168,14 @@
 - Given: 가입된 사용자가 올바른 자격증명 입력
 - When: 로그인 요청
 - Then: 인증 토큰 발급, 앱 진입 가능
+
+**UC-02 팀 생성**
+- Given: 로그인한 사용자가 유효한 팀 이름(1~100자) 입력
+- When: 팀 생성 요청
+- Then: 201 Created, Team 레코드 생성, 요청자가 `leaderId`로 설정됨, TeamMember(role: LEADER) 원자적 등록
+- Given: 팀 이름이 빈 값이거나 100자 초과
+- When: 팀 생성 요청
+- Then: 400 Bad Request
 
 **UC-02B 팀 공개 목록 조회 및 가입 신청**
 - Given: 로그인한 사용자
