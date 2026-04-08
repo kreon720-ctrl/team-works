@@ -6,6 +6,7 @@
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-08 | team_invitations 테이블 제거 → team_join_requests 테이블 추가. 관련 제약조건·인덱스·외래키 정보 갱신 |
+| 1.2 | 2026-04-08 | users.password 컬럼명 → password_hash 로 수정 (schema.sql 실제 구현 반영). teams 인덱스 권장사항에 idx_teams_leader_id 추가 |
 
 ---
 
@@ -17,7 +18,7 @@ erDiagram
         UUID id PK "not null"
         VARCHAR email "unique, not null"
         VARCHAR name "not null, max 50"
-        VARCHAR password "not null, bcrypt hash"
+        VARCHAR password_hash "not null, bcrypt hash"
         TIMESTAMP created_at "not null"
     }
 
@@ -89,7 +90,7 @@ erDiagram
 | id | UUID | PK, NOT NULL | 사용자 고유 식별자 (gen_random_uuid()) |
 | email | VARCHAR(255) | UNIQUE, NOT NULL | 로그인 ID. 이메일 형식 검증 필수 |
 | name | VARCHAR(50) | NOT NULL | 표시 이름, 최대 50자 |
-| password | VARCHAR(255) | NOT NULL | bcrypt 해시값 (saltRounds: 12) |
+| password_hash | VARCHAR(255) | NOT NULL | bcrypt 해시값 (saltRounds: 12) |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT now() | 가입 일시 (UTC 저장) |
 
 **인덱스 권장사항**

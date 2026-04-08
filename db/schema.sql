@@ -85,6 +85,10 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
     ON users(email);
 
+-- teams
+CREATE INDEX IF NOT EXISTS idx_teams_leader_id
+    ON teams(leader_id);
+
 -- team_members
 CREATE INDEX IF NOT EXISTS idx_team_members_user_id
     ON team_members(user_id);
