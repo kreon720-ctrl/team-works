@@ -5,6 +5,8 @@
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
+| 1.1 | 2026-04-08 | SC-02(팀 생성) 단순화, SC-03(초대 수락) 제거 → SC-02B(팀 탐색·가입 신청), SC-02C(팀장 승인/거절) 신규 추가. 부록 API 목록 갱신 |
+| 1.2 | 2026-04-08 | SC-03(일정 삭제) 신규 추가, 부록 API 목록에 DELETE 엔드포인트 추가 |
 
 ---
 
@@ -17,16 +19,17 @@
 
 | 페르소나 | 역할 | 주요 사용 환경 |
 |----------|------|----------------|
-| Persona A | LEADER (팀장, 40대) | 데스크탑, 아침 출근 후 주간 일정 확인 및 즉시 수정 |
-| Persona B | MEMBER (팀원, 20~30대) | 모바일, 출퇴근 중 일정·채팅 동시 확인 및 변경 요청 |
+| Persona A | LEADER (팀장, 40대) | 데스크탑, 아침 출근 후 주간 일정 확인 및 즉시 수정. 가입 신청 승인/거절 처리 |
+| Persona B | MEMBER (팀원, 20~30대) | 모바일, 공개 팀 탐색 후 가입 신청. 승인 후 출퇴근 중 일정·채팅 동시 확인 및 변경 요청 |
 
 ### 시나리오 목록
 
 | ID | 제목 | 페르소나 | 연관 UC |
 |----|------|----------|---------|
 | SC-01 | 회원가입 및 로그인 | 공통 | UC-01 |
-| SC-02 | 팀 생성 및 팀원 초대 | LEADER | UC-02 |
-| SC-03 | 초대 수락 후 팀 합류 | MEMBER | UC-02 |
+| SC-02 | 팀 생성 | LEADER | UC-02 |
+| SC-02B | 공개 팀 탐색 및 가입 신청 | MEMBER (가입 희망자) | UC-02B |
+| SC-02C | 가입 신청 승인/거절 (나의 할 일) | LEADER | UC-02C |
 | SC-04 | 팀 월간 일정 조회 | LEADER / MEMBER | UC-03 |
 | SC-05 | 팀 일정 추가 | LEADER | UC-04 |
 | SC-06 | 팀 일정 수정 | LEADER | UC-04 |
@@ -79,13 +82,13 @@
 
 ---
 
-## SC-02 팀 생성 및 팀원 초대 (LEADER 관점)
+## SC-02 팀 생성 (LEADER 관점)
 
 - **페르소나**: Persona A (LEADER)
-- **목표**: 새 팀을 생성하고, 팀원을 이메일로 초대한다
+- **목표**: 새 팀을 생성한다
 - **전제조건**: 로그인 상태. Access Token 유효. 팀 목록 화면(S-03) 진입 상태
 
-### 단계별 흐름 — 팀 생성
+### 단계별 흐름
 
 | # | 사용자 행동 | 시스템 반응 | API |
 |---|------------|-------------|-----|
@@ -95,63 +98,117 @@
 | 4 | — | 응답 201 Created (body: teamId, name, leaderId) | — |
 | 5 | — | 생성된 팀의 메인 화면(`/teams/[teamId]`, S-05)으로 리다이렉트 | — |
 
-### 단계별 흐름 — 팀원 초대
-
-| # | 사용자 행동 | 시스템 반응 | API |
-|---|------------|-------------|-----|
-| 1 | 팀 메인 화면에서 [팀원 초대] 메뉴를 클릭한다 | `/teams/[teamId]/invite` (S-07)로 이동. 이메일 입력 폼 렌더링 | — |
-| 2 | 초대할 팀원의 이메일을 입력하고 [초대 발송] 버튼을 클릭한다 | `POST /api/teams/[teamId]/invitations` 요청 전송 (body: inviteeEmail) | `POST /api/teams/[teamId]/invitations` |
-| 3 | — | 서버가 TeamInvitation 레코드 생성 (status: PENDING, invitedAt: 현재 시각) | — |
-| 4 | — | 응답 201 Created. "초대를 발송했습니다" 성공 메시지 표시 | — |
-| 5 | LEADER는 초대 현황을 확인하기 위해 초대 목록을 조회한다 | `GET /api/teams/[teamId]/invitations` 요청 전송 | `GET /api/teams/[teamId]/invitations` |
-| 6 | — | PENDING / ACCEPTED / REJECTED 상태별 초대 목록 반환 | — |
-
 ### 결과
 - Team 레코드와 TeamMember(LEADER) 레코드가 생성된다
-- TeamInvitation(status: PENDING) 레코드가 생성된다
-- 피초대자가 이메일 주소로 초대를 수락하면 SC-03이 진행된다
+- 팀장은 팀 생성 직후 나의 할 일 화면(S-04C)에서 다른 사용자들의 가입 신청을 승인/거절할 수 있다
 
 ### 예외 처리
 
 | 케이스 | 시스템 반응 |
 |--------|-------------|
 | 팀명이 빈 값 | 클라이언트 유효성 검증. API 요청 미발생, 인라인 오류 메시지 표시 |
-| 이미 팀원인 사용자의 이메일로 초대 시도 | `POST /api/teams/[teamId]/invitations` → 409 Conflict. "이미 팀에 속한 사용자입니다" 메시지 표시 |
-| PENDING 상태 초대가 이미 존재하는 이메일로 재초대 | 409 Conflict. "이미 초대가 발송된 이메일입니다" 메시지 표시 |
-| MEMBER 권한 사용자가 초대 API 직접 호출 시 | `POST /api/teams/[teamId]/invitations` → 403 Forbidden |
+| 팀명 100자 초과 | 클라이언트 유효성 검증 실패. "팀 이름은 최대 100자까지 입력 가능합니다" 오류 표시 |
 
 ---
 
-## SC-03 초대 수락 후 팀 합류 (MEMBER 관점)
+## SC-02B 공개 팀 탐색 및 가입 신청 (MEMBER 관점)
 
-- **페르소나**: Persona B (MEMBER 예정자)
-- **목표**: LEADER로부터 받은 초대를 수락하고 팀에 합류한다
-- **전제조건**: 회원가입 완료 및 로그인 상태. LEADER가 SC-02를 통해 해당 사용자의 이메일로 TeamInvitation(PENDING)을 생성한 상태
+- **페르소나**: Persona B (가입을 원하는 사용자)
+- **목표**: 공개 팀 목록을 탐색하여 원하는 팀에 가입을 신청한다
+- **전제조건**: 로그인 상태. Access Token 유효. 아직 해당 팀의 구성원이 아님
 
 ### 단계별 흐름
 
 | # | 사용자 행동 | 시스템 반응 | API |
 |---|------------|-------------|-----|
-| 1 | 앱 내 초대 알림 또는 별도 안내 경로를 통해 `/invitations/[invitationId]` (S-08)에 접속한다 | 초대 상세 화면 렌더링. `GET /api/invitations/[invitationId]` 로 초대 정보 조회 | `GET /api/invitations/[invitationId]` |
-| 2 | — | 팀명, 초대한 LEADER 이름, 초대 발송 일시 표시. [수락] / [거절] 버튼 렌더링 | — |
-| 3 | [수락] 버튼을 클릭한다 | `PATCH /api/invitations/[invitationId]` 요청 전송 (body: action: "accept") | `PATCH /api/invitations/[invitationId]` |
-| 4 | — | 서버가 TeamInvitation.status → ACCEPTED, respondedAt 기록. TeamMember(role: MEMBER) 레코드 신규 생성 | — |
-| 5 | — | 응답 200 OK | — |
-| 6 | — | 합류한 팀의 메인 화면(`/teams/[teamId]`, S-05)으로 리다이렉트 | — |
+| 1 | 팀 목록 화면(S-03)에서 [팀 탐색] 버튼을 클릭한다 | `/teams/explore` (S-04B)로 이동 | — |
+| 2 | — | `GET /api/teams/public` 요청 전송. 전체 공개 팀 목록(팀명, 구성원 수) 조회 | `GET /api/teams/public` |
+| 3 | — | 팀 목록이 카드 형태로 렌더링됨. 각 팀에 팀명, 구성원 수, [가입 신청] 버튼 표시 | — |
+| 4 | 원하는 팀의 [가입 신청] 버튼을 클릭한다 | `POST /api/teams/[teamId]/join-requests` 요청 전송 (body 없음, 신청자는 인증 토큰에서 추출) | `POST /api/teams/[teamId]/join-requests` |
+| 5 | — | 서버가 TeamJoinRequest(status: PENDING, requestedAt: 현재 시각) 레코드 생성. 해당 팀 팀장의 나의 할 일 목록에 자동 표시 | — |
+| 6 | — | 응답 201 Created. "[팀명]에 가입 신청을 완료했습니다. 팀장의 승인을 기다려주세요" 안내 메시지 표시 | — |
+| 7 | — | 해당 팀의 [가입 신청] 버튼이 "신청 완료" 상태로 비활성화됨 | — |
 
 ### 결과
-- TeamInvitation.status = ACCEPTED, TeamMember(role: MEMBER) 레코드가 생성된다
-- MEMBER는 해당 팀의 일정 조회, 채팅 참여가 가능해진다
-- MEMBER는 일정 생성·수정·삭제 권한은 부여되지 않는다 (BR-02)
+- TeamJoinRequest(status: PENDING) 레코드가 DB에 생성된다
+- 해당 팀의 팀장은 나의 할 일 목록(S-04C 또는 `GET /api/me/tasks`)에서 신청을 확인하고 SC-02C를 진행할 수 있다
 
 ### 예외 처리
 
 | 케이스 | 시스템 반응 |
 |--------|-------------|
-| 이미 수락/거절된 초대 URL 재접속 | `GET /api/invitations/[invitationId]` → 200 반환하되 status 표시. [수락] / [거절] 버튼 비활성화 |
-| [거절] 버튼 클릭 | `PATCH /api/invitations/[invitationId]` (action: "reject") → TeamInvitation.status → REJECTED. 팀 합류 미발생. 홈 화면으로 리다이렉트 |
-| 로그인하지 않은 상태로 초대 URL 접속 | `/login?redirect=/invitations/[invitationId]`로 리다이렉트. 로그인 후 초대 화면으로 복귀 |
-| 존재하지 않는 invitationId | 404 Not Found. "유효하지 않은 초대입니다" 메시지 표시 |
+| 이미 해당 팀의 구성원인 사용자가 신청 시도 | `POST /api/teams/[teamId]/join-requests` → 409 Conflict. "이미 해당 팀의 구성원입니다" 메시지 표시. [가입 신청] 버튼 미표시 또는 비활성화 |
+| PENDING 상태의 신청이 이미 존재하는 경우 재신청 시도 | 409 Conflict. "이미 가입 신청이 진행 중입니다" 메시지 표시 |
+| 존재하지 않는 팀에 신청 시도 | `POST /api/teams/[teamId]/join-requests` → 404 Not Found |
+| 팀 목록 로드 실패 | `GET /api/teams/public` 실패 → "팀 목록을 불러오지 못했습니다. 새로고침 해주세요" 표시 |
+
+---
+
+## SC-02C 가입 신청 승인/거절 — 나의 할 일 (LEADER 관점)
+
+- **페르소나**: Persona A (LEADER)
+- **목표**: 본인이 팀장인 팀에 대한 PENDING 가입 신청을 확인하고 승인 또는 거절 처리한다
+- **전제조건**: 로그인 상태. LEADER 권한으로 최소 하나의 팀에 소속. 해당 팀에 PENDING 상태의 가입 신청이 존재
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | 홈 화면 또는 내비게이션에서 [나의 할 일] 메뉴를 클릭한다 | `/me/tasks` (S-04C)로 이동 | — |
+| 2 | — | `GET /api/me/tasks` 요청 전송. 내가 LEADER인 모든 팀의 PENDING 가입 신청 목록 조회 | `GET /api/me/tasks` |
+| 3 | — | PENDING 신청 목록 렌더링. 각 항목에 신청자 이름, 이메일, 신청 일시, 대상 팀명, [승인] / [거절] 버튼 표시 | — |
+| 4 | 특정 신청의 [승인] 버튼을 클릭한다 | `PATCH /api/teams/[teamId]/join-requests/[requestId]` 요청 전송 (body: action: "APPROVE") | `PATCH /api/teams/[teamId]/join-requests/[requestId]` |
+| 5 | — | 서버가 TeamJoinRequest.status → APPROVED, respondedAt 기록. TeamMember(role: MEMBER) 레코드 원자적 생성 | — |
+| 6 | — | 응답 200 OK. 해당 신청 항목이 목록에서 제거됨 (또는 "승인 완료" 상태로 표시됨) | — |
+| 4' | 특정 신청의 [거절] 버튼을 클릭한다 | `PATCH /api/teams/[teamId]/join-requests/[requestId]` 요청 전송 (body: action: "REJECT") | `PATCH /api/teams/[teamId]/join-requests/[requestId]` |
+| 5' | — | 서버가 TeamJoinRequest.status → REJECTED, respondedAt 기록. 팀 합류 미발생 | — |
+| 6' | — | 응답 200 OK. 해당 신청 항목이 목록에서 제거됨 (또는 "거절 완료" 상태로 표시됨) | — |
+
+> **특정 팀의 신청만 확인하는 경우**: `GET /api/me/tasks` 대신 `GET /api/teams/[teamId]/join-requests`를 사용하면 특정 팀의 PENDING 신청 목록만 조회할 수 있습니다.
+
+### 결과
+- [승인] 처리 시: TeamJoinRequest.status = APPROVED, TeamMember(role: MEMBER) 레코드 생성. 신청자는 해당 팀의 일정 조회·채팅 참여가 가능해진다
+- [거절] 처리 시: TeamJoinRequest.status = REJECTED. 신청자의 팀 합류 미발생
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| PENDING 상태가 아닌 신청(이미 APPROVED/REJECTED)에 대해 재처리 시도 | `PATCH /api/teams/[teamId]/join-requests/[requestId]` → 400 Bad Request. "이미 처리된 가입 신청입니다" 메시지 표시 |
+| MEMBER 권한 사용자가 승인/거절 API 직접 호출 | 403 Forbidden. "팀장만 가입 신청을 처리할 수 있습니다" |
+| 존재하지 않는 requestId | 404 Not Found. "가입 신청을 찾을 수 없습니다" |
+| 나의 할 일 목록이 비어있음 | "현재 처리 대기 중인 가입 신청이 없습니다" 안내 메시지 표시 |
+
+---
+
+## SC-03 팀 일정 삭제 (LEADER)
+
+- **페르소나**: Persona A (LEADER)
+- **목표**: 등록된 팀 일정을 삭제한다
+- **전제조건**: 로그인 상태. LEADER 권한으로 팀에 소속. 삭제 대상 Schedule이 DB에 존재. 캘린더 뷰에서 해당 일정이 표시된 상태
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | 캘린더에서 삭제할 일정을 클릭하여 상세 팝업을 연다 | `GET /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송. 일정 상세 정보 렌더링 | `GET /api/teams/[teamId]/schedules/[scheduleId]` |
+| 2 | 상세 팝업에서 [삭제] 버튼을 클릭한다 | 확인 다이얼로그 표시 ("정말 삭제하시겠습니까?") | — |
+| 3 | 확인을 클릭한다 | `DELETE /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송 | `DELETE /api/teams/[teamId]/schedules/[scheduleId]` |
+| 4 | — | 서버가 LEADER 권한 검증 후 Schedule 레코드 삭제 | — |
+| 5 | — | 응답 200 OK | — |
+| 6 | — | 캘린더 뷰 갱신. 삭제된 일정이 해당 날짜 셀에서 제거됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
+
+### 결과
+- Schedule 레코드가 DB에서 삭제된다
+- 해당 팀의 모든 팀원이 다음 캘린더 조회 시 삭제된 일정을 더 이상 볼 수 없다
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| **MEMBER가 일정 삭제 시도** | UI에서 [삭제] 버튼 미표시. 직접 `DELETE /api/teams/[teamId]/schedules/[scheduleId]` 호출 시 → **403 Forbidden** 반환 |
+| 존재하지 않는 scheduleId | 404 Not Found |
+| 다른 팀 일정에 대한 삭제 시도 | 서버가 teamId 기반 권한 확인 → 403 Forbidden |
 
 ---
 
@@ -167,12 +224,12 @@
 |---|------------|-------------|-----|
 | 1 | 팀 목록 화면에서 조회할 팀을 클릭한다 | `GET /api/teams` 로 팀 목록 조회 후 선택된 팀의 메인 화면으로 이동 | `GET /api/teams` |
 | 2 | — | 팀 메인 화면(S-05) 렌더링. 기본 뷰는 월간(月) 캘린더 | — |
-| 3 | — | 현재 월(year, month) 기준으로 `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` 요청 자동 발생 | `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` |
+| 3 | — | 현재 월(year, month) 기준으로 `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 요청 자동 발생 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` |
 | 4 | — | 해당 팀의 해당 월 Schedule 목록 반환 (id, title, startAt, endAt). 타 팀 일정은 포함되지 않음 (BR-06) | — |
 | 5 | — | 캘린더 날짜 셀에 일정 제목 표시 | — |
 | 6 | 특정 일정을 클릭한다 | `GET /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송 | `GET /api/teams/[teamId]/schedules/[scheduleId]` |
 | 7 | — | 일정 상세 팝업 표시 (title, description, startAt, endAt) | — |
-| 8 | [이전 달] 또는 [다음 달] 버튼을 클릭한다 | 해당 월로 파라미터를 변경하여 `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` 재요청 | `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` |
+| 8 | [이전 달] 또는 [다음 달] 버튼을 클릭한다 | 해당 월로 파라미터를 변경하여 `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재요청 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` |
 
 ### 결과
 - 선택한 팀의 해당 월 일정 전체가 캘린더에 표시된다
@@ -203,7 +260,7 @@
 | 3 | [저장] 버튼을 클릭한다 | `POST /api/teams/[teamId]/schedules` 요청 전송 (body: title, description, startAt, endAt) | `POST /api/teams/[teamId]/schedules` |
 | 4 | — | 서버가 LEADER 권한 검증 후 Schedule 레코드 생성 (createdBy: 현재 사용자 id). startAt < endAt 서버 측 재검증 | — |
 | 5 | — | 응답 201 Created (body: scheduleId, title, startAt, endAt) | — |
-| 6 | — | 캘린더 뷰 갱신. 새로 추가된 일정이 해당 날짜 셀에 표시됨 | `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` 재조회 |
+| 6 | — | 캘린더 뷰 갱신. 새로 추가된 일정이 해당 날짜 셀에 표시됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
 
 ### 결과
 - Schedule 레코드가 DB에 생성된다
@@ -236,7 +293,7 @@
 | 4 | [저장] 버튼을 클릭한다 | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송 (body: 변경된 필드) | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` |
 | 5 | — | 서버가 LEADER 권한 검증 후 Schedule 레코드 업데이트. startAt < endAt 서버 측 재검증 | — |
 | 6 | — | 응답 200 OK | — |
-| 7 | — | 캘린더 뷰 갱신. 수정된 일정 내용이 반영됨 | `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` 재조회 |
+| 7 | — | 캘린더 뷰 갱신. 수정된 일정 내용이 반영됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
 
 ### 결과
 - Schedule 레코드가 변경된 값으로 업데이트된다
@@ -339,7 +396,7 @@
 | # | 사용자 행동 | 시스템 반응 | API |
 |---|------------|-------------|-----|
 | 1 | 팀 메인 화면(S-05)에 진입한다 | 화면 좌측에 캘린더 뷰, 우측에 채팅 영역이 동시에 렌더링됨 (분할 레이아웃) | — |
-| 2 | — | 초기 로드 시 오늘 날짜가 캘린더에서 선택 상태로 표시되며, 우측 채팅 영역에는 오늘 날짜 메시지가 로드됨 | `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM`, `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` (병렬 요청) |
+| 2 | — | 초기 로드 시 오늘 날짜가 캘린더에서 선택 상태로 표시되며, 우측 채팅 영역에는 오늘 날짜 메시지가 로드됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD`, `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` (병렬 요청) |
 | 3 | 캘린더에서 다른 날짜(예: 3일 후)를 클릭한다 | 클라이언트 전역 상태(Zustand)에서 `selectedDate` 업데이트 | — |
 | 4 | — | `selectedDate` 변경을 감지하여 채팅 영역이 `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` 재요청 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
 | 5 | — | 우측 채팅 영역이 선택된 날짜의 메시지 목록으로 갱신됨. 캘린더는 유지된 상태 | — |
@@ -350,7 +407,7 @@
 | # | 사용자 행동 | 시스템 반응 | API |
 |---|------------|-------------|-----|
 | 1 | 팀 메인 화면(S-05)에 모바일로 진입한다 | 화면 상단에 [캘린더] / [채팅] 탭이 표시됨. 기본 탭은 [캘린더] | — |
-| 2 | — | [캘린더] 탭 활성 상태에서 `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` 요청 발생. 캘린더 뷰 렌더링 | `GET /api/teams/[teamId]/schedules?year=YYYY&month=MM` |
+| 2 | — | [캘린더] 탭 활성 상태에서 `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 요청 발생. 캘린더 뷰 렌더링 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` |
 | 3 | 캘린더에서 특정 날짜를 클릭한다 | 클라이언트 전역 상태(Zustand)에서 `selectedDate` 업데이트 | — |
 | 4 | [채팅] 탭을 클릭하여 채팅 화면으로 전환한다 | 채팅 탭 활성화. `selectedDate` 기준으로 `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` 요청 발생 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
 | 5 | — | 채팅 영역에 선택된 날짜의 메시지 목록 표시. 탭 상단에 현재 조회 중인 날짜 명시 | — |
@@ -381,28 +438,18 @@
 | SC-01 | POST | `/api/auth/login` | 로그인 |
 | SC-01 | POST | `/api/auth/refresh` | Access Token 재발급 |
 | SC-02 | POST | `/api/teams` | 팀 생성 |
-| SC-02 | GET | `/api/teams` | 팀 목록 조회 |
-| SC-02 | POST | `/api/teams/[teamId]/invitations` | 팀원 초대 |
-| SC-02 | GET | `/api/teams/[teamId]/invitations` | 초대 목록 조회 |
-| SC-03 | GET | `/api/invitations/[invitationId]` | 초대 상세 조회 |
-| SC-03 | PATCH | `/api/invitations/[invitationId]` | 초대 수락/거절 |
-| SC-04 | GET | `/api/teams/[teamId]/schedules?year=YYYY&month=MM` | 월간 일정 조회 |
+| SC-02B | GET | `/api/teams/public` | 공개 팀 목록 조회 (팀 탐색) |
+| SC-02B | POST | `/api/teams/[teamId]/join-requests` | 팀 가입 신청 제출 |
+| SC-02C | GET | `/api/me/tasks` | 나의 할 일 목록 (전체 팀 PENDING 신청) |
+| SC-02C | GET | `/api/teams/[teamId]/join-requests` | 특정 팀의 PENDING 가입 신청 목록 |
+| SC-02C | PATCH | `/api/teams/[teamId]/join-requests/[requestId]` | 가입 신청 승인/거절 |
+| SC-04 | GET | `/api/teams` | 내 팀 목록 조회 |
+| SC-04 | GET | `/api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` | 월간 일정 조회 |
 | SC-04, SC-05, SC-06 | GET | `/api/teams/[teamId]/schedules/[scheduleId]` | 일정 상세 조회 |
 | SC-05 | POST | `/api/teams/[teamId]/schedules` | 일정 생성 |
 | SC-06 | PATCH | `/api/teams/[teamId]/schedules/[scheduleId]` | 일정 수정 |
+| SC-03 | DELETE | `/api/teams/[teamId]/schedules/[scheduleId]` | 일정 삭제 |
 | SC-07, SC-08, SC-09 | GET | `/api/teams/[teamId]/messages?date=YYYY-MM-DD` | 날짜별 채팅 조회 (폴링) |
 | SC-07, SC-08 | POST | `/api/teams/[teamId]/messages` | 채팅 메시지 전송 |
 
 ---
-
-## 부록: 권한 매트릭스
-
-| 시나리오 | LEADER | MEMBER | 위반 시 응답 |
-|----------|:------:|:------:|--------------|
-| 일정 생성 (SC-05) | O | X | 403 Forbidden |
-| 일정 수정 (SC-06) | O | X | 403 Forbidden |
-| 일정 삭제 | O | X | 403 Forbidden |
-| 팀원 초대 (SC-02) | O | X | 403 Forbidden |
-| 일정/채팅 조회 (SC-04, SC-07) | O | O | — |
-| 채팅 전송 (SC-07) | O | O | — |
-| SCHEDULE_REQUEST 전송 (SC-08) | O | O | — |

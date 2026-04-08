@@ -5,6 +5,7 @@
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
+| 1.1 | 2026-04-08 | TeamInvitation → TeamJoinRequest 전면 반영: DB 스키마, 쿼리 파일, API 엔드포인트, 프론트엔드 화면·훅, E2E 시나리오 전수 갱신 |
 
 ---
 
@@ -28,7 +29,7 @@ DB-01 (초기세팅)
        └─ DB-03 (schema.sql)
             └─ DB-04 (userQueries)
             └─ DB-05 (teamQueries)
-            └─ DB-06 (invitationQueries)
+            └─ DB-06 (joinRequestQueries)
             └─ DB-07 (scheduleQueries)
             └─ DB-08 (chatQueries)
 
@@ -107,11 +108,11 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] `db/schema.sql` 생성
 - [ ] `users` 테이블: id(UUID PK), email(UNIQUE), name(VARCHAR 50), password_hash, created_at
 - [ ] `teams` 테이블: id(UUID PK), name(VARCHAR 100), leader_id(FK→users), created_at
-- [ ] `team_members` 테이블: (team_id, user_id) 복합 PK, role ENUM('LEADER','MEMBER'), joined_at
-- [ ] `team_invitations` 테이블: id(UUID PK), team_id(FK), inviter_id(FK→users), invitee_email, status ENUM, invited_at, responded_at
+- [ ] `team_members` 테이블: (team_id, user_id) 복합 PK, role ENUM('LEADER','MEMBER'), created_at
+- [ ] `team_join_requests` 테이블: id(UUID PK), team_id(FK), requester_id(FK→users), status ENUM('PENDING','APPROVED','REJECTED'), requested_at, responded_at
 - [ ] `schedules` 테이블: id(UUID PK), team_id(FK), title(VARCHAR 200), description, start_at, end_at, CHECK(end_at > start_at), created_by(FK→users), created_at, updated_at
 - [ ] `chat_messages` 테이블: id(UUID PK), team_id(FK), sender_id(FK→users), type ENUM('NORMAL','SCHEDULE_REQUEST'), content(TEXT 2000자), sent_at, created_at
-- [ ] 인덱스: `users(email)`, `team_members(user_id)`, `team_invitations(team_id, invitee_email, status)`, `schedules(team_id, start_at, end_at)`, `chat_messages(team_id, sent_at DESC)`
+- [ ] 인덱스: `users(email)`, `team_members(user_id)`, `team_join_requests(team_id, status)`, `team_join_requests(requester_id)`, `schedules(team_id, start_at, end_at)`, `chat_messages(team_id, sent_at DESC)`
 - [ ] PostgreSQL에 실행 (`psql -f db/schema.sql`)
 
 **완료 조건**:
@@ -131,7 +132,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 |------|------|-----------|
 | DB-04 | `lib/db/queries/userQueries.ts` | createUser, getUserByEmail, getUserById |
 | DB-05 | `lib/db/queries/teamQueries.ts` | createTeam, getTeamById, getUserTeams, addTeamMember, getUserTeamRole |
-| DB-06 | `lib/db/queries/invitationQueries.ts` | createInvitation, getInvitationById, updateInvitationStatus, getPendingInvitation |
+| DB-06 | `lib/db/queries/joinRequestQueries.ts` | createJoinRequest, getJoinRequestById, getPendingJoinRequestsByTeam, getPendingJoinRequestsByLeader, updateJoinRequestStatus |
 | DB-07 | `lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, updateSchedule, deleteSchedule |
 | DB-08 | `lib/db/queries/chatQueries.ts` | createChatMessage, getMessagesByDate (KST 기준), getMessagesByTeam |
 
@@ -228,8 +229,8 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 ---
 
-#### BE-08 ~ BE-10. 팀·초대 API 구현
-**설명**: 팀 목록/생성/상세 + 초대 생성/조회/수락·거절
+#### BE-08 ~ BE-10. 팀·가입 신청 API 구현
+**설명**: 팀 목록/생성/상세 + 공개 팀 목록 + 가입 신청 제출/조회/승인·거절 + 나의 할 일
 **예상 소요**: 4시간
 **의존성**:
 - [ ] BE-05, BE-06, DB-05, DB-06
@@ -238,17 +239,21 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 |-----------|------|
 | GET /api/teams | `app/api/teams/route.ts` |
 | POST /api/teams | `app/api/teams/route.ts` |
+| GET /api/teams/public | `app/api/teams/public/route.ts` |
 | GET /api/teams/:teamId | `app/api/teams/[teamId]/route.ts` |
-| POST /api/teams/:teamId/invitations | `app/api/teams/[teamId]/invitations/route.ts` |
-| GET /api/invitations/:invitationId | `app/api/invitations/[invitationId]/route.ts` |
-| PATCH /api/invitations/:invitationId | `app/api/invitations/[invitationId]/route.ts` |
+| POST /api/teams/:teamId/join-requests | `app/api/teams/[teamId]/join-requests/route.ts` |
+| GET /api/teams/:teamId/join-requests | `app/api/teams/[teamId]/join-requests/route.ts` |
+| PATCH /api/teams/:teamId/join-requests/:requestId | `app/api/teams/[teamId]/join-requests/[requestId]/route.ts` |
+| GET /api/me/tasks | `app/api/me/tasks/route.ts` |
 
 **완료 조건**:
 - [ ] GET /teams: myRole 포함, 소속 팀만 반환
 - [ ] POST /teams: 생성자 자동 LEADER 등록, 201
+- [ ] GET /teams/public: 전체 팀 목록(팀명, 구성원 수) 반환
 - [ ] GET /teams/:id: members 배열 포함, 비소속 403
-- [ ] POST invitations: LEADER 전용, 중복 409
-- [ ] PATCH invitations: ACCEPT 시 team_members 등록, 200
+- [ ] POST join-requests: 중복 신청 409, PENDING 생성 201
+- [ ] PATCH join-requests: APPROVE 시 team_members(MEMBER) 원자적 등록, 200
+- [ ] GET /me/tasks: 내가 LEADER인 팀들의 PENDING 신청 전체 조회
 
 ---
 
@@ -268,13 +273,13 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 |-----------|------|
 | GET /api/teams/:teamId/schedules | `app/api/teams/[teamId]/schedules/route.ts` |
 | POST /api/teams/:teamId/schedules | `app/api/teams/[teamId]/schedules/route.ts` |
-| PUT /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
+| PATCH /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
 | DELETE /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
 
 **완료 조건**:
 - [ ] GET: `?view=month|week|day&date=YYYY-MM-DD` 파라미터로 KST 기준 범위 조회
 - [ ] POST: LEADER 전용, `startAt < endAt` 검증, 201
-- [ ] PUT: 부분 수정 지원, MEMBER 403
+- [ ] PATCH: 부분 수정 지원, MEMBER 403
 - [ ] DELETE: LEADER 전용, 비존재 404
 
 ---
@@ -357,7 +362,8 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] `hooks/query/useTeams.ts`: 팀 목록/상세/생성 useQuery+useMutation
 - [ ] `hooks/query/useSchedules.ts`: 일정 조회/CRUD useQuery+useMutation
 - [ ] `hooks/query/useMessages.ts`: 메시지 조회(refetchInterval:3000 폴링)/전송
-- [ ] `hooks/query/useInvitations.ts`: 초대 조회/수락·거절
+- [ ] `hooks/query/useJoinRequests.ts`: 가입 신청 제출/조회/승인·거절
+- [ ] `hooks/query/useMyTasks.ts`: 나의 할 일(PENDING 신청 전체 조회)
 - [ ] `hooks/useBreakpoint.ts`: isMobile(640px 미만) / isDesktop(1024px 이상)
 
 **완료 조건**:
@@ -386,9 +392,9 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 ---
 
-#### FE-04. 팀 목록 + 팀 생성 화면
-**설명**: S-03 팀 목록, S-04 팀 생성
-**예상 소요**: 1.5시간
+#### FE-04. 팀 목록 + 팀 생성 + 팀 탐색 화면
+**설명**: S-03 팀 목록, S-04 팀 생성, S-04B 팀 공개 목록(탐색)
+**예상 소요**: 2시간
 **의존성**:
 - [ ] FE-02, FE-03
 
@@ -397,10 +403,13 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] `components/team/TeamList.tsx`, `TeamCard.tsx`
 - [ ] `app/(main)/teams/new/page.tsx`: 팀명 입력 → 팀 생성 → `/teams/[newTeamId]` 리다이렉트
 - [ ] `components/team/TeamCreateForm.tsx`
+- [ ] `app/(main)/teams/explore/page.tsx`: 공개 팀 목록(팀명, 구성원 수) + 가입 신청 버튼
+- [ ] `components/team/TeamExploreList.tsx`
 
 **완료 조건**:
 - [ ] 팀 목록 렌더링 및 클릭 이동 확인
 - [ ] 팀 생성 후 팀 메인 화면으로 이동 확인
+- [ ] 팀 탐색 화면에서 가입 신청 → 201 확인
 
 ---
 
@@ -470,8 +479,8 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 ---
 
-#### FE-08. 일정 폼 + 초대 화면
-**설명**: 일정 상세/생성/수정 + 팀원 초대 + 초대 수락·거절
+#### FE-08. 일정 폼 + 나의 할 일 화면
+**설명**: 일정 상세/생성/수정 + 나의 할 일(가입 신청 승인/거절)
 **예상 소요**: 2시간
 **의존성**:
 - [ ] FE-02, FE-04
@@ -479,12 +488,12 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 **작업 내용**:
 - [ ] `components/schedule/ScheduleForm.tsx`: 제목·설명·시작/종료 입력, LEADER만 표시
 - [ ] `components/schedule/ScheduleDetailModal.tsx`: 일정 상세 팝업
-- [ ] `app/(main)/teams/[teamId]/invite/page.tsx` + `components/team/TeamInviteForm.tsx`
-- [ ] `app/(main)/invitations/[invitationId]/page.tsx`: 초대 정보 + [수락]/[거절]
+- [ ] `app/(main)/me/tasks/page.tsx` + `components/team/JoinRequestActions.tsx`: 나의 할 일 — PENDING 신청 목록, 승인/거절 버튼
+- [ ] 승인 처리: `PATCH /api/teams/[teamId]/join-requests/[requestId]` (action: "APPROVE")
 
 **완료 조건**:
 - [ ] MEMBER에게 일정 생성/수정/삭제 버튼 미표시
-- [ ] 초대 수락 시 `/teams/[teamId]`로 리다이렉트
+- [ ] 가입 신청 승인 시 TeamMember(MEMBER) 원자적 등록, 목록에서 제거
 - [ ] `startAt < endAt` 클라이언트 검증 동작
 
 ---
@@ -502,7 +511,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] Refresh Token 만료 시 authStore 초기화 → `/login` 리다이렉트
 
 **완료 조건**:
-- [ ] MEMBER 계정으로 로그인 시 [일정 추가], [팀원 초대] 버튼 미표시
+- [ ] MEMBER 계정으로 로그인 시 [일정 추가] 버튼 미표시
 - [ ] Access Token 만료 후 자동 갱신, 재요청 성공
 
 ---
@@ -534,10 +543,11 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 **작업 내용**:
 - [ ] **SC-01**: 회원가입 → 로그인 → 팀 목록 진입
-- [ ] **SC-02/03**: 팀 생성 → 팀원 초대 → 초대 수락 → 팀 합류
-- [ ] **SC-04/05**: 팀 일정 조회 (월/주/일) → 일정 추가·수정·삭제
+- [ ] **SC-02/SC-02B/SC-02C**: 팀 생성 → 팀 탐색/가입 신청 → 팀장 승인 → 팀 합류
+- [ ] **SC-04/SC-05**: 팀 일정 조회 (월/주/일) → 일정 추가·수정·삭제
+- [ ] **SC-03**: LEADER로 일정 삭제 → 캘린더에서 제거 확인
 - [ ] **SC-06**: MEMBER 계정으로 일정 수정 시도 → 버튼 미노출 확인
-- [ ] **SC-07/08**: 채팅 메시지 전송 → 3초 폴링 갱신 → SCHEDULE_REQUEST 전송
+- [ ] **SC-07/SC-08**: 채팅 메시지 전송 → 3초 폴링 갱신 → SCHEDULE_REQUEST 전송
 - [ ] **SC-09**: 캘린더 날짜 선택 → 채팅 날짜 연동 (데스크탑/모바일)
 
 **완료 조건**:
@@ -593,6 +603,8 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 | FE-10 | FE-07~09 |
 | FE-11 | FE-10 |
 | FE-12 | FE-11 |
+
+> 참고: BE-08~10은 팀 CRUD + 가입 신청(join-requests) + 나의 할 일 API를 포함합니다. FE-08은 일정 폼 + 나의 할 일 화면을 포함합니다.
 
 ---
 

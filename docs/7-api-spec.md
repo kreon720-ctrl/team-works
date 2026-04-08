@@ -5,6 +5,7 @@
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
+| 1.1 | 2026-04-08 | 섹션 4(Invitations) 전면 제거 → 섹션 4(Join Requests)로 교체. GET /api/teams/public, POST /api/teams/:teamId/join-requests, GET /api/teams/:teamId/join-requests, PATCH /api/teams/:teamId/join-requests/:requestId, GET /api/me/tasks 추가. 엔드포인트 요약 테이블 갱신 |
 
 ---
 
@@ -220,7 +221,7 @@ Authorization: Bearer <accessToken>
 
 ### GET /api/teams
 
-**설명**: 현재 로그인한 사용자가 속한 팀 목록을 조회합니다.
+**설명**: 현재 로그인한 사용자가 속한 팀 목록을 조회합니다. 공개 탐색용 전체 팀 목록은 `GET /api/teams/public`을 사용합니다.
 **인증**: 필요
 **권한**: LEADER·MEMBER 모두
 
@@ -273,7 +274,7 @@ Authorization: Bearer <accessToken>
 |-----------|-------------|------|
 | 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
 
-**비즈니스 규칙**: BR-01, BR-06, FR-02-6
+**비즈니스 규칙**: BR-01, BR-06, FR-02-9
 
 ---
 
@@ -324,6 +325,68 @@ Authorization: Bearer <accessToken>
 | 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
 
 **비즈니스 규칙**: BR-01, BR-03, FR-02-1
+
+---
+
+### GET /api/teams/public
+
+**설명**: 로그인한 모든 사용자가 가입을 고려하기 위해 전체 공개 팀 목록을 조회합니다. 각 팀의 현재 구성원 수를 포함합니다. 팀명 오름차순으로 정렬되며 최대 100개까지 반환합니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (로그인한 모든 사용자)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters: 없음
+- Query Parameters: 없음
+- Body: 없음
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{
+  "teams": [
+    {
+      "id": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+      "name": "개발팀",
+      "leaderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "leaderName": "홍길동",
+      "memberCount": 5,
+      "createdAt": "2026-04-01T00:00:00.000Z"
+    },
+    {
+      "id": "c2d3e4f5-a6b7-8901-cdef-ab2345678901",
+      "name": "디자인팀",
+      "leaderId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
+      "leaderName": "이영희",
+      "memberCount": 3,
+      "createdAt": "2026-04-03T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | string | 팀 UUID |
+| name | string | 팀 이름 |
+| leaderId | string | 팀장 사용자 UUID |
+| leaderName | string | 팀장 표시 이름 |
+| memberCount | number | 현재 팀 구성원 수 (LEADER + MEMBER 합산) |
+| createdAt | string | 팀 생성 일시 (UTC ISO 8601) |
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+
+**비즈니스 규칙**: BR-01, BR-07, FR-02-2
 
 ---
 
@@ -389,15 +452,15 @@ Authorization: Bearer <accessToken>
 
 ---
 
-## 4. Invitations (팀 초대)
+## 4. Join Requests (팀 가입 신청)
 
 ---
 
-### POST /api/teams/:teamId/invitations
+### POST /api/teams/:teamId/join-requests
 
-**설명**: 팀장이 이메일로 신규 팀원을 초대합니다. `TeamInvitation` 레코드를 `PENDING` 상태로 생성합니다.
+**설명**: 로그인한 사용자가 특정 팀에 가입 신청을 제출합니다. `TeamJoinRequest` 레코드를 `PENDING` 상태로 생성하며, 해당 팀 팀장의 나의 할 일 목록에 자동으로 표시됩니다.
 **인증**: 필요
-**권한**: LEADER만
+**권한**: LEADER·MEMBER 모두 (로그인한 모든 사용자, 단 해당 팀의 구성원이 아닌 경우에 한함)
 
 **Request**
 
@@ -409,19 +472,9 @@ Authorization: Bearer <accessToken>
 
 | 파라미터 | 타입 | 설명 |
 |----------|------|------|
-| teamId | string (UUID) | 초대를 발송할 팀의 UUID |
+| teamId | string (UUID) | 가입 신청할 팀의 UUID |
 
-- Body:
-
-```json
-{
-  "inviteeEmail": "newmember@example.com"
-}
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| inviteeEmail | string | O | 초대할 사용자의 이메일 주소 |
+- Body: 없음 (신청자는 인증 토큰에서 추출)
 
 **Response**
 
@@ -431,44 +484,56 @@ Authorization: Bearer <accessToken>
 {
   "id": "e5f6a7b8-c9d0-1234-efab-cd5678901234",
   "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
-  "inviteeEmail": "newmember@example.com",
+  "teamName": "개발팀",
+  "requesterId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
   "status": "PENDING",
-  "invitedAt": "2026-04-07T09:00:00.000Z",
+  "requestedAt": "2026-04-08T09:00:00.000Z",
   "respondedAt": null
 }
 ```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | string | 가입 신청 UUID |
+| teamId | string | 신청 대상 팀 UUID |
+| teamName | string | 신청 대상 팀 이름 |
+| requesterId | string | 신청자 사용자 UUID |
+| status | string | 신청 상태: 항상 `PENDING` |
+| requestedAt | string | 신청 일시 (UTC ISO 8601) |
+| respondedAt | string \| null | 응답 일시. 신청 직후 `null` |
 
 - 실패:
 
 | 상태 코드 | 에러 메시지 | 원인 |
 |-----------|-------------|------|
-| 400 | "이메일 형식이 올바르지 않습니다." | inviteeEmail 유효성 검증 실패 |
-| 400 | "초대할 이메일 주소는 필수입니다." | inviteeEmail 누락 |
 | 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
-| 403 | "팀장만 팀원을 초대할 수 있습니다." | 요청자의 역할이 MEMBER (BR-03) |
 | 404 | "팀을 찾을 수 없습니다." | 존재하지 않는 teamId |
-| 409 | "이미 해당 팀의 구성원입니다." | 피초대자가 이미 team_members에 존재 (FR-02-5) |
-| 409 | "이미 PENDING 상태의 초대가 존재합니다." | 동일 팀에 동일 이메일로 PENDING 초대가 이미 있음 (FR-02-5) |
+| 409 | "이미 해당 팀의 구성원입니다." | 요청자가 이미 team_members에 존재 (FR-02-4) |
+| 409 | "이미 가입 신청이 진행 중입니다." | 동일 팀에 동일 사용자의 PENDING 신청이 이미 존재 (FR-02-5) |
 
-**비즈니스 규칙**: BR-01, BR-03, FR-02-2, FR-02-5
+**비즈니스 규칙**: BR-01, BR-07, FR-02-3, FR-02-4, FR-02-5
 
 ---
 
-### GET /api/invitations/:invitationId
+### GET /api/teams/:teamId/join-requests
 
-**설명**: 초대 링크를 통해 초대 상세 정보를 조회합니다. 피초대자가 수락/거절 전에 초대 내용을 확인하는 용도입니다.
-**인증**: 불필요
-**권한**: 없음
+**설명**: 특정 팀의 PENDING 상태 가입 신청 목록을 조회합니다. 팀장(LEADER)만 접근할 수 있으며, 나의 할 일 화면에서 팀별로 신청을 확인하는 용도로 사용됩니다.
+**인증**: 필요
+**권한**: LEADER만 (해당 팀의 팀장)
 
 **Request**
 
-- Headers: 없음
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
 - Path Parameters:
 
 | 파라미터 | 타입 | 설명 |
 |----------|------|------|
-| invitationId | string (UUID) | 조회할 초대의 UUID |
+| teamId | string (UUID) | 조회할 팀의 UUID |
 
+- Query Parameters: 없음
 - Body: 없음
 
 **Response**
@@ -477,66 +542,92 @@ Authorization: Bearer <accessToken>
 
 ```json
 {
-  "id": "e5f6a7b8-c9d0-1234-efab-cd5678901234",
   "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
   "teamName": "개발팀",
-  "inviteeEmail": "newmember@example.com",
-  "status": "PENDING",
-  "invitedAt": "2026-04-07T09:00:00.000Z",
-  "respondedAt": null
+  "joinRequests": [
+    {
+      "id": "e5f6a7b8-c9d0-1234-efab-cd5678901234",
+      "requesterId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
+      "requesterName": "김철수",
+      "requesterEmail": "kimcs@example.com",
+      "status": "PENDING",
+      "requestedAt": "2026-04-08T09:00:00.000Z",
+      "respondedAt": null
+    }
+  ]
 }
 ```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| teamId | string | 팀 UUID |
+| teamName | string | 팀 이름 |
+| joinRequests | array | PENDING 상태 가입 신청 배열 (`requestedAt` 오름차순 정렬) |
+| joinRequests[].id | string | 가입 신청 UUID |
+| joinRequests[].requesterId | string | 신청자 UUID |
+| joinRequests[].requesterName | string | 신청자 표시 이름 |
+| joinRequests[].requesterEmail | string | 신청자 이메일 |
+| joinRequests[].status | string | 신청 상태: `PENDING` |
+| joinRequests[].requestedAt | string | 신청 일시 (UTC ISO 8601) |
+| joinRequests[].respondedAt | string \| null | 응답 일시. PENDING 상태에서 항상 `null` |
 
 - 실패:
 
 | 상태 코드 | 에러 메시지 | 원인 |
 |-----------|-------------|------|
-| 404 | "초대를 찾을 수 없습니다." | 존재하지 않는 invitationId |
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "팀장만 가입 신청 목록을 조회할 수 있습니다." | 요청자의 역할이 MEMBER 또는 해당 팀 구성원이 아님 |
+| 404 | "팀을 찾을 수 없습니다." | 존재하지 않는 teamId |
 
-**비즈니스 규칙**: BR-03, FR-02-3
+**비즈니스 규칙**: BR-01, BR-03, FR-02-6
 
 ---
 
-### PATCH /api/invitations/:invitationId
+### PATCH /api/teams/:teamId/join-requests/:requestId
 
-**설명**: 피초대자가 초대를 수락 또는 거절합니다. 수락 시 `team_members`에 MEMBER로 등록되고 `status`가 `ACCEPTED`로 갱신됩니다.
-**인증**: 불필요
-**권한**: 없음
+**설명**: 팀장이 PENDING 상태의 가입 신청을 승인(APPROVE) 또는 거절(REJECT)합니다. 승인 시 `team_members`에 MEMBER로 원자적 등록되고 `status`가 `APPROVED`로 갱신됩니다.
+**인증**: 필요
+**권한**: LEADER만 (해당 팀의 팀장)
 
 **Request**
 
-- Headers: 없음
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
 - Path Parameters:
 
 | 파라미터 | 타입 | 설명 |
 |----------|------|------|
-| invitationId | string (UUID) | 응답할 초대의 UUID |
+| teamId | string (UUID) | 소속 팀 UUID |
+| requestId | string (UUID) | 처리할 가입 신청 UUID |
 
 - Body:
 
 ```json
 {
-  "action": "ACCEPT"
+  "action": "APPROVE"
 }
 ```
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| action | string | O | `ACCEPT` 또는 `REJECT` |
+| action | string | O | `APPROVE` 또는 `REJECT` |
 
 **Response**
 
-- 성공 (수락): `200 OK`
+- 성공 (승인): `200 OK`
 
 ```json
 {
   "id": "e5f6a7b8-c9d0-1234-efab-cd5678901234",
   "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
   "teamName": "개발팀",
-  "inviteeEmail": "newmember@example.com",
-  "status": "ACCEPTED",
-  "invitedAt": "2026-04-07T09:00:00.000Z",
-  "respondedAt": "2026-04-07T09:05:00.000Z"
+  "requesterId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
+  "requesterName": "김철수",
+  "status": "APPROVED",
+  "requestedAt": "2026-04-08T09:00:00.000Z",
+  "respondedAt": "2026-04-08T09:10:00.000Z"
 }
 ```
 
@@ -547,10 +638,11 @@ Authorization: Bearer <accessToken>
   "id": "e5f6a7b8-c9d0-1234-efab-cd5678901234",
   "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
   "teamName": "개발팀",
-  "inviteeEmail": "newmember@example.com",
+  "requesterId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
+  "requesterName": "김철수",
   "status": "REJECTED",
-  "invitedAt": "2026-04-07T09:00:00.000Z",
-  "respondedAt": "2026-04-07T09:05:00.000Z"
+  "requestedAt": "2026-04-08T09:00:00.000Z",
+  "respondedAt": "2026-04-08T09:10:00.000Z"
 }
 ```
 
@@ -558,14 +650,91 @@ Authorization: Bearer <accessToken>
 
 | 상태 코드 | 에러 메시지 | 원인 |
 |-----------|-------------|------|
-| 400 | "action은 ACCEPT 또는 REJECT이어야 합니다." | 허용되지 않는 action 값 |
+| 400 | "action은 APPROVE 또는 REJECT이어야 합니다." | 허용되지 않는 action 값 |
 | 400 | "action은 필수입니다." | action 필드 누락 |
-| 400 | "이미 처리된 초대입니다." | status가 이미 ACCEPTED 또는 REJECTED |
-| 404 | "초대를 찾을 수 없습니다." | 존재하지 않는 invitationId |
+| 400 | "이미 처리된 가입 신청입니다." | status가 이미 APPROVED 또는 REJECTED |
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "팀장만 가입 신청을 처리할 수 있습니다." | 요청자의 역할이 MEMBER 또는 해당 팀 구성원이 아님 |
+| 404 | "팀을 찾을 수 없습니다." | 존재하지 않는 teamId |
+| 404 | "가입 신청을 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 requestId |
 
-**비즈니스 규칙**: BR-03, FR-02-3, FR-02-4
+**비즈니스 규칙**: BR-01, BR-03, FR-02-7
 
-> 참고: `action=ACCEPT` 처리 시 서버에서 원자적으로 `team_invitations.status = ACCEPTED` + `team_members(role=MEMBER)` 등록이 이루어집니다.
+> 참고: `action=APPROVE` 처리 시 서버에서 원자적으로 `team_join_requests.status = APPROVED` + `team_members(role=MEMBER)` 등록이 이루어집니다.
+
+---
+
+### GET /api/me/tasks
+
+**설명**: 현재 로그인한 사용자가 LEADER로 있는 **모든 팀**의 PENDING 가입 신청을 한 번에 조회합니다. 나의 할 일(My Tasks) 화면의 메인 데이터 소스입니다.
+**인증**: 필요
+**권한**: LEADER만 (MEMBER 역할만 가진 사용자는 빈 배열 반환)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters: 없음
+- Query Parameters: 없음
+- Body: 없음
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{
+  "totalPendingCount": 2,
+  "tasks": [
+    {
+      "id": "e5f6a7b8-c9d0-1234-efab-cd5678901234",
+      "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+      "teamName": "개발팀",
+      "requesterId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
+      "requesterName": "김철수",
+      "requesterEmail": "kimcs@example.com",
+      "status": "PENDING",
+      "requestedAt": "2026-04-08T09:00:00.000Z",
+      "respondedAt": null
+    },
+    {
+      "id": "f6a7b8c9-d0e1-2345-fabc-de6789012345",
+      "teamId": "c2d3e4f5-a6b7-8901-cdef-ab2345678901",
+      "teamName": "디자인팀",
+      "requesterId": "e5f6a7b8-c9d0-1234-efab-cd5678901234",
+      "requesterName": "박지수",
+      "requesterEmail": "parkjs@example.com",
+      "status": "PENDING",
+      "requestedAt": "2026-04-08T10:30:00.000Z",
+      "respondedAt": null
+    }
+  ]
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| totalPendingCount | number | 전체 PENDING 가입 신청 수 |
+| tasks | array | PENDING 가입 신청 배열 (`requestedAt` 오름차순 정렬) |
+| tasks[].id | string | 가입 신청 UUID |
+| tasks[].teamId | string | 신청 대상 팀 UUID |
+| tasks[].teamName | string | 신청 대상 팀 이름 |
+| tasks[].requesterId | string | 신청자 UUID |
+| tasks[].requesterName | string | 신청자 표시 이름 |
+| tasks[].requesterEmail | string | 신청자 이메일 |
+| tasks[].status | string | 신청 상태: `PENDING` |
+| tasks[].requestedAt | string | 신청 일시 (UTC ISO 8601) |
+| tasks[].respondedAt | string \| null | 응답 일시. PENDING 상태에서 항상 `null` |
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+
+**비즈니스 규칙**: BR-01, BR-03, FR-02-8
 
 ---
 
@@ -725,7 +894,7 @@ Authorization: Bearer <accessToken>
 
 ---
 
-### PUT /api/teams/:teamId/schedules/:scheduleId
+### PATCH /api/teams/:teamId/schedules/:scheduleId
 
 **설명**: 기존 팀 일정을 수정합니다. 팀장(LEADER)만 실행할 수 있습니다. 전달된 필드만 수정합니다.
 **인증**: 필요
@@ -1015,13 +1184,15 @@ Authorization: Bearer <accessToken>
 | POST | /api/auth/refresh | Access Token 재발급 | 불필요 | 없음 |
 | GET | /api/teams | 내 팀 목록 조회 | 필요 | LEADER·MEMBER |
 | POST | /api/teams | 팀 생성 | 필요 | LEADER·MEMBER |
-| GET | /api/teams/:teamId | 팀 상세 조회 | 필요 | LEADER·MEMBER |
-| POST | /api/teams/:teamId/invitations | 팀원 초대 | 필요 | LEADER만 |
-| GET | /api/invitations/:invitationId | 초대 정보 조회 | 불필요 | 없음 |
-| PATCH | /api/invitations/:invitationId | 초대 수락/거절 | 불필요 | 없음 |
+| GET | /api/teams/public | 공개 팀 목록 조회 (탐색) | 필요 | LEADER·MEMBER |
+| GET | /api/teams/:teamId | 팀 상세 조회 | 필요 | LEADER·MEMBER (팀 구성원) |
+| POST | /api/teams/:teamId/join-requests | 팀 가입 신청 제출 | 필요 | LEADER·MEMBER |
+| GET | /api/teams/:teamId/join-requests | 팀 PENDING 가입 신청 목록 조회 | 필요 | LEADER만 |
+| PATCH | /api/teams/:teamId/join-requests/:requestId | 가입 신청 승인/거절 | 필요 | LEADER만 |
+| GET | /api/me/tasks | 나의 할 일 목록 (전체 팀 PENDING 신청) | 필요 | LEADER만 |
 | GET | /api/teams/:teamId/schedules | 팀 일정 조회 | 필요 | LEADER·MEMBER |
 | POST | /api/teams/:teamId/schedules | 팀 일정 생성 | 필요 | LEADER만 |
-| PUT | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 수정 | 필요 | LEADER만 |
+| PATCH | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 수정 | 필요 | LEADER만 |
 | DELETE | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 삭제 | 필요 | LEADER만 |
 | GET | /api/teams/:teamId/messages | 채팅 메시지 조회 | 필요 | LEADER·MEMBER |
 | POST | /api/teams/:teamId/messages | 채팅 메시지 전송 | 필요 | LEADER·MEMBER |

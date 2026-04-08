@@ -5,6 +5,7 @@
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
+| 1.1 | 2026-04-08 | team_invitations 테이블 제거 → team_join_requests 테이블 추가. 관련 제약조건·인덱스·외래키 정보 갱신 |
 
 ---
 
@@ -34,13 +35,12 @@ erDiagram
         TIMESTAMP created_at "not null"
     }
 
-    team_invitations {
+    team_join_requests {
         UUID id PK "not null"
         UUID team_id FK "not null → teams.id"
-        UUID inviter_id FK "not null → users.id"
-        VARCHAR invitee_email "not null, 이메일 형식"
-        VARCHAR status "not null, PENDING | ACCEPTED | REJECTED, default PENDING"
-        TIMESTAMP invited_at "not null"
+        UUID requester_id FK "not null → users.id"
+        VARCHAR status "not null, PENDING | APPROVED | REJECTED, default PENDING"
+        TIMESTAMP requested_at "not null"
         TIMESTAMP responded_at "nullable"
     }
 
@@ -68,8 +68,8 @@ erDiagram
 
     users ||--o{ team_members : "소속"
     teams ||--o{ team_members : "구성"
-    users ||--o{ team_invitations : "초대"
-    teams ||--o{ team_invitations : "소속"
+    users ||--o{ team_join_requests : "신청"
+    teams ||--o{ team_join_requests : "수신"
     teams ||--o{ schedules : "보유"
     users ||--o{ schedules : "생성"
     teams ||--o{ chat_messages : "소속"
@@ -132,23 +132,22 @@ erDiagram
 
 ---
 
-### 2.4 team_invitations (팀 초대)
+### 2.4 team_join_requests (팀 가입 신청)
 
-팀장이 이메일로 발송하는 초대 레코드입니다. 피초대자가 수락 시 `team_members`에 MEMBER로 등록되고 `status`가 ACCEPTED로 갱신됩니다.
+로그인한 사용자가 원하는 팀에 가입 신청을 제출하면 생성되는 레코드입니다. 팀장이 승인(APPROVE)하면 `team_members`에 MEMBER로 원자적 등록되고 `status`가 APPROVED로 갱신됩니다. 거절(REJECT) 시 `status`만 REJECTED로 갱신되며 팀 합류는 발생하지 않습니다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |------|------|------|------|
-| id | UUID | PK, NOT NULL | 초대 고유 식별자 |
-| team_id | UUID | FK → teams.id, NOT NULL | 초대 대상 팀 |
-| inviter_id | UUID | FK → users.id, NOT NULL | 초대를 발송한 팀장 |
-| invitee_email | VARCHAR(255) | NOT NULL | 초대받은 이메일 주소 |
-| status | VARCHAR(20) | NOT NULL, DEFAULT 'PENDING' | 상태: `PENDING` \| `ACCEPTED` \| `REJECTED` |
-| invited_at | TIMESTAMP | NOT NULL | 초대 발송 일시 (UTC 저장) |
-| responded_at | TIMESTAMP | NULL | 수락/거절 일시 (UTC 저장), 응답 전 NULL |
+| id | UUID | PK, NOT NULL | 가입 신청 고유 식별자 |
+| team_id | UUID | FK → teams.id, NOT NULL | 가입을 신청한 대상 팀 |
+| requester_id | UUID | FK → users.id, NOT NULL | 가입을 신청한 사용자 |
+| status | VARCHAR(20) | NOT NULL, DEFAULT 'PENDING' | 상태: `PENDING` \| `APPROVED` \| `REJECTED` |
+| requested_at | TIMESTAMP | NOT NULL | 가입 신청 일시 (UTC 저장) |
+| responded_at | TIMESTAMP | NULL | 팀장이 승인/거절한 일시 (UTC 저장). 미처리 시 NULL |
 
 **인덱스 권장사항**
-- `CREATE INDEX idx_team_invitations_invitee_email ON team_invitations(invitee_email);` — 피초대자의 초대 목록 조회
-- `CREATE INDEX idx_team_invitations_team_id_status ON team_invitations(team_id, status);` — 팀별 PENDING 초대 조회 및 중복 초대 방지
+- `CREATE INDEX idx_team_join_requests_team_id_status ON team_join_requests(team_id, status);` — 팀별 PENDING 신청 조회 및 나의 할 일 목록 피드
+- `CREATE INDEX idx_team_join_requests_requester_id ON team_join_requests(requester_id);` — 특정 사용자의 신청 이력 조회 및 중복 신청 방지 검증
 
 ---
 
@@ -209,7 +208,7 @@ erDiagram
 |--------|-----------|------|
 | schedules | end_at > start_at | 일정 종료 시각은 시작 시각 이후여야 함 |
 | team_members | role IN ('LEADER', 'MEMBER') | 허용된 역할 값만 저장 |
-| team_invitations | status IN ('PENDING', 'ACCEPTED', 'REJECTED') | 허용된 상태 값만 저장 |
+| team_join_requests | status IN ('PENDING', 'APPROVED', 'REJECTED') | 허용된 상태 값만 저장 |
 | chat_messages | type IN ('NORMAL', 'SCHEDULE_REQUEST') | 허용된 메시지 유형만 저장 |
 
 ### 3.3 외래키 제약
@@ -219,8 +218,8 @@ erDiagram
 | teams | leader_id | users.id | RESTRICT |
 | team_members | team_id | teams.id | CASCADE |
 | team_members | user_id | users.id | CASCADE |
-| team_invitations | team_id | teams.id | CASCADE |
-| team_invitations | inviter_id | users.id | RESTRICT |
+| team_join_requests | team_id | teams.id | CASCADE |
+| team_join_requests | requester_id | users.id | RESTRICT |
 | schedules | team_id | teams.id | CASCADE |
 | schedules | created_by | users.id | RESTRICT |
 | chat_messages | team_id | teams.id | CASCADE |
@@ -231,9 +230,10 @@ erDiagram
 | 규칙 ID | 내용 | 적용 위치 |
 |---------|------|-----------|
 | BR-02 | 일정 생성·수정·삭제는 LEADER만 가능 | withTeamRole 미들웨어 |
-| BR-03 | 팀원 초대는 LEADER만 가능, 피초대자 수락 시 team_members 등록 | API Route 권한 검증 |
+| BR-03 | 가입 신청 승인·거절은 LEADER만 가능. 승인 시 team_members 원자적 등록 | API Route 권한 검증 |
 | BR-05 | 채팅 메시지는 sent_at 기준 KST 날짜로 그룹핑 조회 | chatQueries.ts (UTC→KST 변환) |
 | BR-06 | 일정·채팅은 team_id 기반 격리, 타 팀 데이터 접근 불가 | 모든 쿼리에 team_id WHERE 조건 필수 |
+| BR-07 | 동일 팀에 PENDING 신청이 이미 존재하거나 이미 구성원인 경우 가입 신청 불가 | JOIN REQUEST API 중복 검증 로직 |
 
 ---
 
@@ -244,4 +244,4 @@ erDiagram
 | 도메인 정의서 | docs/1-domain-definition.md |
 | PRD | docs/2-prd.md |
 | 유저 시나리오 | docs/3-user-scenarios.md |
-| 프로젝트 구조 설계 원칙 | docs/4-project-structure.md |
+| API 명세 | docs/7-api-spec.md |

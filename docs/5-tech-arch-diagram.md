@@ -5,6 +5,7 @@
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
+| 1.1 | 2026-04-08 | TeamInvitation → TeamJoinRequest 반영: 다이어그램 4, 5에서 invitations 관련 경로·쿼리 제거, join-requests 반영 |
 
 ---
 
@@ -76,19 +77,19 @@ sequenceDiagram
 graph TB
     subgraph Pages["화면 (App Router)"]
         Auth["(auth)\nlogin / signup"]
-        Main["(main)\nteams / invitations"]
+        Main["(main)\nteams / explore / me/tasks"]
     end
 
     subgraph Components["컴포넌트"]
         Schedule["schedule\nCalendarView\nScheduleForm"]
         Chat["chat\nChatPanel\nChatInput"]
-        Team["team\nTeamList\nTeamInviteForm"]
+        Team["team\nTeamList\nTeamExploreList"]
         Common["common\nButton / Modal"]
     end
 
     subgraph State["상태 관리"]
         Zustand["Zustand\nauthStore\nteamStore"]
-        TQ["TanStack Query\nuseSchedules\nuseMessages\nuseTeams"]
+        TQ["TanStack Query\nuseSchedules\nuseMessages\nuseTeams\nuseJoinRequests\nuseMyTasks"]
     end
 
     API["apiClient\nfetch 래퍼\nAuthorization 헤더 자동 주입"]
@@ -107,9 +108,10 @@ graph TB
 graph TB
     subgraph Routes["API Routes (app/api/)"]
         AuthR["/auth\nsignup / login / refresh"]
-        TeamR["/teams\nCRUD + invitations"]
+        TeamR["/teams\nCRUD + join-requests + public"]
         SchedR["/teams/teamId/schedules\nCRUD"]
         ChatR["/teams/teamId/messages\nGET / POST"]
+        TasksR["/me/tasks\nGET"]
     end
 
     subgraph Middleware["미들웨어 (lib/middleware/)"]
@@ -119,7 +121,7 @@ graph TB
 
     subgraph Queries["DB 쿼리 (lib/db/queries/)"]
         UQ["userQueries"]
-        TMQ["teamQueries\ninvitationQueries"]
+        TMQ["teamQueries\njoinRequestQueries"]
         SQ["scheduleQueries"]
         CQ["chatQueries\n(KST 날짜 그룹핑)"]
     end
@@ -133,6 +135,7 @@ graph TB
     TeamR --> TMQ
     SchedR --> SQ
     ChatR --> CQ
+    TasksR --> TMQ
     Queries --> Pool --> DB
 ```
 

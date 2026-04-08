@@ -6,6 +6,7 @@
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-07 | 추적성·검증성 보강, TeamInvitation 추가, 수락 조건 추가 |
+| 1.2 | 2026-04-08 | 팀 가입 신청(TeamJoinRequest) 방식으로 팀원 합류 흐름 전면 변경 — TeamInvitation 제거, TeamJoinRequest 추가, 나의 할 일(My Tasks) 개념 추가, 팀 공개 목록 조회 추가 |
 
 ---
 
@@ -74,15 +75,17 @@
 | userId | UUID | FK → User.id, not null |
 | role | Enum | `LEADER` \| `MEMBER`, not null |
 
-### 4.4 TeamInvitation (팀 초대)
+### 4.4 TeamJoinRequest (팀 가입 신청)
 | 속성 | 타입 | 제약 |
 |------|------|------|
 | id | UUID | PK, not null |
 | teamId | UUID | FK → Team.id, not null |
-| inviteeEmail | String | not null, 이메일 형식 |
-| status | Enum | `PENDING` \| `ACCEPTED` \| `REJECTED`, default: PENDING |
-| invitedAt | DateTime | not null |
-| respondedAt | DateTime | nullable |
+| requesterId | UUID | FK → User.id, not null — 가입을 신청한 사용자 |
+| status | Enum | `PENDING` \| `APPROVED` \| `REJECTED`, default: PENDING |
+| requestedAt | DateTime | not null — 신청 일시 (UTC) |
+| respondedAt | DateTime | nullable — 팀장이 승인/거절한 일시 (UTC) |
+
+> **규칙:** 이미 팀 구성원이거나 동일 팀에 PENDING 상태의 신청이 존재하는 경우 중복 신청 불가. APPROVED 처리 시 TeamMember(MEMBER)가 원자적으로 생성됨.
 
 ### 4.5 Schedule (팀 일정)
 | 속성 | 타입 | 제약 |
@@ -113,10 +116,13 @@
 
 | 기능 | 팀장 (LEADER) | 팀원 (MEMBER) | 관련 규칙 |
 |------|:---:|:---:|-----------|
+| 팀 공개 목록 조회 | O | O | BR-07 |
+| 팀 가입 신청 | O (타 팀에 대해) | O | BR-07 |
+| 가입 신청 승인/거절 | O (자기 팀에 대해) | X | BR-03 |
+| 나의 할 일 목록 조회 | O | X | BR-03 |
 | 팀 일정 조회 | O | O | BR-01 |
 | 팀 일정 생성 | O | X | BR-02 |
 | 팀 일정 수정/삭제 | O | X | BR-02 |
-| 팀원 초대 | O | X | BR-03 |
 | 채팅 송수신 | O | O | BR-01 |
 | 일정 변경 채팅 요청 | O | O | BR-04 |
 
@@ -128,10 +134,11 @@
 |----|------|
 | BR-01 | 모든 기능은 로그인한 사용자만 이용 가능 |
 | BR-02 | 팀 일정의 생성·수정·삭제는 팀장(LEADER)만 수행 가능 |
-| BR-03 | 팀원 초대는 팀장만 가능하며, 피초대자가 수락해야 팀에 합류 |
+| BR-03 | 팀 가입 신청의 승인·거절은 해당 팀의 팀장(LEADER)만 수행 가능. 승인 시 신청자는 TeamMember(MEMBER)로 등록 |
 | BR-04 | 팀원이 일정 변경을 원할 경우 SCHEDULE_REQUEST 타입 채팅으로 팀장에게 요청 |
 | BR-05 | 채팅 메시지는 sentAt 기준 날짜(KST)로 그룹핑하여 날짜별 조회 |
 | BR-06 | 일정과 채팅은 팀 내부에서만 공유되며 타 팀에 노출되지 않음 |
+| BR-07 | 로그인한 모든 사용자는 공개 팀 목록을 조회하고 원하는 팀에 가입 신청을 할 수 있음. 단, 이미 해당 팀의 구성원이거나 PENDING 상태의 신청이 존재하면 중복 신청 불가 |
 
 ---
 
@@ -140,7 +147,9 @@
 | ID | 유스케이스 | 주체 | 연관 규칙 |
 |----|-----------|------|-----------|
 | UC-01 | 회원가입 / 로그인 | 비인증 사용자 | - |
-| UC-02 | 팀 생성 및 팀원 초대 | 팀장 | BR-03 |
+| UC-02 | 팀 생성 | 팀장 | BR-01 |
+| UC-02B | 팀 공개 목록 조회 및 가입 신청 | 로그인 사용자 | BR-07 |
+| UC-02C | 가입 신청 승인/거절 (나의 할 일) | 팀장 | BR-03 |
 | UC-03 | 월·주·일 단위 팀 일정 조회 | 팀장, 팀원 | BR-01, BR-06 |
 | UC-04 | 팀 일정 추가·수정·삭제 | 팀장 | BR-01, BR-02 |
 | UC-05 | 날짜별 채팅 메시지 조회 | 팀장, 팀원 | BR-01, BR-05, BR-06 |
@@ -156,6 +165,28 @@
 - Given: 가입된 사용자가 올바른 자격증명 입력
 - When: 로그인 요청
 - Then: 인증 토큰 발급, 앱 진입 가능
+
+**UC-02B 팀 공개 목록 조회 및 가입 신청**
+- Given: 로그인한 사용자
+- When: 공개 팀 목록 조회
+- Then: 전체 팀 목록(팀명, 구성원 수 포함) 반환
+- Given: 로그인한 사용자, 아직 구성원이 아니고 PENDING 신청도 없는 팀
+- When: 가입 신청 요청
+- Then: 201 Created, TeamJoinRequest(PENDING) 생성
+- Given: 이미 해당 팀의 구성원이거나 PENDING 신청이 존재하는 사용자
+- When: 가입 신청 요청
+- Then: 409 Conflict
+
+**UC-02C 가입 신청 승인/거절**
+- Given: LEADER 권한의 인증된 사용자
+- When: PENDING 상태의 가입 신청에 대해 승인(APPROVE) 요청
+- Then: TeamJoinRequest.status → APPROVED, TeamMember(MEMBER) 원자적 등록
+- Given: LEADER 권한의 인증된 사용자
+- When: PENDING 상태의 가입 신청에 대해 거절(REJECT) 요청
+- Then: TeamJoinRequest.status → REJECTED, 팀 합류 미발생
+- Given: MEMBER 권한의 사용자
+- When: 승인/거절 시도
+- Then: 403 Forbidden
 
 **UC-04 팀 일정 추가·수정·삭제**
 - Given: LEADER 권한의 인증된 사용자, 유효한 startAt < endAt
@@ -177,9 +208,9 @@
 | 엔티티 | 생성 | 조회 | 수정 | 삭제 |
 |--------|------|------|------|------|
 | User | UC-01 | UC-01 | - | - |
-| Team | UC-02 | UC-03, UC-07 | - | - |
-| TeamMember | UC-02 | UC-03 | - | - |
-| TeamInvitation | UC-02 | UC-02 | UC-02 | - |
+| Team | UC-02 | UC-02B, UC-03, UC-07 | - | - |
+| TeamMember | UC-02, UC-02C | UC-03 | - | - |
+| TeamJoinRequest | UC-02B | UC-02C | UC-02C | - |
 | Schedule | UC-04 | UC-03, UC-07 | UC-04 | UC-04 |
 | ChatMessage | UC-05, UC-06 | UC-05, UC-07 | - | - |
 
@@ -201,6 +232,6 @@
 
 | 문서 | 경로 |
 |------|------|
-| ERD | docs/2-erd.md |
-| API 명세 | docs/3-api-spec.md |
-| 시퀀스 다이어그램 | docs/4-sequence.md |
+| ERD | docs/6-erd.md |
+| API 명세 | docs/7-api-spec.md |
+| 사용자 시나리오 | docs/3-user-scenarios.md |
