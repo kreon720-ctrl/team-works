@@ -9,6 +9,7 @@
 | 1.2 | 2026-04-08 | BE-11 일정 API에 GET /api/teams/:teamId/schedules/:id (일정 상세 조회) 추가 |
 | 1.3 | 2026-04-09 | 디렉토리 구조 개편 반영: 모든 파일 경로를 backend/ · frontend/ · DB/ 기준으로 갱신 |
 | 1.4 | 2026-04-09 | DB/ → database/ 디렉토리명 변경 반영 |
+| 1.5 | 2026-04-09 | DB-07 scheduleQueries 테스트 결과 추가 |
 
 ---
 
@@ -136,7 +137,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 | DB-04 | `backend/lib/db/queries/userQueries.ts` | createUser, getUserByEmail, getUserById | ✅ 완료 · 테스트 통과 |
 | DB-05 | `backend/lib/db/queries/teamQueries.ts` | createTeam, getTeamById, getUserTeams, addTeamMember, getUserTeamRole | ✅ 완료 · 테스트 통과 |
 | DB-06 | `backend/lib/db/queries/joinRequestQueries.ts` | createJoinRequest, getJoinRequestById, getPendingJoinRequestsByTeam, getPendingJoinRequestsByLeader, updateJoinRequestStatus | ✅ 완료 · 테스트 통과 |
-| DB-07 | `backend/lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, getScheduleById, updateSchedule, deleteSchedule | ✅ 완료 |
+| DB-07 | `backend/lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, getScheduleById, updateSchedule, deleteSchedule | ✅ 완료 · 테스트 통과 |
 | DB-08 | `backend/lib/db/queries/chatQueries.ts` | createChatMessage, getMessagesByDate (KST 기준), getMessagesByTeam | ✅ 완료 |
 
 **완료 조건 (공통)**:
@@ -169,6 +170,15 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] updateJoinRequestStatus(APPROVED) → status 변경, responded_at 자동 설정
 - [x] updateJoinRequestStatus(REJECTED) → status 변경 확인
 - [x] 처리 후 PENDING 목록 → 0건 확인
+- [x] TypeScript 컴파일 오류 0건 (`npx tsc --noEmit`)
+
+**DB-07 테스트 결과** (`backend/scripts/test-db07.ts`):
+- [x] createSchedule → team_id·title·description 반환 확인
+- [x] getSchedulesByDateRange → 겹침 로직(start_at < rangeEnd AND end_at > rangeStart), 팀 격리 확인
+- [x] getSchedulesByDateRange → 범위 외 조회 → 0건 확인
+- [x] getScheduleById → teamId+id 복합 조회, 타 팀 teamId → null 반환 (팀 격리)
+- [x] updateSchedule → 부분 수정(title·end_at), updated_at 갱신 확인
+- [x] deleteSchedule → true 반환 후 조회 시 null, 없는 ID → false 반환
 - [x] TypeScript 컴파일 오류 0건 (`npx tsc --noEmit`)
 
 ---
