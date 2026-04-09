@@ -133,7 +133,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 | Task | 파일 | 핵심 함수 | 상태 |
 |------|------|-----------|------|
-| DB-04 | `backend/lib/db/queries/userQueries.ts` | createUser, getUserByEmail, getUserById | ✅ 완료 |
+| DB-04 | `backend/lib/db/queries/userQueries.ts` | createUser, getUserByEmail, getUserById | ✅ 완료 · 테스트 통과 |
 | DB-05 | `backend/lib/db/queries/teamQueries.ts` | createTeam, getTeamById, getUserTeams, addTeamMember, getUserTeamRole | ✅ 완료 |
 | DB-06 | `backend/lib/db/queries/joinRequestQueries.ts` | createJoinRequest, getJoinRequestById, getPendingJoinRequestsByTeam, getPendingJoinRequestsByLeader, updateJoinRequestStatus | ✅ 완료 |
 | DB-07 | `backend/lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, getScheduleById, updateSchedule, deleteSchedule | ✅ 완료 |
@@ -144,6 +144,13 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] 모든 SELECT 쿼리에 `teamId` WHERE 조건 포함 (팀 격리)
 - [x] try-catch 에러 처리 추가
 - [x] `chatQueries.ts`: KST 날짜 기준 UTC 범위 변환 로직 포함
+
+**DB-04 테스트 결과** (`backend/scripts/test-db04.ts`):
+- [x] createUser → UUID 생성, 전체 필드 반환 확인
+- [x] getUserByEmail → 이메일로 정확히 조회
+- [x] getUserById → ID로 정확히 조회
+- [x] getUserById(없는 ID) → null 반환 확인
+- [x] TypeScript 컴파일 오류 0건 (`npx tsc --noEmit`)
 
 ---
 
