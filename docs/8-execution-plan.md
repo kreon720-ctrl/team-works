@@ -119,9 +119,9 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] PostgreSQL에 실행 (`psql -f database/schema.sql`)
 
 **완료 조건**:
-- [x] 모든 테이블 생성 확인 (`\dt`)
-- [x] 인덱스 생성 확인 (`\di`)
-- [x] CHECK 제약 조건 동작 확인 (end_at < start_at 삽입 시 오류)
+- [x] 모든 테이블 생성 확인 (`\dt` → users, teams, team_members, team_join_requests, schedules, chat_messages 6개 확인)
+- [x] 인덱스 생성 확인 (`\di` → PK 6개 + 커스텀 인덱스 10개, 총 16개 확인)
+- [x] CHECK 제약 조건 동작 확인 (end_at < start_at 삽입 시 `chk_schedules_end_after_start` 위반 오류 발생 확인)
 
 ---
 
