@@ -1,6 +1,6 @@
 -- Team CalTalk — Database Schema
 -- PostgreSQL 초기 마이그레이션 (schema v1)
--- 실행: psql -U postgres -d caltalk -f db/schema.sql
+-- 실행: psql -U postgres -d caltalk -f DB/schema.sql
 
 -- =====================
 -- EXTENSIONS

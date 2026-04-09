@@ -66,18 +66,18 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] 없음
 
 **작업 내용**:
-- [x] `npx create-next-app@latest` (App Router, TypeScript 선택)
-- [x] `tsconfig.json` strict 모드 확인
-- [x] `npm install pg bcryptjs jsonwebtoken` 설치
+- [x] `backend/` 디렉토리 기준 Next.js 프로젝트 구성 (App Router, TypeScript)
+- [x] `backend/tsconfig.json` strict 모드 확인
+- [x] `npm install pg bcryptjs jsonwebtoken` 설치 (`backend/package.json`)
 - [x] `npm install -D @types/pg @types/bcryptjs @types/jsonwebtoken` 설치
-- [x] `.env.local` 파일 생성 (DATABASE_URL, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_EXPIRES_IN=15m, JWT_REFRESH_EXPIRES_IN=7d)
-- [x] `.env.example` 파일 생성 (키 목록만, 값 없음)
-- [x] `.gitignore`에 `.env.local` 추가
+- [x] `backend/.env.local` 파일 생성 (DATABASE_URL, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_EXPIRES_IN=15m, JWT_REFRESH_EXPIRES_IN=7d)
+- [x] `backend/.env.example` 파일 생성 (키 목록만, 값 없음)
+- [x] `backend/.gitignore` 생성 및 `.env.local` 추가
 
 **완료 조건**:
-- [x] `npm run dev` 정상 실행
-- [x] TypeScript 컴파일 오류 없음
-- [x] `.env.local` 생성 완료, git에 미포함 확인
+- [x] `cd backend && npm run dev` 정상 실행 (Next.js 16.2.2 Turbopack, localhost:3000)
+- [x] `cd backend && npx tsc --noEmit` TypeScript 컴파일 오류 없음
+- [x] `backend/.env.local` 생성 완료, git에 미포함 확인 (`backend/.gitignore` 적용)
 
 ---
 

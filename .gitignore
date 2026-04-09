@@ -23,20 +23,31 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Env files
-.env
-.env.local
-.env.*.local
+# Env files (서비스별 .gitignore에서 관리)
+backend/.env
+backend/.env.local
+backend/.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
 
 # Build output
 dist/
 build/
 
-# Next.js
-/.next/
-/out/
-next-env.d.ts
-*.tsbuildinfo
+# Next.js (각 서비스 .gitignore에서 관리)
+backend/.next/
+backend/out/
+backend/next-env.d.ts
+backend/*.tsbuildinfo
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+
+# Node modules
+backend/node_modules/
+frontend/node_modules/
 
 # Vercel
 .vercel
