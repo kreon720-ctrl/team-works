@@ -96,8 +96,8 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] Vercel Serverless 경고 주석 추가
 
 **완료 조건**:
-- [x] PostgreSQL 연결 테스트 성공 (`pool.query('SELECT 1')`)
-- [x] TypeScript 컴파일 성공
+- [x] PostgreSQL 연결 테스트 성공 (`pool.query('SELECT 1')` → `{"result":1}` 응답 확인)
+- [x] TypeScript 컴파일 성공 (`npx tsc --noEmit` 오류 0건)
 
 ---
 
