@@ -6,6 +6,7 @@
 |------|------|-----------|
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-08 | TeamInvitation → TeamJoinRequest 반영: 다이어그램 4, 5에서 invitations 관련 경로·쿼리 제거, join-requests 반영 |
+| 1.2 | 2026-04-09 | 디렉토리 구조 개편 반영: 다이어그램 4, 5 경로를 frontend/ · backend/ 기준으로 갱신 |
 
 ---
 
@@ -75,12 +76,12 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph Pages["화면 (App Router)"]
+    subgraph Pages["화면 (frontend/app/)"]
         Auth["(auth)\nlogin / signup"]
         Main["(main)\nteams / explore / me/tasks"]
     end
 
-    subgraph Components["컴포넌트"]
+    subgraph Components["컴포넌트 (frontend/components/)"]
         Schedule["schedule\nCalendarView\nScheduleForm"]
         Chat["chat\nChatPanel\nChatInput"]
         Team["team\nTeamList\nTeamExploreList"]
@@ -88,11 +89,11 @@ graph TB
     end
 
     subgraph State["상태 관리"]
-        Zustand["Zustand\nauthStore\nteamStore"]
-        TQ["TanStack Query\nuseSchedules\nuseMessages\nuseTeams\nuseJoinRequests\nuseMyTasks"]
+        Zustand["Zustand (frontend/store/)\nauthStore\nteamStore"]
+        TQ["TanStack Query (frontend/hooks/query/)\nuseSchedules\nuseMessages\nuseTeams\nuseJoinRequests\nuseMyTasks"]
     end
 
-    API["apiClient\nfetch 래퍼\nAuthorization 헤더 자동 주입"]
+    API["frontend/lib/apiClient.ts\nfetch 래퍼\nAuthorization 헤더 자동 주입"]
 
     Pages --> Components
     Components --> Zustand
@@ -106,7 +107,7 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph Routes["API Routes (app/api/)"]
+    subgraph Routes["API Routes (backend/app/api/)"]
         AuthR["/auth\nsignup / login / refresh"]
         TeamR["/teams\nCRUD + join-requests + public"]
         SchedR["/teams/teamId/schedules\nCRUD"]
@@ -114,20 +115,20 @@ graph TB
         TasksR["/me/tasks\nGET"]
     end
 
-    subgraph Middleware["미들웨어 (lib/middleware/)"]
+    subgraph Middleware["미들웨어 (backend/lib/middleware/)"]
         WithAuth["withAuth\nJWT 검증 → 401"]
         WithRole["withTeamRole\n역할 검증 → 403"]
     end
 
-    subgraph Queries["DB 쿼리 (lib/db/queries/)"]
+    subgraph Queries["DB 쿼리 (backend/lib/db/queries/)"]
         UQ["userQueries"]
         TMQ["teamQueries\njoinRequestQueries"]
         SQ["scheduleQueries"]
         CQ["chatQueries\n(KST 날짜 그룹핑)"]
     end
 
-    Pool["pg Pool\n글로벌 싱글턴\n(max: 5)"]
-    DB["PostgreSQL"]
+    Pool["pg Pool\n글로벌 싱글턴\n(backend/lib/db/pool.ts, max: 5)"]
+    DB["PostgreSQL\n(DB/schema.sql)"]
 
     Routes --> WithAuth --> WithRole
     WithRole --> Queries

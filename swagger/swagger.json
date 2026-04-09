@@ -2,13 +2,14 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Team CalTalk API",
-    "description": "팀 단위 캘린더 기반 일정관리 + 채팅 애플리케이션 API",
-    "version": "1.3.0"
+    "description": "팀 단위 캘린더 기반 일정관리 + 채팅 애플리케이션 API. API Route 소스 위치: backend/app/api/",
+    "version": "1.3.0",
+    "x-source-directory": "backend/app/api"
   },
   "servers": [
     {
       "url": "/api",
-      "description": "Base URL"
+      "description": "Base URL (Next.js API Routes — backend/app/api/)"
     }
   ],
   "components": {

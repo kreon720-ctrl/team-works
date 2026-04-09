@@ -7,6 +7,7 @@
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-08 | TeamInvitation → TeamJoinRequest 전면 반영: DB 스키마, 쿼리 파일, API 엔드포인트, 프론트엔드 화면·훅, E2E 시나리오 전수 갱신 |
 | 1.2 | 2026-04-08 | BE-11 일정 API에 GET /api/teams/:teamId/schedules/:id (일정 상세 조회) 추가 |
+| 1.3 | 2026-04-09 | 디렉토리 구조 개편 반영: 모든 파일 경로를 backend/ · frontend/ · DB/ 기준으로 갱신 |
 
 ---
 
@@ -87,7 +88,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] DB-01
 
 **작업 내용**:
-- [x] `lib/db/pool.ts` 생성
+- [x] `backend/lib/db/pool.ts` 생성
 - [x] 글로벌 싱글턴 패턴 구현 (`global as unknown as { pgPool: Pool }`)
 - [x] Pool 설정: `max: 5, idleTimeoutMillis: 10000, connectionTimeoutMillis: 5000`
 - [x] 개발 환경 전역 캐싱 분기 처리 (`process.env.NODE_ENV !== 'production'`)
@@ -106,7 +107,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] DB-02
 
 **작업 내용**:
-- [x] `db/schema.sql` 생성
+- [x] `DB/schema.sql` 생성
 - [x] `users` 테이블: id(UUID PK), email(UNIQUE), name(VARCHAR 50), password_hash, created_at
 - [x] `teams` 테이블: id(UUID PK), name(VARCHAR 100), leader_id(FK→users), created_at
 - [x] `team_members` 테이블: (team_id, user_id) 복합 PK, role ENUM('LEADER','MEMBER'), created_at
@@ -114,7 +115,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [x] `schedules` 테이블: id(UUID PK), team_id(FK), title(VARCHAR 200), description, start_at, end_at, CHECK(end_at > start_at), created_by(FK→users), created_at, updated_at
 - [x] `chat_messages` 테이블: id(UUID PK), team_id(FK), sender_id(FK→users), type ENUM('NORMAL','SCHEDULE_REQUEST'), content(TEXT 2000자), sent_at, created_at
 - [x] 인덱스: `users(email)`, `team_members(user_id)`, `team_join_requests(team_id, status)`, `team_join_requests(requester_id)`, `schedules(team_id, start_at, end_at)`, `chat_messages(team_id, sent_at DESC)`
-- [x] PostgreSQL에 실행 (`psql -f db/schema.sql`)
+- [x] PostgreSQL에 실행 (`psql -f DB/schema.sql`)
 
 **완료 조건**:
 - [x] 모든 테이블 생성 확인 (`\dt`)
@@ -131,11 +132,11 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 | Task | 파일 | 핵심 함수 | 상태 |
 |------|------|-----------|------|
-| DB-04 | `lib/db/queries/userQueries.ts` | createUser, getUserByEmail, getUserById | ✅ 완료 |
-| DB-05 | `lib/db/queries/teamQueries.ts` | createTeam, getTeamById, getUserTeams, addTeamMember, getUserTeamRole | ✅ 완료 |
-| DB-06 | `lib/db/queries/joinRequestQueries.ts` | createJoinRequest, getJoinRequestById, getPendingJoinRequestsByTeam, getPendingJoinRequestsByLeader, updateJoinRequestStatus | ✅ 완료 |
-| DB-07 | `lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, getScheduleById, updateSchedule, deleteSchedule | ✅ 완료 |
-| DB-08 | `lib/db/queries/chatQueries.ts` | createChatMessage, getMessagesByDate (KST 기준), getMessagesByTeam | ✅ 완료 |
+| DB-04 | `backend/lib/db/queries/userQueries.ts` | createUser, getUserByEmail, getUserById | ✅ 완료 |
+| DB-05 | `backend/lib/db/queries/teamQueries.ts` | createTeam, getTeamById, getUserTeams, addTeamMember, getUserTeamRole | ✅ 완료 |
+| DB-06 | `backend/lib/db/queries/joinRequestQueries.ts` | createJoinRequest, getJoinRequestById, getPendingJoinRequestsByTeam, getPendingJoinRequestsByLeader, updateJoinRequestStatus | ✅ 완료 |
+| DB-07 | `backend/lib/db/queries/scheduleQueries.ts` | createSchedule, getSchedulesByDateRange, getScheduleById, updateSchedule, deleteSchedule | ✅ 완료 |
+| DB-08 | `backend/lib/db/queries/chatQueries.ts` | createChatMessage, getMessagesByDate (KST 기준), getMessagesByTeam | ✅ 완료 |
 
 **완료 조건 (공통)**:
 - [x] 모든 함수 TypeScript 타입 정의
@@ -153,10 +154,10 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 | Task | 파일 | 핵심 기능 |
 |------|------|-----------|
-| BE-01 | `lib/auth/jwt.ts` | generateAccessToken(15분), generateRefreshToken(7일), verifyAccessToken, verifyRefreshToken |
-| BE-02 | `lib/auth/password.ts` | hashPassword(saltRounds:12), verifyPassword |
-| BE-03 | `lib/utils/apiResponse.ts` | successResponse, errorResponse (표준 JSON 형식) |
-| BE-04 | `lib/utils/timezone.ts` | utcToKst, kstToUtc, getKstDateRange(월/주/일 범위 반환) |
+| BE-01 | `backend/lib/auth/jwt.ts` | generateAccessToken(15분), generateRefreshToken(7일), verifyAccessToken, verifyRefreshToken |
+| BE-02 | `backend/lib/auth/password.ts` | hashPassword(saltRounds:12), verifyPassword |
+| BE-03 | `backend/lib/utils/apiResponse.ts` | successResponse, errorResponse (표준 JSON 형식) |
+| BE-04 | `backend/lib/utils/timezone.ts` | utcToKst, kstToUtc, getKstDateRange(월/주/일 범위 반환) |
 
 **완료 조건**:
 - [ ] BE-01: Access Token 15분 만료, Refresh Token 7일 만료 검증
@@ -179,7 +180,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] BE-01, BE-03
 
 **작업 내용**:
-- [ ] `lib/middleware/withAuth.ts` 생성
+- [ ] `backend/lib/middleware/withAuth.ts` 생성
 - [ ] Authorization 헤더에서 Bearer 토큰 추출
 - [ ] `verifyAccessToken`으로 검증
 - [ ] 검증 성공 시 `request`에 `userId` 주입
@@ -198,7 +199,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] BE-05, DB-05
 
 **작업 내용**:
-- [ ] `lib/middleware/withTeamRole.ts` 생성
+- [ ] `backend/lib/middleware/withTeamRole.ts` 생성
 - [ ] `teamId` (URL params) + `userId` (withAuth에서 주입) 조합으로 DB에서 역할 조회
 - [ ] 팀 비소속 → 403, 권한 부족 → 403
 - [ ] 성공 시 `request`에 `userRole` 주입
@@ -218,9 +219,9 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 | 엔드포인트 | 파일 | 핵심 로직 |
 |-----------|------|-----------|
-| POST /api/auth/signup | `app/api/auth/signup/route.ts` | 이메일 중복 확인 → bcrypt 해싱 → DB 저장 → 토큰 발급 → 201 |
-| POST /api/auth/login | `app/api/auth/login/route.ts` | 사용자 조회 → bcrypt 검증 → 토큰 발급 → 200 |
-| POST /api/auth/refresh | `app/api/auth/refresh/route.ts` | Refresh Token 검증 → 새 Access Token 발급 → 200 |
+| POST /api/auth/signup | `backend/app/api/auth/signup/route.ts` | 이메일 중복 확인 → bcrypt 해싱 → DB 저장 → 토큰 발급 → 201 |
+| POST /api/auth/login | `backend/app/api/auth/login/route.ts` | 사용자 조회 → bcrypt 검증 → 토큰 발급 → 200 |
+| POST /api/auth/refresh | `backend/app/api/auth/refresh/route.ts` | Refresh Token 검증 → 새 Access Token 발급 → 200 |
 
 **완료 조건**:
 - [ ] signup: 201 Created, 이메일 중복 409, 형식 오류 400
@@ -238,14 +239,14 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 | 엔드포인트 | 파일 |
 |-----------|------|
-| GET /api/teams | `app/api/teams/route.ts` |
-| POST /api/teams | `app/api/teams/route.ts` |
-| GET /api/teams/public | `app/api/teams/public/route.ts` |
-| GET /api/teams/:teamId | `app/api/teams/[teamId]/route.ts` |
-| POST /api/teams/:teamId/join-requests | `app/api/teams/[teamId]/join-requests/route.ts` |
-| GET /api/teams/:teamId/join-requests | `app/api/teams/[teamId]/join-requests/route.ts` |
-| PATCH /api/teams/:teamId/join-requests/:requestId | `app/api/teams/[teamId]/join-requests/[requestId]/route.ts` |
-| GET /api/me/tasks | `app/api/me/tasks/route.ts` |
+| GET /api/teams | `backend/app/api/teams/route.ts` |
+| POST /api/teams | `backend/app/api/teams/route.ts` |
+| GET /api/teams/public | `backend/app/api/teams/public/route.ts` |
+| GET /api/teams/:teamId | `backend/app/api/teams/[teamId]/route.ts` |
+| POST /api/teams/:teamId/join-requests | `backend/app/api/teams/[teamId]/join-requests/route.ts` |
+| GET /api/teams/:teamId/join-requests | `backend/app/api/teams/[teamId]/join-requests/route.ts` |
+| PATCH /api/teams/:teamId/join-requests/:requestId | `backend/app/api/teams/[teamId]/join-requests/[requestId]/route.ts` |
+| GET /api/me/tasks | `backend/app/api/me/tasks/route.ts` |
 
 **완료 조건**:
 - [ ] GET /teams: myRole 포함, 소속 팀만 반환
@@ -272,11 +273,11 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 | 엔드포인트 | 파일 |
 |-----------|------|
-| GET /api/teams/:teamId/schedules | `app/api/teams/[teamId]/schedules/route.ts` |
-| POST /api/teams/:teamId/schedules | `app/api/teams/[teamId]/schedules/route.ts` |
-| GET /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
-| PATCH /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
-| DELETE /api/teams/:teamId/schedules/:id | `app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
+| GET /api/teams/:teamId/schedules | `backend/app/api/teams/[teamId]/schedules/route.ts` |
+| POST /api/teams/:teamId/schedules | `backend/app/api/teams/[teamId]/schedules/route.ts` |
+| GET /api/teams/:teamId/schedules/:id | `backend/app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
+| PATCH /api/teams/:teamId/schedules/:id | `backend/app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
+| DELETE /api/teams/:teamId/schedules/:id | `backend/app/api/teams/[teamId]/schedules/[scheduleId]/route.ts` |
 
 **완료 조건**:
 - [ ] GET (목록): `?view=month|week|day&date=YYYY-MM-DD` 파라미터로 KST 기준 범위 조회
@@ -295,8 +296,8 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 
 | 엔드포인트 | 파일 |
 |-----------|------|
-| GET /api/teams/:teamId/messages | `app/api/teams/[teamId]/messages/route.ts` |
-| POST /api/teams/:teamId/messages | `app/api/teams/[teamId]/messages/route.ts` |
+| GET /api/teams/:teamId/messages | `backend/app/api/teams/[teamId]/messages/route.ts` |
+| POST /api/teams/:teamId/messages | `backend/app/api/teams/[teamId]/messages/route.ts` |
 
 **완료 조건**:
 - [ ] GET: `?date=YYYY-MM-DD` KST 기준, sentAt 오름차순, senderName 포함
@@ -339,12 +340,12 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] DB-01
 
 **작업 내용**:
-- [ ] `types/` 디렉토리 생성 (auth.ts, team.ts, schedule.ts, chat.ts)
-- [ ] `lib/apiClient.ts`: fetch 래퍼, Authorization 헤더 자동 주입, 401 시 refresh 재시도
-- [ ] `store/authStore.ts`: currentUser, accessToken, setUser, logout
-- [ ] `store/teamStore.ts`: selectedTeamId, selectedDate, setSelectedDate
-- [ ] `lib/utils/timezone.ts` (FE 버전): UTC→KST 변환, 날짜 포맷
-- [ ] TanStack Query `QueryClientProvider` 설정 (`app/layout.tsx`)
+- [ ] `frontend/types/` 디렉토리 생성 (auth.ts, team.ts, schedule.ts, chat.ts)
+- [ ] `frontend/lib/apiClient.ts`: fetch 래퍼, Authorization 헤더 자동 주입, 401 시 refresh 재시도
+- [ ] `frontend/store/authStore.ts`: currentUser, accessToken, setUser, logout
+- [ ] `frontend/store/teamStore.ts`: selectedTeamId, selectedDate, setSelectedDate
+- [ ] `frontend/lib/utils/timezone.ts` (FE 버전): UTC→KST 변환, 날짜 포맷
+- [ ] TanStack Query `QueryClientProvider` 설정 (`frontend/app/layout.tsx`)
 
 **완료 조건**:
 - [ ] `apiClient`에서 모든 요청에 Authorization 헤더 자동 포함
@@ -360,14 +361,14 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-01
 
 **작업 내용**:
-- [ ] `components/common/`: Button, Input, Modal, ErrorBoundary
-- [ ] `hooks/query/useAuth.ts`: 로그인, 회원가입 useMutation
-- [ ] `hooks/query/useTeams.ts`: 팀 목록/상세/생성 useQuery+useMutation
-- [ ] `hooks/query/useSchedules.ts`: 일정 조회/CRUD useQuery+useMutation
-- [ ] `hooks/query/useMessages.ts`: 메시지 조회(refetchInterval:3000 폴링)/전송
-- [ ] `hooks/query/useJoinRequests.ts`: 가입 신청 제출/조회/승인·거절
-- [ ] `hooks/query/useMyTasks.ts`: 나의 할 일(PENDING 신청 전체 조회)
-- [ ] `hooks/useBreakpoint.ts`: isMobile(640px 미만) / isDesktop(1024px 이상)
+- [ ] `frontend/components/common/`: Button, Input, Modal, ErrorBoundary
+- [ ] `frontend/hooks/query/useAuth.ts`: 로그인, 회원가입 useMutation
+- [ ] `frontend/hooks/query/useTeams.ts`: 팀 목록/상세/생성 useQuery+useMutation
+- [ ] `frontend/hooks/query/useSchedules.ts`: 일정 조회/CRUD useQuery+useMutation
+- [ ] `frontend/hooks/query/useMessages.ts`: 메시지 조회(refetchInterval:3000 폴링)/전송
+- [ ] `frontend/hooks/query/useJoinRequests.ts`: 가입 신청 제출/조회/승인·거절
+- [ ] `frontend/hooks/query/useMyTasks.ts`: 나의 할 일(PENDING 신청 전체 조회)
+- [ ] `frontend/hooks/useBreakpoint.ts`: isMobile(640px 미만) / isDesktop(1024px 이상)
 
 **완료 조건**:
 - [ ] useMessages refetchInterval: 3000 설정 확인
@@ -383,9 +384,9 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-02
 
 **작업 내용**:
-- [ ] `app/(auth)/login/page.tsx` + `components/auth/LoginForm.tsx`
-- [ ] `app/(auth)/signup/page.tsx` + `components/auth/SignupForm.tsx`
-- [ ] `app/(main)/layout.tsx`: authStore에서 currentUser 확인, 없으면 `/login` 리다이렉트
+- [ ] `frontend/app/(auth)/login/page.tsx` + `frontend/components/auth/LoginForm.tsx`
+- [ ] `frontend/app/(auth)/signup/page.tsx` + `frontend/components/auth/SignupForm.tsx`
+- [ ] `frontend/app/(main)/layout.tsx`: authStore에서 currentUser 확인, 없으면 `/login` 리다이렉트
 - [ ] 로그인 성공 → `/` 리다이렉트
 - [ ] 회원가입 성공 → `/` 리다이렉트
 
@@ -402,12 +403,12 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-02, FE-03
 
 **작업 내용**:
-- [ ] `app/(main)/page.tsx`: useTeams()로 팀 목록 렌더링, 팀 클릭 → `/teams/[teamId]`
-- [ ] `components/team/TeamList.tsx`, `TeamCard.tsx`
-- [ ] `app/(main)/teams/new/page.tsx`: 팀명 입력 → 팀 생성 → `/teams/[newTeamId]` 리다이렉트
-- [ ] `components/team/TeamCreateForm.tsx`
-- [ ] `app/(main)/teams/explore/page.tsx`: 공개 팀 목록(팀명, 구성원 수) + 가입 신청 버튼
-- [ ] `components/team/TeamExploreList.tsx`
+- [ ] `frontend/app/(main)/page.tsx`: useTeams()로 팀 목록 렌더링, 팀 클릭 → `/teams/[teamId]`
+- [ ] `frontend/components/team/TeamList.tsx`, `TeamCard.tsx`
+- [ ] `frontend/app/(main)/teams/new/page.tsx`: 팀명 입력 → 팀 생성 → `/teams/[newTeamId]` 리다이렉트
+- [ ] `frontend/components/team/TeamCreateForm.tsx`
+- [ ] `frontend/app/(main)/teams/explore/page.tsx`: 공개 팀 목록(팀명, 구성원 수) + 가입 신청 버튼
+- [ ] `frontend/components/team/TeamExploreList.tsx`
 
 **완료 조건**:
 - [ ] 팀 목록 렌더링 및 클릭 이동 확인
@@ -423,10 +424,10 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-02
 
 **작업 내용**:
-- [ ] `components/schedule/CalendarView.tsx`: 월/주/일 탭 전환, 날짜 네비게이션
-- [ ] `components/schedule/CalendarMonthView.tsx`: 월간 그리드, 일정 점 표시
-- [ ] `components/schedule/CalendarWeekView.tsx`: 주간 타임라인
-- [ ] `components/schedule/CalendarDayView.tsx`: 일일 리스트
+- [ ] `frontend/components/schedule/CalendarView.tsx`: 월/주/일 탭 전환, 날짜 네비게이션
+- [ ] `frontend/components/schedule/CalendarMonthView.tsx`: 월간 그리드, 일정 점 표시
+- [ ] `frontend/components/schedule/CalendarWeekView.tsx`: 주간 타임라인
+- [ ] `frontend/components/schedule/CalendarDayView.tsx`: 일일 리스트
 - [ ] useSchedules() 훅으로 `?view=...&date=...` 파라미터 연동
 - [ ] 날짜 클릭 시 `teamStore.setSelectedDate()` 업데이트
 
@@ -444,10 +445,10 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-02
 
 **작업 내용**:
-- [ ] `components/chat/ChatMessageList.tsx`: 메시지 목록, SCHEDULE_REQUEST 강조 스타일
-- [ ] `components/chat/ChatMessageItem.tsx`: 발신자명, 시간, 타입별 배경색 구분
-- [ ] `components/chat/ChatInput.tsx`: 텍스트 입력, [전송], [일정 변경 요청] 버튼, Enter 전송
-- [ ] `components/chat/ChatPanel.tsx`: ChatMessageList + ChatInput 조합, refetchInterval:3000 관리
+- [ ] `frontend/components/chat/ChatMessageList.tsx`: 메시지 목록, SCHEDULE_REQUEST 강조 스타일
+- [ ] `frontend/components/chat/ChatMessageItem.tsx`: 발신자명, 시간, 타입별 배경색 구분
+- [ ] `frontend/components/chat/ChatInput.tsx`: 텍스트 입력, [전송], [일정 변경 요청] 버튼, Enter 전송
+- [ ] `frontend/components/chat/ChatPanel.tsx`: ChatMessageList + ChatInput 조합, refetchInterval:3000 관리
 
 **완료 조건**:
 - [ ] SCHEDULE_REQUEST 메시지 시각적 구분 확인
@@ -469,7 +470,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-05, FE-06
 
 **작업 내용**:
-- [ ] `app/(main)/teams/[teamId]/page.tsx`
+- [ ] `frontend/app/(main)/teams/[teamId]/page.tsx`
 - [ ] `useBreakpoint()` 훅으로 분기
 - [ ] **데스크탑(1024px+)**: CalendarView(좌 60%) + ChatPanel(우 40%) 좌우 분할
 - [ ] **모바일(640px 미만)**: [캘린더] / [채팅] 탭 전환
@@ -489,9 +490,9 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-02, FE-04
 
 **작업 내용**:
-- [ ] `components/schedule/ScheduleForm.tsx`: 제목·설명·시작/종료 입력, LEADER만 표시
-- [ ] `components/schedule/ScheduleDetailModal.tsx`: 일정 상세 팝업
-- [ ] `app/(main)/me/tasks/page.tsx` + `components/team/JoinRequestActions.tsx`: 나의 할 일 — PENDING 신청 목록, 승인/거절 버튼
+- [ ] `frontend/components/schedule/ScheduleForm.tsx`: 제목·설명·시작/종료 입력, LEADER만 표시
+- [ ] `frontend/components/schedule/ScheduleDetailModal.tsx`: 일정 상세 팝업
+- [ ] `frontend/app/(main)/me/tasks/page.tsx` + `frontend/components/team/JoinRequestActions.tsx`: 나의 할 일 — PENDING 신청 목록, 승인/거절 버튼
 - [ ] 승인 처리: `PATCH /api/teams/[teamId]/join-requests/[requestId]` (action: "APPROVE")
 
 **완료 조건**:
@@ -508,9 +509,9 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 - [ ] FE-01, FE-07, FE-08
 
 **작업 내용**:
-- [ ] `hooks/useLeaderRole.ts`: teamStore + useTeams로 현재 팀 내 역할 판단
+- [ ] `frontend/hooks/useLeaderRole.ts`: teamStore + useTeams로 현재 팀 내 역할 판단
 - [ ] 모든 LEADER 전용 버튼 조건부 렌더링 적용
-- [ ] `apiClient.ts`: 401 응답 시 `/api/auth/refresh` 자동 호출 후 원래 요청 재시도
+- [ ] `frontend/lib/apiClient.ts`: 401 응답 시 `/api/auth/refresh` 자동 호출 후 원래 요청 재시도
 - [ ] Refresh Token 만료 시 authStore 초기화 → `/login` 리다이렉트
 
 **완료 조건**:
@@ -614,7 +615,7 @@ FE-01 (초기세팅) → FE-02 (apiClient) → FE-03 (Zustand) → FE-04 (TanSta
 ## Vercel 배포 체크리스트
 
 - [ ] WebSocket 사용 없음 확인 (채팅은 refetchInterval 폴링만 사용)
-- [ ] `lib/db/pool.ts`에 글로벌 싱글턴 + max:5 설정 확인
+- [ ] `backend/lib/db/pool.ts`에 글로벌 싱글턴 + max:5 설정 확인
 - [ ] 모든 환경변수가 `.env.local`이 아닌 Vercel Dashboard에 설정됨
 - [ ] Serverless Function 실행 시간 10초 초과 쿼리 없음 확인
 - [ ] `next build` 로컬에서 성공 후 배포
