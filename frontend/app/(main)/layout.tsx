@@ -17,11 +17,12 @@ export default function MainLayout({
 
   useEffect(() => {
     // Check if user is authenticated
-    // Since middleware can't access localStorage, we do client-side check
+    // Since proxy can't access localStorage, we do client-side check
     const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
 
     if (!accessToken && !isAuthenticated) {
-      // Not authenticated, redirect to login
+      // Clear stale auth cookie before redirecting so proxy won't loop back
+      document.cookie = 'auth-initialized=; path=/; max-age=0';
       router.replace('/login');
     }
   }, [isAuthenticated, router, pathname]);
@@ -29,9 +30,13 @@ export default function MainLayout({
   // Check synchronously if we have a token
   const hasToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
 
-  // If not authenticated and no token, show nothing (redirecting)
+  // If not authenticated and no token, show loading spinner while redirecting
   if (!hasToken && !isAuthenticated) {
-    return null;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+      </div>
+    );
   }
 
   return (

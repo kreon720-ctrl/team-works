@@ -43,12 +43,13 @@ class ApiClient {
   }
 
   /**
-   * Clear tokens from localStorage
+   * Clear tokens from localStorage and auth cookie
    */
   clearTokens(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    document.cookie = 'auth-initialized=; path=/; max-age=0';
   }
 
   /**
