@@ -56,29 +56,23 @@ CalTalk의 브랜드 컬러는 신뢰·협업·효율을 상징하는 인디고-
 | `primary-800` | `#3730A3` | `bg-primary-800` | - |
 | `primary-900` | `#312E81` | `bg-primary-900` | 진한 강조 텍스트 |
 
-**Tailwind CSS `tailwind.config.js` 커스텀 설정:**
+**Tailwind CSS v4 `@theme` 설정** (`app/globals.css`):
 
-```js
-// tailwind.config.js
-module.exports = {
-  theme: {
-    extend: {
-      colors: {
-        primary: {
-          50:  '#EEF2FF',
-          100: '#E0E7FF',
-          200: '#C7D2FE',
-          300: '#A5B4FC',
-          400: '#818CF8',
-          500: '#6366F1',
-          600: '#4F46E5',
-          700: '#4338CA',
-          800: '#3730A3',
-          900: '#312E81',
-        },
-      },
-    },
-  },
+> ⚠️ Tailwind v4에서는 `tailwind.config.js`가 아닌 CSS의 `@theme` 블록으로 커스텀 토큰을 등록합니다.
+> `:root`에 CSS 변수만 정의하면 유틸리티 클래스(`bg-primary-500` 등)가 생성되지 않습니다.
+
+```css
+@theme {
+  --color-primary-50:  #EEF2FF;
+  --color-primary-100: #E0E7FF;
+  --color-primary-200: #C7D2FE;
+  --color-primary-300: #A5B4FC;
+  --color-primary-400: #818CF8;
+  --color-primary-500: #6366F1;
+  --color-primary-600: #4F46E5;
+  --color-primary-700: #4338CA;
+  --color-primary-800: #3730A3;
+  --color-primary-900: #312E81;
 }
 ```
 
