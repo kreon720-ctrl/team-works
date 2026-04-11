@@ -37,58 +37,31 @@ function scheduleToDay(utcDate: Date): Date {
 }
 
 /**
- * 일정 목록을 받아 각 일정의 column, totalColumns, top/height 계산에 필요한
- * startMin/endMin 을 반환합니다.
+ * 일정 목록을 받아 각 일정의 column, totalColumns, startMin/endMin 을 반환합니다.
  *
- * 알고리즘
- * 1. 시작 시각 오름차순 정렬 (같으면 긴 일정 우선)
- * 2. 그리디 컬럼 배정: 현재 일정의 startMin ≥ 컬럼의 endMin 이면 해당 컬럼 재사용
- * 3. totalColumns: 해당 일정과 시간이 겹치는 모든 일정의 최대 column + 1
+ * 너비 규칙 (하루 전체 일정 수 N 기준)
+ *   N=1 → 100%,  N=2 → 50%,  N=3 → 33%,  N=4 → 25%,  N=5 → 20%
+ *   N≥6 → 컬럼당 20% (가로 스크롤)
+ *
+ * 컬럼 배정: 시작 시각 오름차순 정렬 후 인덱스 순서대로 0, 1, 2, ...
  */
 export function computeLayout(schedules: Schedule[]): LayoutItem[] {
   if (schedules.length === 0) return [];
 
+  const totalColumns = schedules.length;
+
   const sorted = [...schedules].sort((a, b) => {
     const diff = new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
     if (diff !== 0) return diff;
-    // 같은 시작 → 긴 일정 먼저
+    // 같은 시작 시각 → 긴 일정 먼저
     return new Date(b.endAt).getTime() - new Date(a.endAt).getTime();
   });
 
-  interface Assigned {
-    schedule: Schedule;
-    column: number;
-    startMin: number;
-    endMin: number;
-  }
-
-  const columnEnds: number[] = [];
-  const assigned: Assigned[] = [];
-
-  for (const schedule of sorted) {
+  return sorted.map((schedule, index) => {
     const startMin = getKSTMinutes(schedule.startAt);
     const rawEnd = getKSTMinutes(schedule.endAt);
     const endMin = Math.max(rawEnd, startMin + 15); // 최소 15분 높이 보장
-
-    // 빈 컬럼(endMin <= startMin) 중 가장 인덱스가 낮은 것 선택
-    let col = columnEnds.findIndex(end => end <= startMin);
-    if (col === -1) {
-      col = columnEnds.length;
-      columnEnds.push(endMin);
-    } else {
-      columnEnds[col] = endMin;
-    }
-
-    assigned.push({ schedule, column: col, startMin, endMin });
-  }
-
-  // totalColumns 계산: 겹치는 그룹 내 최대 column + 1
-  return assigned.map(item => {
-    const overlapping = assigned.filter(
-      other => other.startMin < item.endMin && other.endMin > item.startMin
-    );
-    const maxCol = Math.max(...overlapping.map(o => o.column));
-    return { ...item, totalColumns: maxCol + 1 };
+    return { schedule, column: index, totalColumns, startMin, endMin };
   });
 }
 
