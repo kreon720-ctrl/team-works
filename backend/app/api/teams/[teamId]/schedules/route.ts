@@ -11,6 +11,7 @@ import { getKstDateRange, CalendarView } from '@/lib/utils/timezone'
 interface CreateScheduleBody {
   title?: string
   description?: string
+  color?: string
   startAt?: string
   endAt?: string
 }
@@ -62,6 +63,7 @@ export async function GET(
         teamId: schedule.team_id,
         title: schedule.title,
         description: schedule.description,
+        color: schedule.color,
         startAt: schedule.start_at,
         endAt: schedule.end_at,
         createdBy: schedule.created_by,
@@ -104,7 +106,7 @@ export async function POST(
 
     // 2. 요청 본문 파싱 및 검증
     const body: CreateScheduleBody = await request.json()
-    const { title, description, startAt, endAt } = body
+    const { title, description, color, startAt, endAt } = body
 
     // 필수 필드 검증
     if (!title) {
@@ -152,6 +154,7 @@ export async function POST(
       createdBy: authResult.user.userId,
       title,
       description: description ?? null,
+      color: color ?? 'indigo',
       startAt: startDate,
       endAt: endDate,
     })
@@ -162,6 +165,7 @@ export async function POST(
         teamId: schedule.team_id,
         title: schedule.title,
         description: schedule.description,
+        color: schedule.color,
         startAt: schedule.start_at,
         endAt: schedule.end_at,
         createdBy: schedule.created_by,

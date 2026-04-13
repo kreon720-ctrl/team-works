@@ -59,11 +59,13 @@ CREATE TABLE IF NOT EXISTS schedules (
     created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     title       VARCHAR(200) NOT NULL,
     description TEXT         NULL,
+    color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
     start_at    TIMESTAMP    NOT NULL,
     end_at      TIMESTAMP    NOT NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_schedules_end_after_start CHECK (end_at > start_at)
+    CONSTRAINT chk_schedules_end_after_start CHECK (end_at > start_at),
+    CONSTRAINT chk_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 
 -- 6. chat_messages

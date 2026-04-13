@@ -10,6 +10,7 @@ import {
 interface UpdateScheduleBody {
   title?: string
   description?: string
+  color?: string
   startAt?: string
   endAt?: string
 }
@@ -49,6 +50,7 @@ export async function GET(
       teamId: schedule.team_id,
       title: schedule.title,
       description: schedule.description,
+      color: schedule.color,
       startAt: schedule.start_at,
       endAt: schedule.end_at,
       createdBy: schedule.created_by,
@@ -104,7 +106,7 @@ export async function PATCH(
 
     // 3. 요청 본문 파싱
     const body: UpdateScheduleBody = await request.json()
-    const { title, description, startAt, endAt } = body
+    const { title, description, color, startAt, endAt } = body
 
     // 날짜 유효성 검증 (제공된 경우에만)
     if (startAt || endAt) {
@@ -130,6 +132,7 @@ export async function PATCH(
     const updatedSchedule = await updateSchedule(teamId, scheduleId, {
       title,
       description: description ?? undefined,
+      color,
       startAt: startAt ? new Date(startAt) : undefined,
       endAt: endAt ? new Date(endAt) : undefined,
     })
@@ -146,6 +149,7 @@ export async function PATCH(
       teamId: updatedSchedule.team_id,
       title: updatedSchedule.title,
       description: updatedSchedule.description,
+      color: updatedSchedule.color,
       startAt: updatedSchedule.start_at,
       endAt: updatedSchedule.end_at,
       createdBy: updatedSchedule.created_by,

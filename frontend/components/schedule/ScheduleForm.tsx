@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ScheduleCreateInput, ScheduleUpdateInput, Schedule } from '@/types/schedule';
+import { ScheduleCreateInput, ScheduleUpdateInput, Schedule, ScheduleColor, SCHEDULE_COLORS } from '@/types/schedule';
 import { Button } from '@/components/common/Button';
 
 interface ScheduleFormProps {
@@ -21,6 +21,24 @@ interface FormErrors {
 }
 
 const MAX_TITLE_LENGTH = 200;
+
+// 색상별 Tailwind 클래스 매핑
+const COLOR_CLASSES: Record<ScheduleColor, { bg: string; text: string; border: string; hover: string; ring: string }> = {
+  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-400', hover: 'hover:bg-indigo-200', ring: 'ring-indigo-500' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-400', hover: 'hover:bg-blue-200', ring: 'ring-blue-500' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-400', hover: 'hover:bg-emerald-200', ring: 'ring-emerald-500' },
+  amber: { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-400', hover: 'hover:bg-amber-200', ring: 'ring-amber-500' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-400', hover: 'hover:bg-rose-200', ring: 'ring-rose-500' },
+};
+
+// 색상 팔레트 원형 표시용 색상 (선택된 색상 강조용)
+const COLOR_SWATCH_COLORS: Record<ScheduleColor, string> = {
+  indigo: 'bg-indigo-500',
+  blue: 'bg-blue-500',
+  emerald: 'bg-emerald-500',
+  amber: 'bg-amber-500',
+  rose: 'bg-rose-500',
+};
 
 // 커스텀 날짜/시간 선택기 컴포넌트
 interface DateTimePickerProps {
@@ -240,7 +258,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                       onClick={() => handleDateClick(date)}
                       className={`
                         p-1.5 text-sm rounded-lg transition-all duration-150
-                        ${!currentMonth ? 'text-gray-300' : today ? 'bg-primary-500 text-white font-semibold' : selected ? 'bg-primary-100 text-primary-800 font-semibold' : 'text-gray-700 hover:bg-gray-100'}
+                        ${!currentMonth ? 'text-gray-300' : today ? 'ring-2 ring-orange-500 font-semibold' : selected ? 'bg-primary-100 text-primary-800 font-semibold' : 'text-gray-700 hover:bg-gray-100'}
                       `}
                     >
                       {date.getDate()}
@@ -361,6 +379,7 @@ export function ScheduleForm({
 }: ScheduleFormProps) {
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [description, setDescription] = useState(initialData?.description ?? '');
+  const [color, setColor] = useState<ScheduleColor>(initialData?.color ?? 'indigo');
 
   // KST 기준으로 현재 시간 계산 (컴포넌트 마운트 시 한 번만 계산)
   const defaultDates = useMemo(() => {
@@ -415,6 +434,7 @@ export function ScheduleForm({
       description: description.trim() || undefined,
       startAt: new Date(startDate).toISOString(),
       endAt: new Date(endDate).toISOString(),
+      color,
     };
 
     onSubmit(data);
@@ -463,6 +483,31 @@ export function ScheduleForm({
             <span />
           )}
           <p className="text-xs text-gray-400">{title.length} / {MAX_TITLE_LENGTH}자</p>
+        </div>
+      </div>
+
+      {/* Color Palette */}
+      <div className="flex flex-col gap-2 mb-5">
+        <label className="text-sm font-medium text-gray-700">색상</label>
+        <div className="flex items-center gap-3">
+          {SCHEDULE_COLORS.map((colorOption) => {
+            const isSelected = color === colorOption;
+            const swatchColor = COLOR_SWATCH_COLORS[colorOption];
+            return (
+              <button
+                key={colorOption}
+                type="button"
+                onClick={() => setColor(colorOption)}
+                disabled={isPending}
+                className={`
+                  w-4 h-4 rounded-full ${swatchColor} transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                  ${isSelected ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-105'}
+                `}
+                title={colorOption}
+                aria-label={`${colorOption} 색상 선택`}
+              />
+            );
+          })}
         </div>
       </div>
 

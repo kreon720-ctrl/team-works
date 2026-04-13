@@ -117,10 +117,14 @@ class ApiClient {
       ...customHeaders,
     };
 
+    // Track whether we had an access token (for 401 retry decision)
+    let hadAccessToken = false;
+
     // Add Authorization header if not skipped
     if (!skipAuth) {
       const accessToken = this.getAccessToken();
       if (accessToken) {
+        hadAccessToken = true;
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
     }
@@ -131,8 +135,9 @@ class ApiClient {
       headers,
     });
 
-    // If 401 and not skipping retry, attempt token refresh
-    if (response.status === 401 && !skipAuth && !skipRetry) {
+    // If 401 and we had a token, attempt token refresh and retry
+    // If we didn't have a token, pass the 401 through (e.g. login with wrong credentials)
+    if (response.status === 401 && hadAccessToken && !skipRetry) {
       const newAccessToken = await this.refreshToken();
 
       if (newAccessToken) {

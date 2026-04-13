@@ -7,6 +7,7 @@ export interface Schedule {
   creator_name: string | null
   title: string
   description: string | null
+  color: string
   start_at: Date
   end_at: Date
   created_at: Date
@@ -18,6 +19,7 @@ export interface CreateScheduleParams {
   createdBy: string
   title: string
   description?: string | null
+  color?: string
   startAt: Date
   endAt: Date
 }
@@ -25,18 +27,19 @@ export interface CreateScheduleParams {
 export interface UpdateScheduleParams {
   title?: string
   description?: string | null
+  color?: string
   startAt?: Date
   endAt?: Date
 }
 
 export async function createSchedule(params: CreateScheduleParams): Promise<Schedule> {
-  const { teamId, createdBy, title, description, startAt, endAt } = params
+  const { teamId, createdBy, title, description, color, startAt, endAt } = params
   try {
     const result = await pool.query<Schedule>(
-      `INSERT INTO schedules (team_id, created_by, title, description, start_at, end_at)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, team_id, created_by, title, description, start_at, end_at, created_at, updated_at`,
-      [teamId, createdBy, title, description ?? null, startAt, endAt]
+      `INSERT INTO schedules (team_id, created_by, title, description, color, start_at, end_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, team_id, created_by, title, description, color, start_at, end_at, created_at, updated_at`,
+      [teamId, createdBy, title, description ?? null, color ?? 'indigo', startAt, endAt]
     )
     return result.rows[0]
   } catch (err) {
@@ -51,7 +54,7 @@ export async function getSchedulesByDateRange(
 ): Promise<Schedule[]> {
   try {
     const result = await pool.query<Schedule>(
-      `SELECT s.id, s.team_id, s.created_by, u.name AS creator_name, s.title, s.description, s.start_at, s.end_at, s.created_at, s.updated_at
+      `SELECT s.id, s.team_id, s.created_by, u.name AS creator_name, s.title, s.description, s.color, s.start_at, s.end_at, s.created_at, s.updated_at
        FROM schedules s
        LEFT JOIN users u ON u.id = s.created_by
        WHERE s.team_id = $1
@@ -72,7 +75,7 @@ export async function getScheduleById(
 ): Promise<Schedule | null> {
   try {
     const result = await pool.query<Schedule>(
-      `SELECT s.id, s.team_id, s.created_by, u.name AS creator_name, s.title, s.description, s.start_at, s.end_at, s.created_at, s.updated_at
+      `SELECT s.id, s.team_id, s.created_by, u.name AS creator_name, s.title, s.description, s.color, s.start_at, s.end_at, s.created_at, s.updated_at
        FROM schedules s
        LEFT JOIN users u ON u.id = s.created_by
        WHERE s.team_id = $1 AND s.id = $2`,
@@ -89,17 +92,18 @@ export async function updateSchedule(
   id: string,
   params: UpdateScheduleParams
 ): Promise<Schedule | null> {
-  const { title, description, startAt, endAt } = params
+  const { title, description, color, startAt, endAt } = params
   try {
     const result = await pool.query<Schedule>(
       `UPDATE schedules
        SET title       = COALESCE($3, title),
            description = CASE WHEN $4::boolean THEN $5 ELSE description END,
+           color       = COALESCE($8, color),
            start_at    = COALESCE($6, start_at),
            end_at      = COALESCE($7, end_at),
            updated_at  = now()
        WHERE team_id = $1 AND id = $2
-       RETURNING id, team_id, created_by, title, description, start_at, end_at, created_at, updated_at`,
+       RETURNING id, team_id, created_by, title, description, color, start_at, end_at, created_at, updated_at`,
       [
         teamId,
         id,
@@ -108,6 +112,7 @@ export async function updateSchedule(
         description ?? null,
         startAt ?? null,
         endAt ?? null,
+        color ?? null,
       ]
     )
     return result.rows[0] ?? null
