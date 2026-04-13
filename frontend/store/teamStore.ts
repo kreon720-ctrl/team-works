@@ -18,9 +18,7 @@ interface TeamState {
 // Get today's date in KST (UTC+9)
 const getTodayKST = (): string => {
   const now = new Date();
-  const kstOffset = 9 * 60; // 9 hours in minutes
-  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const kst = new Date(utc + kstOffset * 60000);
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().split('T')[0];
 };
 

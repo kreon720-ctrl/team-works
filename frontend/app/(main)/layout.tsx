@@ -5,6 +5,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { apiClient } from '@/lib/apiClient';
+import type { User } from '@/types/auth';
 
 export default function MainLayout({
   children,
@@ -14,20 +16,36 @@ export default function MainLayout({
   const router = useRouter();
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const setUser = useAuthStore((state) => state.setUser);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    
-    // Check if user is authenticated
+
     const accessToken = localStorage.getItem('accessToken');
 
     if (!accessToken && !isAuthenticated) {
-      // Clear stale auth cookie before redirecting so proxy won't loop back
       document.cookie = 'auth-initialized=; path=/; max-age=0';
       router.replace('/login');
+      return;
     }
-  }, [isAuthenticated, router, pathname]);
+
+    // 토큰은 있지만 currentUser가 없으면 서버에서 복원
+    if (accessToken && !currentUser) {
+      apiClient.get<User>('/api/auth/me')
+        .then((user) => {
+          const refreshToken = localStorage.getItem('refreshToken') ?? '';
+          setUser(user, accessToken, refreshToken);
+        })
+        .catch(() => {
+          // 사용자를 찾을 수 없거나 토큰 만료 → 로그아웃 후 로그인 페이지로
+          apiClient.clearTokens();
+          document.cookie = 'auth-initialized=; path=/; max-age=0';
+          router.replace('/login');
+        });
+    }
+  }, [isAuthenticated, currentUser, router, pathname, setUser]);
 
   // Show loading spinner until client is mounted
   if (!isClient) {
@@ -38,10 +56,8 @@ export default function MainLayout({
     );
   }
 
-  // Check synchronously if we have a token
   const hasToken = localStorage.getItem('accessToken');
 
-  // If not authenticated and no token, show loading spinner while redirecting
   if (!hasToken && !isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">

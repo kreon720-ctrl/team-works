@@ -8,6 +8,15 @@ export const HOUR_PX = 56;
 const MIN_COL_WIDTH_PCT = 20; // 5개 초과 시 컬럼당 최소 너비(%)
 const MAX_INLINE_COLS = 5;    // 이 수를 초과하면 가로 스크롤 적용
 
+// 색상별 Tailwind 클래스 매핑
+const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string; border: string; hover: string; textLight: string }> = {
+  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-400', hover: 'hover:bg-indigo-200', textLight: 'text-indigo-600' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-400', hover: 'hover:bg-blue-200', textLight: 'text-blue-600' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-400', hover: 'hover:bg-emerald-200', textLight: 'text-emerald-600' },
+  amber: { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-400', hover: 'hover:bg-amber-200', textLight: 'text-amber-600' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-400', hover: 'hover:bg-rose-200', textLight: 'text-rose-600' },
+};
+
 interface CalendarDayViewProps {
   currentDate: Date;
   schedules?: Schedule[];
@@ -188,15 +197,15 @@ export function CalendarDayView({
                   >
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className="w-full h-full bg-primary-100 text-primary-800 text-xs px-1.5 py-0.5 rounded cursor-pointer hover:bg-primary-200 transition-colors duration-150 break-words border-l-2 border-primary-400"
+                      className={`w-full h-full ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-xs px-1.5 py-0.5 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
                       title={schedule.title}
                     >
                       <div className="font-semibold break-words leading-tight">{schedule.title}</div>
-                      <div className="text-primary-600 text-[10px]">
+                      <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px]`}>
                         {formatTime(new Date(schedule.startAt))} ~ {formatTime(new Date(schedule.endAt))}
                       </div>
                       {schedule.description && (
-                        <div className="text-gray-600 text-[10px] break-words mt-0.5">
+                        <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px] break-words mt-0.5`}>
                           {schedule.description}
                         </div>
                       )}

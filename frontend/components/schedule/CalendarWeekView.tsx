@@ -12,6 +12,15 @@ interface CalendarWeekViewProps {
   onScheduleClick?: (schedule: Schedule) => void;
 }
 
+// 색상별 Tailwind 클래스 매핑
+const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string; hover: string; bgDarker: string }> = {
+  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800', hover: 'hover:bg-indigo-200', bgDarker: 'bg-indigo-200' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-800', hover: 'hover:bg-blue-200', bgDarker: 'bg-blue-200' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-800', hover: 'hover:bg-emerald-200', bgDarker: 'bg-emerald-200' },
+  amber: { bg: 'bg-amber-100', text: 'text-amber-800', hover: 'hover:bg-amber-200', bgDarker: 'bg-amber-200' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-800', hover: 'hover:bg-rose-200', bgDarker: 'bg-rose-200' },
+};
+
 export function CalendarWeekView({ currentDate, schedules = [], selectedDate, onDateClick, onScheduleClick }: CalendarWeekViewProps) {
   // Get start of week (Sunday) - use UTC to avoid timezone issues
   const startOfWeek = new Date(currentDate);
@@ -28,10 +37,11 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
 
   const isToday = (date: Date): boolean => {
     const now = new Date();
-    // Use UTC methods for consistent comparison
-    return date.getUTCFullYear() === now.getUTCFullYear() &&
-           date.getUTCMonth() === now.getUTCMonth() &&
-           date.getUTCDate() === now.getUTCDate();
+    // Compare against KST today (UTC+9)
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    return date.getUTCFullYear() === kstNow.getUTCFullYear() &&
+           date.getUTCMonth() === kstNow.getUTCMonth() &&
+           date.getUTCDate() === kstNow.getUTCDate();
   };
 
   const isSelected = (date: Date): boolean => {
@@ -106,15 +116,15 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
               onClick={() => onDateClick?.(date)}
               className={`
                 flex-1 flex flex-col items-center py-2 px-1 rounded-lg transition-all duration-150
-                ${today ? 'bg-primary-500 text-white ring-2 ring-primary-300' : ''}
+                ${today ? 'ring-2 ring-orange-500' : ''}
                 ${sel && !today ? 'ring-2 ring-primary-500' : ''}
                 hover:bg-gray-50
               `}
             >
-              <span className={`text-xs font-medium mb-1 ${today ? 'text-white' : index === 0 ? 'text-error-500' : index === 6 ? 'text-primary-500' : 'text-gray-600'}`}>
+              <span className={`text-xs font-medium mb-1 ${index === 0 ? 'text-error-500' : index === 6 ? 'text-primary-500' : 'text-gray-600'}`}>
                 {weekdays[index]}
               </span>
-              <span className={`text-lg font-semibold ${today ? 'text-white' : 'text-gray-800'}`}>
+              <span className={`text-lg font-semibold ${index === 0 ? 'text-error-500' : index === 6 ? 'text-primary-500' : 'text-gray-800'}`}>
                 {date.getUTCDate()}
               </span>
             </button>
@@ -173,7 +183,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                   >
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className="text-xs bg-primary-200 text-primary-900 px-1 py-0.5 rounded truncate cursor-pointer hover:bg-primary-300 transition-colors"
+                      className={`text-xs ${COLOR_CLASSES[schedule.color ?? 'indigo'].bgDarker} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-1 py-0.5 rounded truncate cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors`}
                       title={schedule.title}
                     >
                       {schedule.title}
@@ -251,15 +261,15 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                           <div
                             key={schedule.id}
                             onClick={() => onScheduleClick?.(schedule)}
-                            className="bg-primary-100 text-primary-800 px-2 py-1 rounded cursor-pointer hover:bg-primary-200 transition-colors duration-150 break-words"
+                            className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-2 py-1 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words`}
                             title={schedule.title}
                           >
                             <div className="font-medium text-xs break-words">{schedule.title}</div>
-                            <div className="text-primary-600 text-[10px]">
+                            <div className="opacity-75 text-[10px]">
                               {formatTime(start)} ~ {formatTime(end)}
                             </div>
                             {showDescription && (
-                              <div className="text-primary-700 text-[10px] mt-0.5 break-words" title={schedule.description}>
+                              <div className="opacity-75 text-[10px] mt-0.5 break-words" title={schedule.description}>
                                 {schedule.description}
                               </div>
                             )}

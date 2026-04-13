@@ -12,6 +12,15 @@ interface CalendarMonthViewProps {
   onScheduleClick?: (schedule: Schedule) => void;
 }
 
+// 색상별 Tailwind 클래스 매핑
+const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string }> = {
+  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-800' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-800' },
+  amber: { bg: 'bg-amber-100', text: 'text-amber-800' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-800' },
+};
+
 export function CalendarMonthView({ currentDate, schedules = [], selectedDate, onDateClick, onScheduleClick }: CalendarMonthViewProps) {
   const year = currentDate.getUTCFullYear();
   const month = currentDate.getUTCMonth();
@@ -293,15 +302,13 @@ export function CalendarMonthView({ currentDate, schedules = [], selectedDate, o
                       {/* Date number */}
                       <div className={`
                         text-sm font-medium mb-1 flex-shrink-0
-                        ${today
-                          ? 'text-black font-bold'
-                          : !currentMonthDay
-                            ? 'text-gray-400'
-                            : dayIndex === 0
-                              ? 'text-error-500'
-                              : dayIndex === 6
-                                ? 'text-primary-500'
-                                : 'text-gray-700'
+                        ${!currentMonthDay
+                          ? 'text-gray-400'
+                          : dayIndex === 0
+                            ? 'text-error-500'
+                            : dayIndex === 6
+                              ? 'text-primary-500'
+                              : 'text-gray-700'
                         }
                       `}>
                         {date.getUTCDate()}
@@ -338,7 +345,7 @@ export function CalendarMonthView({ currentDate, schedules = [], selectedDate, o
                       >
                         <div
                           className={`
-                            text-xs px-1 py-0.5 break-words text-center cursor-pointer hover:opacity-75 transition-opacity bg-primary-100 text-primary-800 rounded h-full flex flex-col justify-center
+                            text-xs px-1 py-0.5 break-words text-center cursor-pointer hover:opacity-75 transition-opacity rounded h-full flex flex-col justify-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}
                           `}
                           title={isSameDaySchedule(schedule) ? schedule.title : `${schedule.title} (${formatDateRange(schedule)})`}
                           onClick={(e) => { e.stopPropagation(); onScheduleClick?.(schedule); }}
