@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Schedule } from '@/types/schedule';
 import { utcToKST, formatTime } from '@/lib/utils/timezone';
 
@@ -12,7 +12,6 @@ interface CalendarMonthViewProps {
   onScheduleClick?: (schedule: Schedule) => void;
 }
 
-// 색상별 Tailwind 클래스 매핑
 const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string }> = {
   indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800' },
   blue: { bg: 'bg-blue-100', text: 'text-blue-800' },
@@ -21,150 +20,138 @@ const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: 
   rose: { bg: 'bg-rose-100', text: 'text-rose-800' },
 };
 
-export function CalendarMonthView({ currentDate, schedules = [], selectedDate, onDateClick, onScheduleClick }: CalendarMonthViewProps) {
+const AVG_CHAR_WIDTH_PX = 13;
+const BAR_LINE_HEIGHT_PX = 16; // text-xs line-height: 1rem = 16px
+const BAR_PADDING_V_PX = 4;   // py-0.5 (2px × 2) = 4px
+const MIN_BAR_HEIGHT = 20;
+const SCHEDULE_ROW_GAP = 2;
+const SCHEDULE_TOP_OFFSET = 32;
+const BASE_CELL_MIN_HEIGHT = 64;
+
+export function CalendarMonthView({
+  currentDate,
+  schedules = [],
+  selectedDate,
+  onDateClick,
+  onScheduleClick,
+}: CalendarMonthViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(entries => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const year = currentDate.getUTCFullYear();
   const month = currentDate.getUTCMonth();
 
-  // Get first day of month (UTC)
   const firstDay = new Date(Date.UTC(year, month, 1));
-  // Get last day of month (UTC)
   const lastDay = new Date(Date.UTC(year, month + 1, 0));
 
-  // Get starting date (previous month days to fill grid) - UTC
   const startDate = new Date(firstDay);
   startDate.setUTCDate(startDate.getUTCDate() - startDate.getUTCDay());
 
-  // Generate calendar days (6 weeks to cover all cases)
   const weeks: Date[][] = [];
-  const current = new Date(startDate);
-
+  const cur = new Date(startDate);
   for (let week = 0; week < 6; week++) {
     const days: Date[] = [];
     for (let day = 0; day < 7; day++) {
-      days.push(new Date(current));
-      current.setUTCDate(current.getUTCDate() + 1);
+      days.push(new Date(cur));
+      cur.setUTCDate(cur.getUTCDate() + 1);
     }
     weeks.push(days);
-
-    // Stop if we've passed the last day of the month
-    if (current > lastDay) {
-      break;
-    }
+    if (cur > lastDay) break;
   }
 
   const isToday = (date: Date): boolean => {
-    const now = new Date();
-    // Get today in KST (UTC+9)
-    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
     return date.getUTCFullYear() === kstNow.getUTCFullYear() &&
-           date.getUTCMonth() === kstNow.getUTCMonth() &&
-           date.getUTCDate() === kstNow.getUTCDate();
+      date.getUTCMonth() === kstNow.getUTCMonth() &&
+      date.getUTCDate() === kstNow.getUTCDate();
   };
 
   const isSelected = (date: Date): boolean => {
     if (!selectedDate) return false;
     return date.getUTCFullYear() === selectedDate.getUTCFullYear() &&
-           date.getUTCMonth() === selectedDate.getUTCMonth() &&
-           date.getUTCDate() === selectedDate.getUTCDate();
+      date.getUTCMonth() === selectedDate.getUTCMonth() &&
+      date.getUTCDate() === selectedDate.getUTCDate();
   };
 
-  const isCurrentMonth = (date: Date): boolean => {
-    return date.getUTCMonth() === month;
-  };
+  const isCurrentMonth = (date: Date): boolean => date.getUTCMonth() === month;
 
-  // utcToKST shifts by +9h → must use getUTC* to read KST components without double-shift
   const scheduleToDay = (utcDate: Date): Date => {
     const kst = utcToKST(utcDate);
     return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()));
   };
 
-  // Check if schedule is a same-day event (starts and ends on the same KST day)
   const isSameDaySchedule = (schedule: Schedule): boolean => {
-    const sStart = scheduleToDay(new Date(schedule.startAt));
-    const sEnd = scheduleToDay(new Date(schedule.endAt));
-    return sStart.getTime() === sEnd.getTime();
+    const s = scheduleToDay(new Date(schedule.startAt));
+    const e = scheduleToDay(new Date(schedule.endAt));
+    return s.getTime() === e.getTime();
   };
 
-  const handleDateClick = (date: Date) => {
-    onDateClick?.(date);
-  };
-
-  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-
-  // Format date range for multi-day schedules: "4.16.~18." or "4.16.~5.2."
   const formatDateRange = (schedule: Schedule): string => {
-    const start = utcToKST(new Date(schedule.startAt));
-    const end = utcToKST(new Date(schedule.endAt));
-    const startMonth = start.getUTCMonth() + 1;
-    const startDay = start.getUTCDate();
-    const endMonth = end.getUTCMonth() + 1;
-    const endDay = end.getUTCDate();
-    
-    if (startMonth === endMonth) {
-      return `${startMonth}.${startDay}.~${endDay}.`;
-    }
-    return `${startMonth}.${startDay}.~${endMonth}.${endDay}.`;
+    const s = utcToKST(new Date(schedule.startAt));
+    const e = utcToKST(new Date(schedule.endAt));
+    const sm = s.getUTCMonth() + 1, sd = s.getUTCDate();
+    const em = e.getUTCMonth() + 1, ed = e.getUTCDate();
+    return sm === em
+      ? `(${sd}일~${ed}일)`
+      : `(${sm}월${sd}일~${em}월${ed}일)`;
   };
 
-  // For a given week, assign schedules to rows based on overlap
-  // Returns { schedule, row, colStart, colEnd }[]
-  const getSchedulesForWeek = (weekDays: Date[]): {
+  /** 멀티데이 일정 오버레이용 바 높이 추정 */
+  const getBarHeight = (text: string, spanCols: number): number => {
+    if (containerWidth <= 0) return MIN_BAR_HEIGHT;
+    const barWidthPx = (spanCols / 7) * containerWidth - 16;
+    const charsPerLine = Math.max(1, Math.floor(barWidthPx / AVG_CHAR_WIDTH_PX));
+    const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
+    return Math.max(MIN_BAR_HEIGHT, lines * BAR_LINE_HEIGHT_PX + BAR_PADDING_V_PX);
+  };
+
+  /** 멀티데이 일정만 행 배정 */
+  const getMultiDaySchedulesForWeek = (weekDays: Date[]): {
     schedule: Schedule;
     row: number;
     colStart: number;
     colEnd: number;
   }[] => {
-    // weekDays are UTC dates representing KST calendar days
-    // Calculate KST-based week boundaries
-    // weekDays[0] is Sunday, weekDays[6] is Saturday (in KST)
     const kstWeekStart = new Date(weekDays[0]);
     kstWeekStart.setUTCHours(0, 0, 0, 0);
     const kstWeekEnd = new Date(weekDays[6]);
     kstWeekEnd.setUTCHours(23, 59, 59, 999);
 
-    // Filter schedules that overlap with this week (KST)
-    const weekSchedules = schedules.filter(schedule => {
-      const sStart = scheduleToDay(new Date(schedule.startAt));
-      const sEnd = scheduleToDay(new Date(schedule.endAt));
+    const multiDay = schedules.filter(s => {
+      if (isSameDaySchedule(s)) return false;
+      const sStart = scheduleToDay(new Date(s.startAt));
+      const sEnd = scheduleToDay(new Date(s.endAt));
       return sStart <= kstWeekEnd && sEnd >= kstWeekStart;
     });
 
-    // Sort: multi-day schedules first, then same-day schedules
-    // Within each group, sort by start date
-    weekSchedules.sort((a, b) => {
+    multiDay.sort((a, b) => {
       const aStart = scheduleToDay(new Date(a.startAt)).getTime();
       const bStart = scheduleToDay(new Date(b.startAt)).getTime();
       const aEnd = scheduleToDay(new Date(a.endAt)).getTime();
       const bEnd = scheduleToDay(new Date(b.endAt)).getTime();
-      
-      const aIsMultiDay = aStart !== aEnd;
-      const bIsMultiDay = bStart !== bEnd;
-      
-      // Multi-day schedules come first
-      if (aIsMultiDay !== bIsMultiDay) {
-        return aIsMultiDay ? -1 : 1;
-      }
-      
-      // Within same group, sort by start date
       if (aStart !== bStart) return aStart - bStart;
-      
-      // If same start date, longer duration first for multi-day, shorter first for same-day
-      return aIsMultiDay ? (bEnd - bStart) - (aEnd - aStart) : (aEnd - aStart) - (bEnd - bStart);
+      return (bEnd - bStart) - (aEnd - aStart);
     });
 
-    // Assign rows (interval coloring / greedy algorithm)
-    const rows: { end: Date; count: number }[] = [];
+    const rows: { end: Date }[] = [];
     const result: { schedule: Schedule; row: number; colStart: number; colEnd: number }[] = [];
 
-    for (const schedule of weekSchedules) {
+    for (const schedule of multiDay) {
       const sStart = scheduleToDay(new Date(schedule.startAt));
       const sEnd = scheduleToDay(new Date(schedule.endAt));
-
-      // Clamp to week boundaries
       const clampedStart = sStart < kstWeekStart ? kstWeekStart : sStart;
       const clampedEnd = sEnd > kstWeekEnd ? kstWeekEnd : sEnd;
 
-      // Find first available row
       let assignedRow = -1;
       for (let r = 0; r < rows.length; r++) {
         if (rows[r].end < clampedStart) {
@@ -175,48 +162,37 @@ export function CalendarMonthView({ currentDate, schedules = [], selectedDate, o
       }
       if (assignedRow === -1) {
         assignedRow = rows.length;
-        rows.push({ end: clampedEnd, count: 0 });
+        rows.push({ end: clampedEnd });
       }
-      rows[assignedRow].count++;
 
-      // Calculate grid column (1-indexed, 7 days)
-      const dayIndexStart = Math.max(0, Math.round((clampedStart.getTime() - kstWeekStart.getTime()) / (1000 * 60 * 60 * 24)));
-      const dayIndexEnd = Math.min(6, Math.round((clampedEnd.getTime() - kstWeekStart.getTime()) / (1000 * 60 * 60 * 24)));
-      const colStart = dayIndexStart + 1;
-      const colEnd = Math.min(7, dayIndexEnd + 1);
-
-      result.push({ schedule, row: assignedRow, colStart, colEnd });
+      const dayIndexStart = Math.max(0, Math.round(
+        (clampedStart.getTime() - kstWeekStart.getTime()) / (1000 * 60 * 60 * 24)
+      ));
+      const dayIndexEnd = Math.min(6, Math.round(
+        (clampedEnd.getTime() - kstWeekStart.getTime()) / (1000 * 60 * 60 * 24)
+      ));
+      result.push({
+        schedule,
+        row: assignedRow,
+        colStart: dayIndexStart + 1,
+        colEnd: Math.min(7, dayIndexEnd + 1),
+      });
     }
 
     return result;
   };
 
-  const SCHEDULE_ROW_HEIGHT = 20;
-  const SCHEDULE_ROW_GAP = 4;
-  const SCHEDULE_MIN_HEIGHT = 20;
+  /** 특정 날짜의 당일 일정 (시작 시각 오름차순) */
+  const getSameDaySchedulesForDay = (date: Date): Schedule[] =>
+    schedules
+      .filter(s => isSameDaySchedule(s) && scheduleToDay(new Date(s.startAt)).getTime() === date.getTime())
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
 
-  const rowTop = (row: number, rowHeights: number[]): number => {
-    let top = 32;
-    for (let i = 0; i < row; i++) {
-      top += rowHeights[i] + SCHEDULE_ROW_GAP;
-    }
-    return top;
-  };
-
-  const weekHeight = (rowHeights: number[]): string => {
-    const totalScheduleHeight = rowHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, rowHeights.length - 1) * SCHEDULE_ROW_GAP;
-    return `calc(80px + ${totalScheduleHeight}px)`;
-  };
-
-  // Estimate the number of lines a text will wrap to
-  const estimateTextLines = (text: string, maxCharsPerLine: number = 20): number => {
-    if (!text) return 1;
-    return Math.max(1, Math.ceil(text.length / maxCharsPerLine));
-  };
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
   return (
-    <div className="w-full">
-      {/* Weekday headers */}
+    <div ref={containerRef} className="w-full">
+      {/* 요일 헤더 */}
       <div className="grid grid-cols-7 mb-1">
         {weekdays.map((day, index) => (
           <div
@@ -230,79 +206,85 @@ export function CalendarMonthView({ currentDate, schedules = [], selectedDate, o
         ))}
       </div>
 
-      {/* Calendar grid */}
+      {/* 캘린더 그리드 */}
       <div className="flex flex-col gap-1.5">
         {weeks.map((week, weekIndex) => {
-          const weekScheduleRows = getSchedulesForWeek(week);
-          
-          // Calculate dynamic row heights based on text content
-          const rowHeights: number[] = [];
-          const rowMaxChars: number[] = [];
-          
-          weekScheduleRows.forEach(({ schedule, row, colStart, colEnd }) => {
-            const span = colEnd - colStart + 1;
-            // Estimate available width: each cell is ~1/7 of container, roughly 20 chars per cell at minimum
-            const estimatedCharsPerLine = Math.max(8, span * 18);
-            
-            let textContent: string;
-            if (isSameDaySchedule(schedule)) {
-              // Same-day: "HH:MM title"
-              textContent = `${formatTime(new Date(schedule.startAt))} ${schedule.title}`;
-            } else {
-              // Multi-day: "title (MM/DD~MM/DD)"
-              textContent = `${schedule.title} (${formatDateRange(schedule)})`;
-            }
-            
-            const lines = estimateTextLines(textContent, estimatedCharsPerLine);
-            const neededHeight = Math.max(SCHEDULE_MIN_HEIGHT, lines * 16 + 4); // 16px per line + padding
-            
-            if (!rowHeights[row]) {
-              rowHeights[row] = neededHeight;
-              rowMaxChars[row] = estimatedCharsPerLine;
-            } else {
-              rowHeights[row] = Math.max(rowHeights[row], neededHeight);
-            }
+          /* ── 멀티데이 레이아웃 ── */
+          const multiDayRows = getMultiDaySchedulesForWeek(week);
+          const multiDayBarHeights = multiDayRows.map(({ schedule, colStart, colEnd }) => {
+            const dateRange = formatDateRange(schedule);
+            return getBarHeight(`${schedule.title} ${dateRange}`, colEnd - colStart + 1);
           });
-          
-          // Fill empty rows with min height
-          const maxRow = weekScheduleRows.length > 0 ? Math.max(...weekScheduleRows.map(r => r.row)) : 0;
-          for (let i = 0; i <= maxRow; i++) {
-            if (!rowHeights[i]) rowHeights[i] = SCHEDULE_MIN_HEIGHT;
+
+          const rowMaxHeights: number[] = [];
+          multiDayRows.forEach(({ row }, idx) => {
+            rowMaxHeights[row] = Math.max(rowMaxHeights[row] ?? 0, multiDayBarHeights[idx]);
+          });
+
+          const rowTopOffsets: number[] = [];
+          let cumulative = SCHEDULE_TOP_OFFSET;
+          for (let r = 0; r < rowMaxHeights.length; r++) {
+            rowTopOffsets[r] = cumulative;
+            cumulative += (rowMaxHeights[r] ?? MIN_BAR_HEIGHT) + SCHEDULE_ROW_GAP;
           }
-          
-          const cellHeight = weekHeight(rowHeights);
+
+          /**
+           * 날짜별 멀티데이 영역 하단 y값 (당일 일정 스페이서 높이 기준)
+           * 멀티데이 일정이 없는 날 = SCHEDULE_TOP_OFFSET (스페이서 불필요)
+           */
+          const perDayMultiDayBottom = week.map((_, dayIndex) => {
+            const col = dayIndex + 1;
+            const barsOnDay = multiDayRows.filter(r => r.colStart <= col && r.colEnd >= col);
+            if (barsOnDay.length === 0) return SCHEDULE_TOP_OFFSET;
+            const maxRow = Math.max(...barsOnDay.map(r => r.row));
+            return (rowTopOffsets[maxRow] ?? SCHEDULE_TOP_OFFSET) +
+              (rowMaxHeights[maxRow] ?? MIN_BAR_HEIGHT) +
+              SCHEDULE_ROW_GAP;
+          });
+
+          /* 멀티데이 오버레이 영역만큼 셀 최소 높이 보장 */
+          const cellMinHeight = `${Math.max(
+            BASE_CELL_MIN_HEIGHT,
+            ...perDayMultiDayBottom.map(b => b + 8),
+          )}px`;
 
           return (
             <div key={weekIndex} className="relative">
-              {/* Day cells grid */}
-              <div className="grid grid-cols-7 gap-1.5" style={{ gridTemplateRows: `minmax(${cellHeight}, auto)` }}>
+              {/* 날짜 셀 그리드 */}
+              <div
+                className="grid grid-cols-7 gap-1.5"
+                style={{ gridTemplateRows: `minmax(${cellMinHeight}, auto)` }}
+              >
                 {week.map((date, dayIndex) => {
-                  const today = isToday(date);
-                  const selected = isSelected(date);
-                  const currentMonthDay = isCurrentMonth(date);
+                  const sameDaySchedules = getSameDaySchedulesForDay(date);
+                  /**
+                   * 멀티데이 오버레이 바 아래에 당일 일정이 시작되도록
+                   * 날짜 숫자 영역(SCHEDULE_TOP_OFFSET) 이후의 남은 공간을 스페이서로 채운다.
+                   */
+                  const spacerHeight = perDayMultiDayBottom[dayIndex] - SCHEDULE_TOP_OFFSET;
 
                   return (
                     <button
                       key={date.toISOString()}
                       type="button"
-                      onClick={() => handleDateClick(date)}
+                      onClick={() => onDateClick?.(date)}
                       className={`
                         relative p-2 rounded-lg border transition-all duration-150 flex flex-col
-                        ${today
+                        ${isToday(date)
                           ? 'border-orange-500 ring-1 ring-orange-400'
-                          : selected
+                          : isSelected(date)
                             ? 'bg-white border-primary-500 ring-2 ring-primary-500'
-                            : !currentMonthDay
+                            : !isCurrentMonth(date)
                               ? 'bg-gray-50 border-gray-200'
                               : 'bg-white border-gray-200'
                         }
                         hover:border-gray-300 hover:shadow-sm
                       `}
                     >
-                      {/* Date number */}
+                      {/* 날짜 숫자 */}
                       <div className={`
                         text-sm font-medium mb-1 flex-shrink-0
-                        ${!currentMonthDay
+                        ${!isCurrentMonth(date)
                           ? 'text-gray-400'
                           : dayIndex === 0
                             ? 'text-error-500'
@@ -313,55 +295,52 @@ export function CalendarMonthView({ currentDate, schedules = [], selectedDate, o
                       `}>
                         {date.getUTCDate()}
                       </div>
+
+                      {/* 멀티데이 오버레이 점유 영역 스페이서 */}
+                      {spacerHeight > 0 && (
+                        <div style={{ height: `${spacerHeight}px` }} className="flex-shrink-0" />
+                      )}
+
+                      {/* 당일 일정 (height: auto — 브라우저가 직접 높이 결정) */}
+                      {sameDaySchedules.map(schedule => (
+                        <div
+                          key={schedule.id}
+                          className={`text-xs px-1 py-0.5 break-words overflow-hidden rounded mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          title={`${formatTime(new Date(schedule.startAt))} ${schedule.title}`}
+                          onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
+                        >
+                          {formatTime(new Date(schedule.startAt))} {schedule.title}
+                        </div>
+                      ))}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Schedule bars overlay */}
-              {weekScheduleRows.length > 0 && (
+              {/* 멀티데이 일정 오버레이 (가로 스팬 바) */}
+              {multiDayRows.length > 0 && (
                 <div className="absolute inset-0 pointer-events-none">
-                  {weekScheduleRows.map(({ schedule, row, colStart, colEnd }) => {
-                    const startDayIdx = colStart - 1;
-                    const startDayDate = week[startDayIdx];
-                    const isStartDayToday = isToday(startDayDate);
+                  {multiDayRows.map(({ schedule, row, colStart, colEnd }, idx) => {
                     const span = colEnd - colStart + 1;
-                    // Percentage-based positioning: each cell is 1/7 ≈ 14.285%
                     const leftPct = `${(colStart - 1) * (100 / 7)}%`;
                     const widthPct = `${span * (100 / 7)}%`;
-                    const barHeight = rowHeights[row] || SCHEDULE_MIN_HEIGHT;
+                    const barH = multiDayBarHeights[idx];
+                    const topPx = rowTopOffsets[row] ?? SCHEDULE_TOP_OFFSET;
+                    const dateRange = formatDateRange(schedule);
+                    const displayText = `${schedule.title} ${dateRange}`;
 
                     return (
                       <div
-                        key={`bar-${schedule.id}-${weekIndex}`}
-                        className="absolute"
-                        style={{
-                          left: leftPct,
-                          width: widthPct,
-                          top: `${rowTop(row, rowHeights)}px`,
-                          height: `${barHeight}px`,
-                          pointerEvents: 'auto',
-                        }}
+                        key={`multi-${schedule.id}-${weekIndex}`}
+                        className="absolute px-0.5"
+                        style={{ left: leftPct, width: widthPct, top: `${topPx}px`, height: `${barH}px`, pointerEvents: 'auto' }}
                       >
                         <div
-                          className={`
-                            text-xs px-1 py-0.5 break-words text-center cursor-pointer hover:opacity-75 transition-opacity rounded h-full flex flex-col justify-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}
-                          `}
-                          title={isSameDaySchedule(schedule) ? schedule.title : `${schedule.title} (${formatDateRange(schedule)})`}
-                          onClick={(e) => { e.stopPropagation(); onScheduleClick?.(schedule); }}
+                          className={`text-xs px-1 py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded h-full text-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          title={displayText}
+                          onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
                         >
-                          {isSameDaySchedule(schedule) ? (
-                            <>
-                              <span className="break-words">
-                                <span className="font-medium opacity-75">{formatTime(new Date(schedule.startAt))} </span>
-                                {schedule.title}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="break-words">
-                              {schedule.title} ({formatDateRange(schedule)})
-                            </span>
-                          )}
+                          {displayText}
                         </div>
                       </div>
                     );

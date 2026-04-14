@@ -406,6 +406,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
               view={calendarView}
               schedules={schedules}
               canCreateSchedule={true}
+              compact={true}
               onViewChange={handleViewChange}
               onDateChange={(date) => {
                 const year = date.getUTCFullYear();
@@ -471,7 +472,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
       <ScheduleDetailModal
         isOpen={showDetailModal}
         schedule={selectedSchedule}
-        isLeader={isLeader}
+        currentUserId={currentUser?.id ?? null}
         onClose={() => { setShowDetailModal(false); setSelectedSchedule(null); }}
         onEdit={() => { setShowDetailModal(false); setShowEditModal(true); }}
         onDelete={handleDelete}

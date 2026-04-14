@@ -109,7 +109,8 @@ describe('CalendarMonthView', () => {
     );
 
     // Should only render the schedule once (on its start day)
-    const badges = screen.getAllByText('주간 회의');
+    // 바 텍스트는 "주간 회의 (13일~17일)" 형식으로 날짜 범위 포함
+    const badges = screen.getAllByText(/주간 회의/);
     expect(badges.length).toBe(1);  // not 5 (one per day)
   });
 
@@ -146,13 +147,14 @@ describe('CalendarMonthView', () => {
       />
     );
 
-    // Both schedules should be rendered
-    expect(screen.getAllByText('회의 A').length).toBe(1);
-    expect(screen.getAllByText('회의 B').length).toBe(1);
+    // Both schedules should be rendered (날짜 범위 포함한 텍스트로 검색)
+    expect(screen.getAllByText(/회의 A/).length).toBe(1);
+    expect(screen.getAllByText(/회의 B/).length).toBe(1);
 
     // They should have different vertical positions (row assignment)
-    const badgeA = screen.getByText('회의 A').parentElement!;
-    const badgeB = screen.getByText('회의 B').parentElement!;
+    // DOM: outer absolute div (style.top) > inner colored div > text
+    const badgeA = screen.getByText(/회의 A/).parentElement!;
+    const badgeB = screen.getByText(/회의 B/).parentElement!;
     const topA = badgeA.style.top;
     const topB = badgeB.style.top;
 
@@ -182,11 +184,11 @@ describe('CalendarMonthView', () => {
       />
     );
 
-    // Should render only once (on start day)
-    const badge = screen.getByText('주간 회의');
-    expect(screen.getAllByText('주간 회의').length).toBe(1);
+    // Should render only once (날짜 범위 포함한 텍스트로 검색)
+    const badge = screen.getByText(/주간 회의/);
+    expect(screen.getAllByText(/주간 회의/).length).toBe(1);
 
-    // The badge should be in the overlay (absolute positioned)
+    // DOM: outer absolute div (style.left/width) > inner colored div > text
     const badgeContainer = badge.parentElement;
     expect(badgeContainer).toBeTruthy();
 

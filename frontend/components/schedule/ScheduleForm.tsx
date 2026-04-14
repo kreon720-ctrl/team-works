@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { ScheduleCreateInput, ScheduleUpdateInput, Schedule, ScheduleColor, SCHEDULE_COLORS } from '@/types/schedule';
 import { Button } from '@/components/common/Button';
+import { utcToKST } from '@/lib/utils/timezone';
 
 interface ScheduleFormProps {
   mode: 'create' | 'edit';
@@ -162,7 +163,12 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
           type="text"
           value={displayValue}
           readOnly
-          onClick={() => !disabled && setIsOpen(!isOpen)}
+          onClick={() => {
+            if (!disabled) {
+              if (!isOpen && value) setSelectedDate(new Date(value));
+              setIsOpen(!isOpen);
+            }
+          }}
           placeholder="날짜와 시간을 선택하세요"
           disabled={disabled}
           className={`flex-1 border rounded-xl bg-white px-4 py-2.5 text-base font-normal text-gray-900 shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed cursor-pointer ${
@@ -173,7 +179,12 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
         />
         <button
           type="button"
-          onClick={() => !disabled && setIsOpen(!isOpen)}
+          onClick={() => {
+            if (!disabled) {
+              if (!isOpen && value) setSelectedDate(new Date(value));
+              setIsOpen(!isOpen);
+            }
+          }}
           disabled={disabled}
           className="px-3 py-2.5 border border-gray-300 rounded-xl bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
         >
@@ -391,12 +402,20 @@ export function ScheduleForm({
     return { startStr, endStr };
   }, []);
 
-  const [startDate, setStartDate] = useState(
-    initialData?.startAt ? initialData.startAt.slice(0, 16) : defaultDates.startStr
-  );
-  const [endDate, setEndDate] = useState(
-    initialData?.endAt ? initialData.endAt.slice(0, 16) : defaultDates.endStr
-  );
+  const [startDate, setStartDate] = useState(() => {
+    if (initialData?.startAt) {
+      const kst = utcToKST(new Date(initialData.startAt));
+      return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}T${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+    }
+    return defaultDates.startStr;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    if (initialData?.endAt) {
+      const kst = utcToKST(new Date(initialData.endAt));
+      return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}T${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+    }
+    return defaultDates.endStr;
+  });
   const [errors, setErrors] = useState<FormErrors>(() => (error ? { general: error } : {}));
 
   const validate = (): boolean => {

@@ -13,6 +13,7 @@ interface CalendarViewProps {
   view: CalendarViewType;
   schedules?: Schedule[];
   canCreateSchedule?: boolean;
+  compact?: boolean; // 채팅창 없는 모드 (모바일 캘린더 탭 등)
   onViewChange?: (view: CalendarViewType) => void;
   onDateChange?: (date: Date) => void;
   onDateClick?: (date: Date) => void;
@@ -26,6 +27,7 @@ export function CalendarView({
   view = 'month',
   schedules = [],
   canCreateSchedule = false,
+  compact = false,
   onViewChange,
   onDateChange,
   onDateClick,
@@ -102,7 +104,7 @@ export function CalendarView({
             </svg>
           </button>
 
-          <h2 className="text-lg font-semibold text-gray-900 min-w-[150px] text-center">
+          <h2 className={`font-semibold text-gray-900 text-center ${compact ? 'text-xs min-w-[100px]' : 'text-lg min-w-[150px]'}`}>
             {formatDateRange()}
           </h2>
 
@@ -124,13 +126,15 @@ export function CalendarView({
             <button
               type="button"
               onClick={() => onCreateSchedule()}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150"
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-white font-medium hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150 ${compact ? 'text-xs' : 'text-sm'}`}
               aria-label="일정 등록"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              일정 등록
+              {!compact && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              )}
+              {compact ? '등록' : '일정 등록'}
             </button>
           )}
 
@@ -142,7 +146,8 @@ export function CalendarView({
                 type="button"
                 onClick={() => onViewChange?.(tab.id)}
                 className={`
-                  px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-150
+                  py-2 font-medium border-b-2 transition-colors duration-150
+                  ${compact ? 'px-3 text-xs' : 'px-4 text-sm'}
                   ${view === tab.id
                     ? 'text-primary-600 border-primary-500'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'

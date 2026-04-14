@@ -63,47 +63,65 @@ describe('computeLayout', () => {
     expect(result[0].totalColumns).toBe(1);
   });
 
-  it('2개 → totalColumns=2, column 0·1', () => {
+  it('겹치지 않는 2개 → 각각 totalColumns=1, 같은 column=0 재사용', () => {
+    // A(10-11), B(14-15): 겹치지 않으므로 column 0을 재사용, 각각 100% 너비
     const result = computeLayout([makeSchedule('A', 10, 11), makeSchedule('B', 14, 15)]);
+    expect(result[0].totalColumns).toBe(1);
+    expect(result[1].totalColumns).toBe(1);
+    // 둘 다 column=0 (겹치지 않으므로 동일 column 재사용)
+    result.forEach(r => expect(r.column).toBe(0));
+  });
+
+  it('겹치는 2개 → 각각 totalColumns=2, column 0·1', () => {
+    // A(10-12), B(11-13): 겹치므로 서로 다른 column
+    const result = computeLayout([makeSchedule('A', 10, 12), makeSchedule('B', 11, 13)]);
     expect(result[0].totalColumns).toBe(2);
     expect(result[1].totalColumns).toBe(2);
     const cols = result.map(r => r.column).sort();
     expect(cols).toEqual([0, 1]);
   });
 
-  it('3개 → totalColumns=3', () => {
+  it('겹치지 않는 3개 → 각각 totalColumns=1', () => {
     const s = [makeSchedule('A', 9, 10), makeSchedule('B', 11, 12), makeSchedule('C', 14, 15)];
+    const result = computeLayout(s);
+    result.forEach(r => expect(r.totalColumns).toBe(1));
+  });
+
+  it('모두 겹치는 3개 → 각각 totalColumns=3', () => {
+    // A(10-13), B(11-14), C(12-15): 모두 겹침
+    const s = [makeSchedule('A', 10, 13), makeSchedule('B', 11, 14), makeSchedule('C', 12, 15)];
     const result = computeLayout(s);
     result.forEach(r => expect(r.totalColumns).toBe(3));
   });
 
-  it('4개 → totalColumns=4', () => {
-    const s = Array.from({ length: 4 }, (_, i) => makeSchedule(`S${i}`, 9 + i, 10 + i));
+  it('동시에 시작하는 4개 → 각각 totalColumns=4', () => {
+    const s = Array.from({ length: 4 }, (_, i) => makeSchedule(`S${i}`, 10, 14));
     const result = computeLayout(s);
     result.forEach(r => expect(r.totalColumns).toBe(4));
   });
 
-  it('5개 → totalColumns=5', () => {
-    const s = Array.from({ length: 5 }, (_, i) => makeSchedule(`S${i}`, 9 + i, 10 + i));
+  it('동시에 시작하는 5개 → 각각 totalColumns=5', () => {
+    const s = Array.from({ length: 5 }, (_, i) => makeSchedule(`S${i}`, 10, 14));
     const result = computeLayout(s);
     result.forEach(r => expect(r.totalColumns).toBe(5));
   });
 
-  it('6개 → totalColumns=6 (가로 스크롤 케이스)', () => {
-    const s = Array.from({ length: 6 }, (_, i) => makeSchedule(`S${i}`, 9 + i, 10 + i));
+  it('동시에 시작하는 6개 → 각각 totalColumns=6 (가로 스크롤 케이스)', () => {
+    const s = Array.from({ length: 6 }, (_, i) => makeSchedule(`S${i}`, 10, 14));
     const result = computeLayout(s);
     result.forEach(r => expect(r.totalColumns).toBe(6));
   });
 
-  it('10개 → totalColumns=10', () => {
+  it('동시에 시작하는 10개 → 각각 totalColumns=10', () => {
     const s = Array.from({ length: 10 }, (_, i) => makeSchedule(`S${i}`, 9, 10));
     const result = computeLayout(s);
     result.forEach(r => expect(r.totalColumns).toBe(10));
   });
 
-  it('시작 시각 오름차순 정렬 후 column 인덱스 배정', () => {
-    // B가 먼저 들어와도 A(10시 시작)가 column=0
-    const s = [makeSchedule('B', 11, 12), makeSchedule('A', 10, 11)];
+  it('시작 시각 오름차순 정렬 후 column 인덱스 배정 (겹치는 경우)', () => {
+    // B가 먼저 들어와도 A(10시 시작)가 column=0, B(11시 시작)가 column=1
+    // A(10-12), B(11-13)은 겹치므로 서로 다른 column에 배정
+    const s = [makeSchedule('B', 11, 13), makeSchedule('A', 10, 12)];
     const result = computeLayout(s);
     const byId = Object.fromEntries(result.map(r => [r.schedule.id, r]));
     expect(byId['A'].column).toBe(0);
@@ -204,43 +222,53 @@ describe('CalendarDayView', () => {
     expect(bars[0].style.width).toBe('100%');
   });
 
-  it('2개: 각각 50% 너비', () => {
+  it('겹치지 않는 2개: 각각 너비 100% (비겹침 → 풀너비)', () => {
+    // 겹치지 않는 일정은 각각 100% 너비로 자신의 시간대를 점유
     const s = [makeSchedule('A', 10, 11), makeSchedule('B', 14, 15)];
+    const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
+    const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
+    bars.forEach(el => expect(el.style.width).toBe('100%'));
+  });
+
+  it('겹치는 2개: 각각 50% 너비', () => {
+    // A(10-12), B(11-13): 겹치므로 각각 50%
+    const s = [makeSchedule('A', 10, 12), makeSchedule('B', 11, 13)];
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
     bars.forEach(el => expect(el.style.width).toBe('50%'));
   });
 
-  it('3개: 각각 33.3...% 너비', () => {
-    const s = [makeSchedule('A', 9, 10), makeSchedule('B', 11, 12), makeSchedule('C', 14, 15)];
+  it('모두 겹치는 3개: 각각 33.3...% 너비', () => {
+    // A(10-13), B(11-14), C(12-15): 모두 겹침
+    const s = [makeSchedule('A', 10, 13), makeSchedule('B', 11, 14), makeSchedule('C', 12, 15)];
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
     bars.forEach(el => expect(parseFloat(el.style.width)).toBeCloseTo(33.33, 1));
   });
 
-  it('4개: 각각 25% 너비', () => {
-    const s = Array.from({ length: 4 }, (_, i) => makeSchedule(`S${i}`, 9 + i * 2, 10 + i * 2));
+  it('동시에 시작하는 4개: 각각 25% 너비', () => {
+    const s = Array.from({ length: 4 }, (_, i) => makeSchedule(`S${i}`, 10, 14));
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
     bars.forEach(el => expect(el.style.width).toBe('25%'));
   });
 
-  it('5개: 각각 20% 너비', () => {
-    const s = Array.from({ length: 5 }, (_, i) => makeSchedule(`S${i}`, 9 + i, 10 + i));
+  it('동시에 시작하는 5개: 각각 20% 너비', () => {
+    const s = Array.from({ length: 5 }, (_, i) => makeSchedule(`S${i}`, 10, 14));
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
     bars.forEach(el => expect(el.style.width).toBe('20%'));
   });
 
-  it('6개: 각각 20% 너비 (가로 스크롤)', () => {
-    const s = Array.from({ length: 6 }, (_, i) => makeSchedule(`S${i}`, 9 + i, 10 + i));
+  it('동시에 시작하는 6개: 각각 20% 너비 (가로 스크롤)', () => {
+    const s = Array.from({ length: 6 }, (_, i) => makeSchedule(`S${i}`, 10, 14));
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
     bars.forEach(el => expect(parseFloat(el.style.width)).toBe(20));
   });
 
-  it('6개: 가로 스크롤 컨테이너 minWidth=120%', () => {
-    const s = Array.from({ length: 6 }, (_, i) => makeSchedule(`S${i}`, 9 + i, 10 + i));
+  it('동시에 시작하는 6개: 가로 스크롤 컨테이너 minWidth=120%', () => {
+    const s = Array.from({ length: 6 }, (_, i) => makeSchedule(`S${i}`, 10, 14));
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const inner = container.querySelector('[style*="min-width: 120%"]') as HTMLElement | null;
     expect(inner).not.toBeNull();
@@ -289,10 +317,21 @@ describe('CalendarDayView', () => {
     expect(bars[0].style.height).toBe('112px');
   });
 
-  // ── 컬럼 위치 ───────────────────────────────────────────────────────────────
-
-  it('2개: 첫 번째 일정 left=0%, 두 번째 left=50%', () => {
+  it('겹치지 않는 2개: 서로 다른 시간대에 각각 top 위치', () => {
+    // A(10-11): top=560px, B(14-15): top=784px — 둘 다 left=0% (겹침 없음)
     const s = [makeSchedule('A', 10, 11), makeSchedule('B', 14, 15)];
+    const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
+    const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
+    expect(bars[0].style.top).toBe('560px');  // 10:00 KST
+    expect(bars[1].style.top).toBe('784px');  // 14:00 KST
+    // 겹치지 않으므로 둘 다 left=0%
+    expect(bars[0].style.left).toBe('0%');
+    expect(bars[1].style.left).toBe('0%');
+  });
+
+  it('겹치는 2개: 첫 번째 일정 left=0%, 두 번째 left=50%', () => {
+    // A(10-12), B(11-13): 겹치므로 좌우 분할
+    const s = [makeSchedule('A', 10, 12), makeSchedule('B', 11, 13)];
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
     // A가 먼저 시작 → column=0 → left=0%
@@ -300,8 +339,9 @@ describe('CalendarDayView', () => {
     expect(bars[1].style.left).toBe('50%');
   });
 
-  it('3개: left 0%, 33.3%, 66.6%', () => {
-    const s = [makeSchedule('A', 9, 10), makeSchedule('B', 11, 12), makeSchedule('C', 14, 15)];
+  it('모두 겹치는 3개: left 0%, 33.3%, 66.6%', () => {
+    // A(10-13), B(11-14), C(12-15): 모두 겹침
+    const s = [makeSchedule('A', 10, 13), makeSchedule('B', 11, 14), makeSchedule('C', 12, 15)];
     const { container } = render(<CalendarDayView currentDate={mockDate} schedules={s} />);
     const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
     expect(parseFloat(bars[0].style.left)).toBeCloseTo(0, 1);
@@ -322,5 +362,15 @@ describe('CalendarDayView', () => {
     const s = makeSchedule('A', 10, 12, { description: '상세 설명' });
     render(<CalendarDayView currentDate={mockDate} schedules={[s]} />);
     expect(screen.getByText('상세 설명')).toBeInTheDocument();
+  });
+
+  it('height is duration-based, not text-based: long title does not extend bar beyond duration', () => {
+    // 200자 제목이어도 바 높이는 순수 시간 기반 (2시간 = 112px)
+    const longTitle = 'a'.repeat(200);
+    const s = makeSchedule('A', 15, 17, { title: longTitle });
+    const { container } = render(<CalendarDayView currentDate={mockDate} schedules={[s]} />);
+    const bars = container.querySelectorAll<HTMLElement>('[style*="left:"][style*="%"]');
+    // 15:00~17:00 KST = 2시간 → 2 × 56 = 112px
+    expect(bars[0].style.height).toBe('112px');
   });
 });

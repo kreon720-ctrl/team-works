@@ -48,16 +48,15 @@ function scheduleToDay(utcDate: Date): Date {
 /**
  * 일정 목록을 받아 각 일정의 column, totalColumns, startMin/endMin 을 반환합니다.
  *
- * 너비 규칙 (하루 전체 일정 수 N 기준)
- *   N=1 → 100%,  N=2 → 50%,  N=3 → 33%,  N=4 → 25%,  N=5 → 20%
- *   N≥6 → 컬럼당 20% (가로 스크롤)
+ * 너비 규칙 (실제로 겹치는 일정 수 기준)
+ *   겹치지 않는 일정 → 각각 100% 너비 (column=0)
+ *   겹치는 일정 N개 → 각각 100/N % 너비
+ *   totalColumns > 5 → 컬럼당 20% (가로 스크롤)
  *
- * 컬럼 배정: 시작 시각 오름차순 정렬 후 인덱스 순서대로 0, 1, 2, ...
+ * 컬럼 배정: 시작 시각 오름차순 정렬 후, 겹치지 않는 첫 번째 빈 컬럼에 배정
  */
 export function computeLayout(schedules: Schedule[]): LayoutItem[] {
   if (schedules.length === 0) return [];
-
-  const totalColumns = schedules.length;
 
   const sorted = [...schedules].sort((a, b) => {
     const diff = new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
@@ -66,12 +65,41 @@ export function computeLayout(schedules: Schedule[]): LayoutItem[] {
     return new Date(b.endAt).getTime() - new Date(a.endAt).getTime();
   });
 
-  return sorted.map((schedule, index) => {
+  const items: LayoutItem[] = sorted.map(schedule => {
     const startMin = getKSTMinutes(schedule.startAt);
     const rawEnd = getKSTMinutes(schedule.endAt);
     const endMin = Math.max(rawEnd, startMin + 15); // 최소 15분 높이 보장
-    return { schedule, column: index, totalColumns, startMin, endMin };
+    return { schedule, column: 0, totalColumns: 1, startMin, endMin };
   });
+
+  // 그리디 컬럼 배정: columnEnds[c] = 컬럼 c에 마지막으로 배정된 일정의 endMin
+  const columnEnds: number[] = [];
+  for (const item of items) {
+    const freeCol = columnEnds.findIndex(end => end <= item.startMin);
+    if (freeCol !== -1) {
+      item.column = freeCol;
+      columnEnds[freeCol] = item.endMin;
+    } else {
+      item.column = columnEnds.length;
+      columnEnds.push(item.endMin);
+    }
+  }
+
+  // 각 일정의 totalColumns = 자신과 겹치는 일정 중 가장 큰 column 인덱스 + 1
+  for (let i = 0; i < items.length; i++) {
+    let maxCol = items[i].column;
+    for (let j = 0; j < items.length; j++) {
+      if (i === j) continue;
+      const a = items[i];
+      const b = items[j];
+      if (b.startMin < a.endMin && b.endMin > a.startMin) {
+        maxCol = Math.max(maxCol, b.column);
+      }
+    }
+    items[i].totalColumns = maxCol + 1;
+  }
+
+  return items;
 }
 
 export function CalendarDayView({
@@ -169,19 +197,11 @@ export function CalendarDayView({
               }}
             >
               {layoutItems.map(({ schedule, column, totalColumns, startMin, endMin }) => {
-                const top = (startMin / 60) * HOUR_PX;
-                const durationHeight = Math.max(((endMin - startMin) / 60) * HOUR_PX, 22);
-                
-                // Calculate height needed for text content
+                const GAP_PX = 2;
+                const top = (startMin / 60) * HOUR_PX + GAP_PX;
                 const colWidthPct =
                   totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
-                // Estimate chars per line based on column width percentage
-                const estimatedCharsPerLine = Math.max(10, Math.floor((colWidthPct / 100) * 60));
-                const titleLines = Math.ceil(schedule.title.length / estimatedCharsPerLine);
-                const descLines = schedule.description ? Math.ceil(schedule.description.length / estimatedCharsPerLine) : 0;
-                const textHeight = 16 * titleLines + 16 + (descLines > 0 ? 14 * descLines + 4 : 0) + 8; // padding
-                
-                const height = Math.max(durationHeight, textHeight);
+                const height = Math.max(((endMin - startMin) / 60) * HOUR_PX - GAP_PX, 22);
                 const leftPct = column * colWidthPct;
 
                 return (
@@ -197,7 +217,7 @@ export function CalendarDayView({
                   >
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className={`w-full h-full ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-xs px-1.5 py-0.5 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
+                      className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-xs px-1.5 py-0.5 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
                       title={schedule.title}
                     >
                       <div className="font-semibold break-words leading-tight">{schedule.title}</div>
