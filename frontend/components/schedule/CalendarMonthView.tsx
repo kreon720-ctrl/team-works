@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Schedule } from '@/types/schedule';
 import { utcToKST, formatTime } from '@/lib/utils/timezone';
+import { ScheduleTooltip } from './ScheduleTooltip';
 
 interface CalendarMonthViewProps {
   currentDate: Date;
@@ -37,6 +38,7 @@ export function CalendarMonthView({
 }: CalendarMonthViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [tooltip, setTooltip] = useState<{ schedule: Schedule; x: number; y: number } | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -306,8 +308,10 @@ export function CalendarMonthView({
                         <div
                           key={schedule.id}
                           className={`text-xs px-1 py-0.5 break-words overflow-hidden rounded mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
-                          title={`${formatTime(new Date(schedule.startAt))} ${schedule.title}`}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
+                          onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
+                          onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+                          onMouseLeave={() => setTooltip(null)}
                         >
                           {formatTime(new Date(schedule.startAt))} {schedule.title}
                         </div>
@@ -337,8 +341,10 @@ export function CalendarMonthView({
                       >
                         <div
                           className={`text-xs px-1 py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded h-full text-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
-                          title={displayText}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
+                          onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
+                          onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+                          onMouseLeave={() => setTooltip(null)}
                         >
                           {displayText}
                         </div>
@@ -351,6 +357,7 @@ export function CalendarMonthView({
           );
         })}
       </div>
+      {tooltip && <ScheduleTooltip schedule={tooltip.schedule} x={tooltip.x} y={tooltip.y} />}
     </div>
   );
 }

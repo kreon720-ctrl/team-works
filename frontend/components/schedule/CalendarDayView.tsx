@@ -1,12 +1,34 @@
 'use client';
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Schedule } from '@/types/schedule';
 import { utcToKST, formatTime, formatDateKorean } from '@/lib/utils/timezone';
 
 export const HOUR_PX = 56;
 const MIN_COL_WIDTH_PCT = 20; // 5개 초과 시 컬럼당 최소 너비(%)
 const MAX_INLINE_COLS = 5;    // 이 수를 초과하면 가로 스크롤 적용
+
+// 텍스트 높이 추정 상수 (한글 기준)
+const TITLE_CHAR_W = 12;  // text-xs 한글 문자 평균 px 너비
+const DESC_CHAR_W  = 10;  // text-[10px] 한글 문자 평균 px 너비
+const TITLE_LINE_H = 16;
+const DESC_LINE_H  = 13;
+const TIME_LINE_H  = 14;
+const BAR_PADDING  = 6;
+const GAP_PX       = 2;
+
+function estimateTextHeight(schedule: Schedule, barWidthPx: number): number {
+  const inner = Math.max(1, barWidthPx - 12);
+  const titleCPL = Math.max(1, Math.floor(inner / TITLE_CHAR_W));
+  const titleLines = Math.max(1, Math.ceil(schedule.title.length / titleCPL));
+  let h = titleLines * TITLE_LINE_H + TIME_LINE_H + BAR_PADDING;
+  if (schedule.description) {
+    const descCPL = Math.max(1, Math.floor(inner / DESC_CHAR_W));
+    const descLines = Math.max(1, Math.ceil(schedule.description.length / descCPL));
+    h += descLines * DESC_LINE_H + 4;
+  }
+  return h;
+}
 
 // 색상별 Tailwind 클래스 매핑
 const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string; border: string; hover: string; textLight: string }> = {
@@ -132,6 +154,59 @@ export function CalendarDayView({
 
   const needsHScroll = maxConcurrentCols > MAX_INLINE_COLS;
 
+  // 이벤트 영역 너비 측정 (ResizeObserver)
+  const [eventAreaWidth, setEventAreaWidth] = useState(600);
+  const eventAreaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!eventAreaRef.current) return;
+    const ro = new ResizeObserver(entries => {
+      setEventAreaWidth(entries[0].contentRect.width);
+    });
+    ro.observe(eventAreaRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // 동적 행 높이 계산 (2-pass)
+  const { rowHeights, rowTops, totalHeight } = useMemo(() => {
+    const heights = Array<number>(24).fill(HOUR_PX);
+
+    // Pass 1: 1시간짜리 이벤트
+    for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
+      const startH = Math.floor(startMin / 60);
+      const endH   = Math.ceil(endMin / 60);
+      if (endH - startH === 1) {
+        const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
+        const barW    = eventAreaWidth * colWPct / 100;
+        heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+      }
+    }
+
+    // Pass 2: 여러 시간대에 걸친 이벤트
+    for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
+      const startH = Math.floor(startMin / 60);
+      const endH   = Math.min(23, Math.ceil(endMin / 60) - 1);
+      if (endH <= startH) continue;
+      let available = 0;
+      for (let h = startH; h <= endH; h++) available += heights[h];
+      const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
+      const barW    = eventAreaWidth * colWPct / 100;
+      const textH   = estimateTextHeight(schedule, barW);
+      if (textH > available) heights[endH] += textH - available;
+    }
+
+    const tops: number[] = [];
+    let acc = 0;
+    for (let h = 0; h < 24; h++) { tops.push(acc); acc += heights[h]; }
+    return { rowHeights: heights, rowTops: tops, totalHeight: acc };
+  }, [layoutItems, eventAreaWidth]);
+
+  // KST 분 → 픽셀 위치
+  const minToPixels = (min: number): number => {
+    const h = Math.min(23, Math.floor(min / 60));
+    const m = min % 60;
+    return rowTops[h] + (m / 60) * rowHeights[h];
+  };
+
   // 자동 스크롤: 가장 이른 일정 1시간 전, 없으면 08:00
   const timelineRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -139,11 +214,11 @@ export function CalendarDayView({
     if (timedSchedules.length > 0) {
       const minMin = Math.min(...timedSchedules.map(s => getKSTMinutes(s.startAt)));
       const scrollHour = Math.max(0, Math.floor(minMin / 60) - 1);
-      timelineRef.current.scrollTop = scrollHour * HOUR_PX;
+      timelineRef.current.scrollTop = rowTops[scrollHour];
     } else {
-      timelineRef.current.scrollTop = 8 * HOUR_PX;
+      timelineRef.current.scrollTop = rowTops[8];
     }
-  }, [timedSchedules]);
+  }, [timedSchedules, rowTops]);
 
   return (
     <div className="w-full">
@@ -159,14 +234,14 @@ export function CalendarDayView({
         className="border border-gray-200 rounded-lg bg-white overflow-y-auto"
         style={{ maxHeight: 'calc(100vh - 260px)' }}
       >
-        <div className="flex" style={{ height: `${24 * HOUR_PX}px` }}>
+        <div className="flex" style={{ height: `${totalHeight}px` }}>
           {/* 시간 레이블 컬럼 */}
-          <div className="flex-shrink-0 w-14 border-r border-gray-200">
+          <div className="flex-shrink-0 w-14 border-r border-gray-200 relative">
             {Array.from({ length: 24 }, (_, hour) => (
               <div
                 key={hour}
-                className="border-b border-gray-100 flex items-start px-1 pt-1"
-                style={{ height: `${HOUR_PX}px` }}
+                className="absolute left-0 right-0 border-b border-gray-100 flex items-start px-1 pt-1"
+                style={{ top: `${rowTops[hour]}px`, height: `${rowHeights[hour]}px` }}
               >
                 <span className="text-xs text-gray-400 leading-none">
                   {String(hour).padStart(2, '0')}:00
@@ -177,6 +252,7 @@ export function CalendarDayView({
 
           {/* 일정 영역 (필요 시 가로 스크롤) */}
           <div
+            ref={eventAreaRef}
             className="flex-1 relative"
             style={{ overflowX: needsHScroll ? 'auto' : 'hidden' }}
           >
@@ -185,7 +261,7 @@ export function CalendarDayView({
               <div
                 key={hour}
                 className="absolute left-0 right-0 border-b border-gray-100 pointer-events-none"
-                style={{ top: `${hour * HOUR_PX}px`, height: `${HOUR_PX}px` }}
+                style={{ top: `${rowTops[hour]}px`, height: `${rowHeights[hour]}px` }}
               />
             ))}
 
@@ -197,12 +273,13 @@ export function CalendarDayView({
               }}
             >
               {layoutItems.map(({ schedule, column, totalColumns, startMin, endMin }) => {
-                const GAP_PX = 2;
-                const top = (startMin / 60) * HOUR_PX + GAP_PX;
-                const colWidthPct =
-                  totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
-                const height = Math.max(((endMin - startMin) / 60) * HOUR_PX - GAP_PX, 22);
-                const leftPct = column * colWidthPct;
+                const colWidthPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
+                const leftPct    = column * colWidthPct;
+                const top        = minToPixels(startMin) + GAP_PX;
+                const durationH  = Math.max(minToPixels(Math.min(endMin, 24 * 60)) - top - GAP_PX, 22);
+                const barW       = eventAreaWidth * colWidthPct / 100;
+                const textH      = estimateTextHeight(schedule, barW);
+                const height     = Math.max(durationH, textH, 22);
 
                 return (
                   <div
