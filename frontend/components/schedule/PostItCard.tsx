@@ -94,7 +94,7 @@ export function PostItCard({ postit, currentUserId, onDelete, onContentChange }:
             className="w-full bg-transparent resize-none overflow-hidden leading-relaxed outline-none border-none placeholder-current/40"
             style={{
               color: style.text,
-              fontSize: '14px',
+              fontSize: '12px',
               minHeight: '52px',
               paddingRight: isCreator ? '18px' : undefined,
               cursor: isCreator ? 'text' : 'default',
