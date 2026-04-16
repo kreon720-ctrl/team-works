@@ -192,9 +192,9 @@ export function ProjectScheduleModal({
             />
           </div>
 
-          {/* 프로젝트 리더 */}
+          {/* 일정 담당자 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">프로젝트 리더</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">일정 담당자</label>
             <input
               type="text"
               value={leader}

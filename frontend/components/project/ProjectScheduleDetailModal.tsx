@@ -102,7 +102,7 @@ export function ProjectScheduleDetailModal({
             }
           />
           {schedule.leader && (
-            <DetailRow label="프로젝트 리더" value={schedule.leader} />
+            <DetailRow label="일정 담당자" value={schedule.leader} />
           )}
           {schedule.description && (
             <DetailRow
