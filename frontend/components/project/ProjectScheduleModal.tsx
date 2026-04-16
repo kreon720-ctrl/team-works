@@ -9,16 +9,16 @@ import type {
 } from '@/types/project';
 import { GANTT_BAR_COLORS } from '@/types/project';
 
-// Color display values for the color picker
-const GANTT_COLOR_DISPLAY: Record<GanttBarColor, { bg: string; border: string }> = {
-  indigo:  { bg: '#c7d2fe', border: '#6366f1' },
-  blue:    { bg: '#bfdbfe', border: '#3b82f6' },
-  emerald: { bg: '#a7f3d0', border: '#10b981' },
-  amber:   { bg: '#fde68a', border: '#f59e0b' },
-  rose:    { bg: '#fecdd3', border: '#f43f5e' },
-  violet:  { bg: '#ddd6fe', border: '#8b5cf6' },
-  cyan:    { bg: '#a5f3fc', border: '#06b6d4' },
-  pink:    { bg: '#fbcfe8', border: '#ec4899' },
+// Tailwind static swatch classes (same pattern as ScheduleForm)
+const GANTT_COLOR_SWATCH: Record<GanttBarColor, string> = {
+  indigo:  'bg-indigo-500',
+  blue:    'bg-blue-500',
+  emerald: 'bg-emerald-500',
+  amber:   'bg-amber-500',
+  rose:    'bg-rose-500',
+  violet:  'bg-violet-500',
+  cyan:    'bg-cyan-500',
+  pink:    'bg-pink-500',
 };
 
 interface ProjectScheduleModalProps {
@@ -139,7 +139,7 @@ export function ProjectScheduleModal({
           {/* 색상 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">색상</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-3">
               {GANTT_BAR_COLORS.map((c) => (
                 <button
                   key={c}
@@ -147,15 +147,9 @@ export function ProjectScheduleModal({
                   onClick={() => setColor(c)}
                   aria-label={`${c} 색상`}
                   aria-pressed={color === c}
-                  className="w-7 h-7 rounded-full transition-transform hover:scale-110 focus:outline-none"
-                  style={{
-                    backgroundColor: GANTT_COLOR_DISPLAY[c].bg,
-                    border: color === c
-                      ? `3px solid ${GANTT_COLOR_DISPLAY[c].border}`
-                      : `2px solid ${GANTT_COLOR_DISPLAY[c].border}`,
-                    transform: color === c ? 'scale(1.2)' : undefined,
-                    boxShadow: color === c ? `0 0 0 1px ${GANTT_COLOR_DISPLAY[c].border}` : undefined,
-                  }}
+                  className={`w-4 h-4 rounded-full ${GANTT_COLOR_SWATCH[c]} transition-all duration-150 ${
+                    color === c ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-105'
+                  }`}
                 />
               ))}
             </div>

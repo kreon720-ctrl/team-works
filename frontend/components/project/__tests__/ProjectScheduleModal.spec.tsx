@@ -8,6 +8,7 @@ const mockProject: Project = {
   id: 'proj-1',
   teamId: 'team-1',
   name: '테스트 프로젝트',
+  description: '',
   startDate: '2026-01-01',
   endDate: '2026-12-31',
   progress: 30,
