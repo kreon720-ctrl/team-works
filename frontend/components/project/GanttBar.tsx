@@ -28,43 +28,45 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
   const label = `${schedule.title} (${fmtDate(schedule.startDate)}~${fmtDate(schedule.endDate)})`;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={label}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      className={`relative w-full rounded overflow-hidden cursor-pointer select-none ${styles.bar}`}
-      style={{ height: SCHEDULE_BAR_HEIGHT }}
-    >
-      {/* Progress bar overlay */}
-      <div
-        className={`group/prog absolute top-1/2 left-0 rounded-l -translate-y-1/2 ${styles.progress}`}
-        style={{
-          width: `${Math.min(100, Math.max(0, schedule.progress))}%`,
-          height: PROGRESS_BAR_HEIGHT,
-        }}
-      >
-        {/* Tooltip */}
-        <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover/prog:flex items-center whitespace-nowrap bg-gray-800 text-white text-xs rounded px-2 py-0.5 shadow z-20">
-          {schedule.progress}%
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-        </div>
+    <div className="relative group">
+      {/* Tooltip — outside overflow-hidden so it isn't clipped */}
+      <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center whitespace-nowrap bg-gray-800 text-white text-xs rounded px-2 py-0.5 shadow z-20">
+        {schedule.progress}%
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
       </div>
 
-      {/* Text label centered over the bar */}
-      <div className="absolute inset-0 flex items-center justify-center px-1 pointer-events-none z-10">
-        <span
-          className={`text-xs font-medium truncate ${styles.text} mix-blend-multiply`}
-          style={{ textShadow: '0 0 2px rgba(255,255,255,0.8)' }}
-        >
-          {label}
-        </span>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={label}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        className={`relative w-full rounded overflow-hidden cursor-pointer select-none ${styles.bar}`}
+        style={{ height: SCHEDULE_BAR_HEIGHT }}
+      >
+        {/* Progress bar overlay */}
+        <div
+          className={`absolute top-1/2 left-0 rounded-l -translate-y-1/2 ${styles.progress}`}
+          style={{
+            width: `${Math.min(100, Math.max(0, schedule.progress))}%`,
+            height: PROGRESS_BAR_HEIGHT,
+          }}
+        />
+
+        {/* Text label centered over the bar */}
+        <div className="absolute inset-0 flex items-center justify-center px-1 pointer-events-none z-10">
+          <span
+            className={`text-xs font-medium truncate ${styles.text} mix-blend-multiply`}
+            style={{ textShadow: '0 0 2px rgba(255,255,255,0.8)' }}
+          >
+            {label}
+          </span>
+        </div>
       </div>
     </div>
   );
