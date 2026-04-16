@@ -10,6 +10,7 @@ import { CalendarWeekView } from './CalendarWeekView';
 import { CalendarDayView } from './CalendarDayView';
 import { PostItColorPalette } from './PostItColorPalette';
 import { ProjectGanttView } from '@/components/project/ProjectGanttView';
+import { useProjectStore } from '@/store/projectStore';
 
 interface CalendarViewProps {
   currentDate: Date;
@@ -97,23 +98,29 @@ export function CalendarView({
     }
   };
 
-  // Tabs: project tab only shown on desktop (not compact)
-  const allTabs: { id: CalendarViewType; label: string; desktopOnly?: boolean }[] = [
-    { id: 'project', label: '프로젝트', desktopOnly: true },
+  // 프로젝트 목록 (PC only)
+  const teamProjects = useProjectStore((s) => s.getTeamProjects(teamId ?? ''));
+  const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
+  const setSelectedProject = useProjectStore((s) => s.setSelectedProject);
+
+  // 뷰 탭: 프로젝트가 있으면 프로젝트명 탭들(PC only) + 월/주/일
+  const viewTabs: { id: CalendarViewType; label: string }[] = [
     { id: 'month', label: '월' },
     { id: 'week', label: '주' },
     { id: 'day', label: '일' },
   ];
-
-  const tabs = compact
-    ? allTabs.filter((t) => !t.desktopOnly)
-    : allTabs;
 
   // 팔레트는 월간뷰 + compact 아님 + 콜백 있을 때만 표시
   const showPalette = view === 'month' && !compact && !!onPostitColorSelect;
 
   // In project view, hide navigation and schedule create button
   const isProjectView = view === 'project';
+
+  // 프로젝트 탭 클릭: store의 selectedProjectId 갱신 + project view로 전환
+  const handleProjectTabClick = (projectId: string) => {
+    setSelectedProject(projectId);
+    onViewChange?.('project');
+  };
 
   return (
     <div className="w-full bg-white flex flex-col flex-1 min-h-0">
@@ -169,14 +176,12 @@ export function CalendarView({
             />
           )}
 
-          {/* 프로젝트 관리 버튼 (PC only, 프로젝트 뷰가 아닐 때) */}
-          {!compact && !isProjectView && (
+          {/* 프로젝트 관리 버튼 (PC only, 프로젝트 없을 때만 표시) */}
+          {!compact && teamProjects.length === 0 && (
             <button
               type="button"
               onClick={() => onViewChange?.('project')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150 ${
-                compact ? 'text-xs' : 'text-sm'
-              }`}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -211,7 +216,25 @@ export function CalendarView({
 
           {/* View tabs */}
           <div className="flex border-b border-gray-200">
-            {tabs.map((tab) => (
+            {/* 프로젝트 탭 (PC only, 프로젝트 있을 때만) */}
+            {!compact && teamProjects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => handleProjectTabClick(project.id)}
+                className={`
+                  py-2 px-4 text-sm font-medium border-b-2 transition-colors duration-150
+                  ${view === 'project' && selectedProjectId === project.id
+                    ? 'text-primary-600 border-primary-500'
+                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                {project.name}
+              </button>
+            ))}
+            {/* 월/주/일 탭 */}
+            {viewTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
