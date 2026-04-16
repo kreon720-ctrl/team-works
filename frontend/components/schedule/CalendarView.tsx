@@ -98,8 +98,9 @@ export function CalendarView({
     }
   };
 
-  // 프로젝트 목록 (PC only)
-  const teamProjects = useProjectStore((s) => s.getTeamProjects(teamId ?? ''));
+  // 프로젝트 목록 (PC only) — 선택자에서 직접 배열 참조를 반환해야 무한 루프 방지
+  const rawTeamProjects = useProjectStore((s) => s.projects[teamId ?? '']);
+  const teamProjects = rawTeamProjects ?? [];
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const setSelectedProject = useProjectStore((s) => s.setSelectedProject);
 
