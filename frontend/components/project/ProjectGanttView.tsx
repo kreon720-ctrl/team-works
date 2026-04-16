@@ -110,30 +110,15 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
     <div className="flex flex-col h-full bg-white">
       {/* Header toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 flex-none">
-        {/* Left: project selector */}
-        <div className="flex items-center gap-3 min-w-0">
-          <select
-            value={selectedProject?.id ?? ''}
-            onChange={(e) => store.setSelectedProject(e.target.value || null)}
-            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white max-w-[200px]"
-            aria-label="프로젝트 선택"
-          >
-            {projects.length === 0 && (
-              <option value="">프로젝트 없음</option>
-            )}
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+        {/* Left: project info */}
+        <div className="flex items-center gap-2 min-w-0">
           {selectedProject && (
-            <span className="text-xs text-gray-500 whitespace-nowrap hidden sm:inline">
+            <span className="text-xs text-gray-500 whitespace-nowrap">
               {selectedProject.startDate} ~ {selectedProject.endDate}
             </span>
           )}
           {selectedProject && (
-            <span className="text-xs text-gray-400 hidden md:inline">
+            <span className="text-xs text-gray-400">
               ({selectedProject.progress}%)
             </span>
           )}
