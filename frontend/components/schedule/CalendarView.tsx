@@ -163,9 +163,6 @@ export function CalendarView({
             </>
           )}
 
-          {isProjectView && (
-            <span className="text-lg font-semibold text-gray-900 px-2">프로젝트</span>
-          )}
         </div>
 
         <div className="flex items-center gap-4">
