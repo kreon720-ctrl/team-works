@@ -1,7 +1,7 @@
 // Project Gantt types
 
-export type GanttBarColor = 'indigo' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet' | 'cyan' | 'pink';
-export const GANTT_BAR_COLORS: GanttBarColor[] = ['indigo', 'blue', 'emerald', 'amber', 'rose', 'violet', 'cyan', 'pink'];
+export type GanttBarColor = 'indigo' | 'blue' | 'emerald' | 'amber' | 'rose';
+export const GANTT_BAR_COLORS: GanttBarColor[] = ['indigo', 'blue', 'emerald', 'amber', 'rose'];
 
 export interface ProjectPhase {
   id: string;

@@ -16,9 +16,6 @@ const GANTT_COLOR_SWATCH: Record<GanttBarColor, string> = {
   emerald: 'bg-emerald-500',
   amber:   'bg-amber-500',
   rose:    'bg-rose-500',
-  violet:  'bg-violet-500',
-  cyan:    'bg-cyan-500',
-  pink:    'bg-pink-500',
 };
 
 interface ProjectScheduleModalProps {

@@ -11,9 +11,6 @@ const GANTT_COLOR_STYLES: Record<GanttBarColor, { bar: string; progress: string;
   emerald: { bar: 'bg-emerald-100 border border-emerald-300', progress: 'bg-emerald-500',  text: 'text-emerald-900' },
   amber:   { bar: 'bg-amber-100 border border-amber-300',     progress: 'bg-amber-500',    text: 'text-amber-900' },
   rose:    { bar: 'bg-rose-100 border border-rose-300',       progress: 'bg-rose-500',     text: 'text-rose-900' },
-  violet:  { bar: 'bg-violet-100 border border-violet-300',   progress: 'bg-violet-500',   text: 'text-violet-900' },
-  cyan:    { bar: 'bg-cyan-100 border border-cyan-300',       progress: 'bg-cyan-500',     text: 'text-cyan-900' },
-  pink:    { bar: 'bg-pink-100 border border-pink-300',       progress: 'bg-pink-500',     text: 'text-pink-900' },
 };
 
 export const PROGRESS_BAR_HEIGHT = 28; // px

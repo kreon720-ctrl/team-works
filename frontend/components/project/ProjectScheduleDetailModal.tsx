@@ -10,9 +10,6 @@ const GANTT_COLOR_DISPLAY: Record<GanttBarColor, { bg: string; border: string; l
   emerald: { bg: '#a7f3d0', border: '#10b981', label: '에메랄드' },
   amber:   { bg: '#fde68a', border: '#f59e0b', label: '황금' },
   rose:    { bg: '#fecdd3', border: '#f43f5e', label: '로즈' },
-  violet:  { bg: '#ddd6fe', border: '#8b5cf6', label: '보라' },
-  cyan:    { bg: '#a5f3fc', border: '#06b6d4', label: '하늘' },
-  pink:    { bg: '#fbcfe8', border: '#ec4899', label: '핑크' },
 };
 
 interface ProjectScheduleDetailModalProps {

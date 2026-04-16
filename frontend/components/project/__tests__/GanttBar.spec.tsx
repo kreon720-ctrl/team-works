@@ -98,7 +98,7 @@ describe('GanttBar', () => {
   });
 
   it('renders all color variants without throwing', () => {
-    const colors = ['indigo', 'blue', 'emerald', 'amber', 'rose', 'violet', 'cyan', 'pink'] as const;
+    const colors = ['indigo', 'blue', 'emerald', 'amber', 'rose'] as const;
     for (const color of colors) {
       const schedule = { ...mockSchedule, color };
       expect(() => render(<GanttBar schedule={schedule} onClick={() => {}} />)).not.toThrow();
