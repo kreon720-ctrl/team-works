@@ -24,7 +24,8 @@ interface GanttBarProps {
 export function GanttBar({ schedule, onClick }: GanttBarProps) {
   const styles = GANTT_COLOR_STYLES[schedule.color] ?? GANTT_COLOR_STYLES.indigo;
 
-  const label = `${schedule.title} (${schedule.startDate}~${schedule.endDate})`;
+  const fmtDate = (d: string) => d.slice(5).replace('-', '/'); // MM/DD
+  const label = `${schedule.title} (${fmtDate(schedule.startDate)}~${fmtDate(schedule.endDate)})`;
 
   return (
     <div
