@@ -129,11 +129,14 @@ export function getWeekOfMonth(weekStart: Date): number {
 
 /**
  * Finds the index in weeks[] of the week that contains the given date.
- * Returns the index of the closest week start that is <= dateStr.
- * Falls back to 0 if date is before all weeks, or last index if after all weeks.
+ * Uses Thursday convention: if the containing week is assigned to a month
+ * earlier than the date's own month, advances to the next week so that bars
+ * never start in a column that belongs to a previous month.
  */
 export function getWeekIndex(weeks: Date[], dateStr: string): number {
   const target = new Date(dateStr + 'T00:00:00Z');
+  const targetMonth = target.getUTCMonth();
+  const targetYear = target.getUTCFullYear();
 
   if (weeks.length === 0) return 0;
 
@@ -144,6 +147,21 @@ export function getWeekIndex(weeks: Date[], dateStr: string): number {
       result = i;
     } else {
       break;
+    }
+  }
+
+  // If the found week belongs to an earlier month than the target date,
+  // advance to the next week (so the bar doesn't bleed into the wrong month).
+  const foundWeek = weeks[result];
+  const thursday = new Date(foundWeek);
+  thursday.setUTCDate(foundWeek.getUTCDate() + 4);
+
+  const weekYear = thursday.getUTCFullYear();
+  const weekMonth = thursday.getUTCMonth();
+
+  if (weekYear < targetYear || (weekYear === targetYear && weekMonth < targetMonth)) {
+    if (result + 1 < weeks.length) {
+      result = result + 1;
     }
   }
 
