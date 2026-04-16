@@ -7,9 +7,10 @@ import { utcToKST, formatTime } from '@/lib/utils/timezone';
 interface ChatMessageItemProps {
   message: ChatMessage;
   isLeader?: boolean;
+  rightSlot?: React.ReactNode;
 }
 
-export function ChatMessageItem({ message, isLeader = false }: ChatMessageItemProps) {
+export function ChatMessageItem({ message, isLeader = false, rightSlot }: ChatMessageItemProps) {
   const sentAtKST = utcToKST(new Date(message.sentAt));
   const timeString = formatTime(sentAtKST);
   const isScheduleRequest = message.type === 'WORK_PERFORMANCE';
@@ -61,6 +62,7 @@ export function ChatMessageItem({ message, isLeader = false }: ChatMessageItemPr
         <span className="text-xs text-gray-400">
           {timeString}
         </span>
+        {rightSlot && <div className="ml-auto">{rightSlot}</div>}
       </div>
 
       {/* Message content */}

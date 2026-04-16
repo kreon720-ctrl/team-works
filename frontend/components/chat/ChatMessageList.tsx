@@ -8,24 +8,35 @@ import { utcToKST, formatDateKorean } from '@/lib/utils/timezone';
 interface ChatMessageListProps {
   messages: ChatMessage[];
   isLeader?: boolean;
+  adminSlot?: React.ReactNode;
+  emptyLabel?: string;
 }
 
-export function ChatMessageList({ messages, isLeader = false }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isLeader = false, adminSlot, emptyLabel }: ChatMessageListProps) {
   if (messages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-        <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-          />
-        </svg>
-        <h3 className="text-lg font-semibold text-gray-600 mb-2">아직 메시지가 없습니다.</h3>
-        <p className="text-sm font-normal text-gray-400 max-w-xs">
-          첫 번째 메시지를 보내보세요.
-        </p>
+      <div className="relative">
+        {adminSlot && (
+          <div className="flex justify-end mb-2">{adminSlot}</div>
+        )}
+        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+          <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+            />
+          </svg>
+          <h3 className="text-lg font-semibold text-gray-600 mb-2">
+            {emptyLabel ?? '아직 메시지가 없습니다.'}
+          </h3>
+          {!emptyLabel && (
+            <p className="text-sm font-normal text-gray-400 max-w-xs">
+              첫 번째 메시지를 보내보세요.
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -49,6 +60,8 @@ export function ChatMessageList({ messages, isLeader = false }: ChatMessageListP
     }
   });
 
+  let firstMessageRendered = false;
+
   return (
     <div className="flex flex-col">
       {groupedMessages.map((group, groupIndex) => (
@@ -64,13 +77,18 @@ export function ChatMessageList({ messages, isLeader = false }: ChatMessageListP
 
           {/* Messages for this date */}
           <div className="flex flex-col">
-            {group.messages.map((message) => (
-              <ChatMessageItem
-                key={message.id}
-                message={message}
-                isLeader={isLeader}
-              />
-            ))}
+            {group.messages.map((message) => {
+              const isFirst = !firstMessageRendered;
+              if (isFirst) firstMessageRendered = true;
+              return (
+                <ChatMessageItem
+                  key={message.id}
+                  message={message}
+                  isLeader={isLeader}
+                  rightSlot={isFirst ? adminSlot : undefined}
+                />
+              );
+            })}
           </div>
         </div>
       ))}
