@@ -68,6 +68,7 @@ export const useProjectStore = create<ProjectState>()(
           id: generateId(),
           teamId,
           name: input.name,
+          description: input.description,
           startDate: input.startDate,
           endDate: input.endDate,
           progress: input.progress,
@@ -113,6 +114,7 @@ export const useProjectStore = create<ProjectState>()(
               return {
                 ...p,
                 name: input.name,
+                description: input.description,
                 startDate: input.startDate,
                 endDate: input.endDate,
                 progress: input.progress,

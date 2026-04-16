@@ -13,6 +13,7 @@ export interface Project {
   id: string;
   teamId: string;
   name: string;
+  description: string;
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
   progress: number;  // 0-100
@@ -40,6 +41,7 @@ export interface ProjectSchedule {
 
 export interface ProjectCreateInput {
   name: string;
+  description: string;
   startDate: string;
   endDate: string;
   progress: number;
