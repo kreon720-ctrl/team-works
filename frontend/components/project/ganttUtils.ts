@@ -129,11 +129,14 @@ export function getWeekOfMonth(weekStart: Date): number {
 
 /**
  * Finds the index in weeks[] of the week that contains the given date.
- * Uses Thursday convention: if the containing week is assigned to a month
- * earlier than the date's own month, advances to the next week so that bars
- * never start in a column that belongs to a previous month.
+ * Uses Thursday convention for month assignment.
+ *
+ * mode 'start': if the containing week belongs to an earlier month than the
+ *   date, advance to the next week (bar starts in the correct month).
+ * mode 'end': if the containing week belongs to a later month than the
+ *   date, retreat to the previous week (bar ends in the correct month).
  */
-export function getWeekIndex(weeks: Date[], dateStr: string): number {
+export function getWeekIndex(weeks: Date[], dateStr: string, mode: 'start' | 'end' = 'start'): number {
   const target = new Date(dateStr + 'T00:00:00Z');
   const targetMonth = target.getUTCMonth();
   const targetYear = target.getUTCFullYear();
@@ -150,18 +153,22 @@ export function getWeekIndex(weeks: Date[], dateStr: string): number {
     }
   }
 
-  // If the found week belongs to an earlier month than the target date,
-  // advance to the next week (so the bar doesn't bleed into the wrong month).
+  // Determine the month of the found week via Thursday convention
   const foundWeek = weeks[result];
   const thursday = new Date(foundWeek);
   thursday.setUTCDate(foundWeek.getUTCDate() + 4);
-
   const weekYear = thursday.getUTCFullYear();
   const weekMonth = thursday.getUTCMonth();
 
-  if (weekYear < targetYear || (weekYear === targetYear && weekMonth < targetMonth)) {
-    if (result + 1 < weeks.length) {
-      result = result + 1;
+  if (mode === 'start') {
+    // Week is in an earlier month → advance to next week
+    if (weekYear < targetYear || (weekYear === targetYear && weekMonth < targetMonth)) {
+      if (result + 1 < weeks.length) result += 1;
+    }
+  } else {
+    // Week is in a later month → retreat to previous week
+    if (weekYear > targetYear || (weekYear === targetYear && weekMonth > targetMonth)) {
+      if (result > 0) result -= 1;
     }
   }
 

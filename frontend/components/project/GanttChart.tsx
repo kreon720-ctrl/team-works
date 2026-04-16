@@ -131,8 +131,8 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
 
                 {/* Gantt bars — stacked top-to-bottom, sorted by startDate */}
                 {phaseSchedules.map((schedule, barIdx) => {
-                  const startIdx = getWeekIndex(weeks, schedule.startDate);
-                  const endIdx = getWeekIndex(weeks, schedule.endDate);
+                  const startIdx = getWeekIndex(weeks, schedule.startDate, 'start');
+                  const endIdx = getWeekIndex(weeks, schedule.endDate, 'end');
 
                   const leftPct = (startIdx / totalWeeks) * 100;
                   const widthPct = ((endIdx - startIdx + 1) / totalWeeks) * 100;
