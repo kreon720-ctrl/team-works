@@ -6,11 +6,11 @@ import type { ProjectSchedule, GanttBarColor } from '@/types/project';
 // Static color lookup table for Tailwind v4 compatibility
 // (no dynamic class names - all classes must be statically present)
 const GANTT_COLOR_STYLES: Record<GanttBarColor, { bar: string; progress: string; text: string }> = {
-  indigo:  { bar: 'bg-indigo-100 border border-indigo-300',   progress: 'bg-indigo-500',   text: 'text-indigo-900' },
-  blue:    { bar: 'bg-blue-100 border border-blue-300',       progress: 'bg-blue-500',     text: 'text-blue-900' },
-  emerald: { bar: 'bg-emerald-100 border border-emerald-300', progress: 'bg-emerald-500',  text: 'text-emerald-900' },
-  amber:   { bar: 'bg-amber-100 border border-amber-300',     progress: 'bg-amber-500',    text: 'text-amber-900' },
-  rose:    { bar: 'bg-rose-100 border border-rose-300',       progress: 'bg-rose-500',     text: 'text-rose-900' },
+  indigo:  { bar: 'bg-indigo-100 border border-indigo-300',   progress: 'bg-indigo-300',   text: 'text-indigo-900' },
+  blue:    { bar: 'bg-blue-100 border border-blue-300',       progress: 'bg-blue-300',     text: 'text-blue-900' },
+  emerald: { bar: 'bg-emerald-100 border border-emerald-300', progress: 'bg-emerald-300',  text: 'text-emerald-900' },
+  amber:   { bar: 'bg-amber-100 border border-amber-300',     progress: 'bg-amber-300',    text: 'text-amber-900' },
+  rose:    { bar: 'bg-rose-100 border border-rose-300',       progress: 'bg-rose-300',     text: 'text-rose-900' },
 };
 
 export const PROGRESS_BAR_HEIGHT = 20; // px
