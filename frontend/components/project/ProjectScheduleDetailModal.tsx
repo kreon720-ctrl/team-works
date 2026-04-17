@@ -139,7 +139,7 @@ export function ProjectScheduleDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-[90vw] max-w-5xl bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-x-hidden">
+      <div className="w-[90vw] max-w-5xl bg-white rounded-2xl shadow-xl flex flex-col h-[63vh] overflow-x-hidden">
 
         {/* ── 타이틀 ── */}
         <div className="flex items-start justify-between px-6 pt-5 pb-0 flex-none">
@@ -254,8 +254,8 @@ export function ProjectScheduleDetailModal({
           <div className="flex-1 min-w-0 flex flex-col px-4 pb-5">
 
             {/* 가로 스크롤 — 헤더 + 콘텐츠 행을 하나의 컨테이너로 묶음 */}
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: totalWidth }}>
+            <div className="overflow-x-auto flex-1 flex flex-col">
+              <div className="flex flex-col flex-1" style={{ minWidth: totalWidth }}>
 
                 {/* 월 행 — 월별 병합 셀 */}
                 <div className="flex border border-gray-300">
@@ -298,8 +298,7 @@ export function ProjectScheduleDetailModal({
 
                 {/* 세부일정 행 영역 — 세로 스크롤 */}
                 <div
-                  className="overflow-y-auto overflow-x-hidden border-x border-b border-gray-300"
-                  style={{ maxHeight: 200 }}
+                  className="overflow-y-auto overflow-x-hidden border-x border-b border-gray-300 flex-1"
                 >
                   {/* 기본 빈 행 (세로 격자선 포함) */}
                   <div className="relative border-b border-gray-100" style={{ height: 36 }}>
