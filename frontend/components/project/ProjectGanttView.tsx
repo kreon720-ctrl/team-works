@@ -109,65 +109,27 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 flex-none">
-        {/* Left: project info */}
-        <div className="flex items-center gap-2 min-w-0">
-          {selectedProject && (
-            <span className="text-xs text-gray-500 whitespace-nowrap">
-              {selectedProject.startDate} ~ {selectedProject.endDate}
-            </span>
-          )}
-          {selectedProject && (
-            <span className="text-xs text-gray-400">
-              ({selectedProject.progress}%)
-            </span>
-          )}
-        </div>
-
-        {/* Right: action buttons */}
-        <div className="flex items-center gap-1.5 flex-none ml-3">
-          {/* + 일정 */}
+      <div className="flex items-center px-4 py-2 border-b border-gray-200 flex-none">
+        {/* Left: project action buttons */}
+        <div className="flex items-center gap-1.5 flex-none">
           <button
             type="button"
-            disabled={!selectedProject}
-            onClick={() => {
-              setEditingSchedule(null);
-              setShowScheduleModal(true);
-            }}
-            className="px-2 py-1 rounded-lg bg-primary-500 text-white text-xs font-medium hover:bg-primary-600 active:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            +일정
-          </button>
-
-          {/* Create project icon */}
-          <button
-            type="button"
-            onClick={() => {
-              setEditingProject(null);
-              setShowProjectModal(true);
-            }}
+            onClick={() => { setEditingProject(null); setShowProjectModal(true); }}
             title="프로젝트 생성"
             className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
           >
             <PlusSquare className="w-5 h-5" />
           </button>
-
-          {/* Edit project icon (only if project selected) */}
           {selectedProject && (
             <button
               type="button"
-              onClick={() => {
-                setEditingProject(selectedProject);
-                setShowProjectModal(true);
-              }}
+              onClick={() => { setEditingProject(selectedProject); setShowProjectModal(true); }}
               title="프로젝트 수정"
               className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
           )}
-
-          {/* Delete project icon (only if project selected) */}
           {selectedProject && (
             <button
               type="button"
@@ -178,6 +140,37 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
+        </div>
+
+        {/* Center: project name + period & progress */}
+        <div className="flex-1 flex items-center justify-center gap-1.5">
+          {selectedProject && (
+            <span className="text-sm text-gray-400 whitespace-nowrap">
+              {selectedProject.name}
+            </span>
+          )}
+          {selectedProject && (
+            <span className="text-xs text-gray-400 whitespace-nowrap">
+              {selectedProject.startDate} ~ {selectedProject.endDate}
+            </span>
+          )}
+          {selectedProject && (
+            <span className="text-xs text-gray-400">
+              ({selectedProject.progress}%)
+            </span>
+          )}
+        </div>
+
+        {/* Right: +일정 button */}
+        <div className="flex-none">
+          <button
+            type="button"
+            disabled={!selectedProject}
+            onClick={() => { setEditingSchedule(null); setShowScheduleModal(true); }}
+            className="px-2 py-1 rounded-lg bg-primary-500 text-white text-xs font-medium hover:bg-primary-600 active:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            +일정
+          </button>
         </div>
       </div>
 

@@ -49,7 +49,7 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
             />
           </svg>
           <span className="text-xs font-semibold text-orange-700">
-            업무실적 모드
+            업무보고 모드
           </span>
           <button
             type="button"
@@ -69,7 +69,7 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
           onKeyDown={handleKeyDown}
           placeholder={
             messageType === 'WORK_PERFORMANCE'
-              ? '업무실적을 입력하세요...'
+              ? '업무보고을 입력하세요...'
               : '메시지를 입력하세요...'
           }
           className="flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2.5 text-sm font-normal text-gray-800 placeholder:text-gray-400 shadow-sm resize-none transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
@@ -110,7 +110,7 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
                 clipRule="evenodd"
               />
             </svg>
-            업무실적
+            업무보고
           </button>
         </div>
       </div>

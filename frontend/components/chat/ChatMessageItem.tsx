@@ -28,7 +28,7 @@ export function ChatMessageItem({ message, isLeader = false, rightSlot }: ChatMe
                 clipRule="evenodd"
               />
             </svg>
-            업무실적
+            업무보고
           </span>
           <span className="text-xs font-semibold text-orange-700">
             {message.senderName}

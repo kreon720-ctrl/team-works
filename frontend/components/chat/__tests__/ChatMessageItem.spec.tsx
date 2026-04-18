@@ -45,12 +45,12 @@ describe('ChatMessageItem', () => {
     render(<ChatMessageItem message={mockScheduleRequestMessage} />);
 
     // Should show schedule request badge
-    expect(screen.getByText('업무실적')).toBeInTheDocument();
+    expect(screen.getByText('업무보고')).toBeInTheDocument();
     expect(screen.getByText('김철수')).toBeInTheDocument();
     expect(screen.getByText('회의 시간을 4시로 변경 가능할까요?')).toBeInTheDocument();
 
     // Should have orange styling
-    const container = screen.getByText('업무실적').closest('.bg-orange-50');
+    const container = screen.getByText('업무보고').closest('.bg-orange-50');
     expect(container).toBeInTheDocument();
   });
 

@@ -122,14 +122,14 @@ export function ChatPanel({ teamId, date, isLeader = false }: ChatPanelProps) {
         </p>
       </div>
 
-      {/* 업무실적 보기 권한부여 팝업 */}
+      {/* 업무보고 보기 권한부여 팝업 */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl w-80 max-h-[70vh] flex flex-col">
             {/* 헤더 */}
             <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800">업무실적 보기 권한부여</h2>
-              <p className="text-xs text-gray-400 mt-0.5">체크한 사용자만 업무실적 메시지를 볼 수 있습니다.</p>
+              <h2 className="text-sm font-semibold text-gray-800">업무보고 보기 권한부여</h2>
+              <p className="text-xs text-gray-400 mt-0.5">체크한 사용자만 업무보고 메시지를 볼 수 있습니다.</p>
             </div>
 
             {/* 멤버 목록 */}

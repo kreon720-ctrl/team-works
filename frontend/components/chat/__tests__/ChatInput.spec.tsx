@@ -10,7 +10,7 @@ describe('ChatInput', () => {
 
     expect(screen.getByPlaceholderText('메시지를 입력하세요...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /전송/i })).toBeInTheDocument();
-    expect(screen.getByText(/업무실적/i)).toBeInTheDocument();
+    expect(screen.getByText(/업무보고/i)).toBeInTheDocument();
   });
 
   it('sends message when send button is clicked', () => {
@@ -51,12 +51,12 @@ describe('ChatInput', () => {
     const handleSend = vi.fn();
     render(<ChatInput onSend={handleSend} />);
 
-    const scheduleRequestButton = screen.getByText(/업무실적/i);
+    const scheduleRequestButton = screen.getByText(/업무보고/i);
     fireEvent.click(scheduleRequestButton);
 
     // Should show schedule request mode indicator
-    expect(screen.getByText('업무실적 모드')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('업무실적을 입력하세요...')).toBeInTheDocument();
+    expect(screen.getByText('업무보고 모드')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('업무보고을 입력하세요...')).toBeInTheDocument();
   });
 
   it('sends WORK_PERFORMANCE message when in schedule request mode', () => {
@@ -64,10 +64,10 @@ describe('ChatInput', () => {
     render(<ChatInput onSend={handleSend} />);
 
     // Toggle to schedule request mode
-    const scheduleRequestButton = screen.getByText(/업무실적/i);
+    const scheduleRequestButton = screen.getByText(/업무보고/i);
     fireEvent.click(scheduleRequestButton);
 
-    const textarea = screen.getByPlaceholderText('업무실적을 입력하세요...');
+    const textarea = screen.getByPlaceholderText('업무보고을 입력하세요...');
     fireEvent.change(textarea, { target: { value: '회의 시간 변경 요청' } });
 
     const sendButton = screen.getByRole('button', { name: /전송/i });
@@ -81,7 +81,7 @@ describe('ChatInput', () => {
     render(<ChatInput onSend={handleSend} />);
 
     // Toggle to schedule request mode
-    const scheduleRequestButton = screen.getByText(/업무실적/i);
+    const scheduleRequestButton = screen.getByText(/업무보고/i);
     fireEvent.click(scheduleRequestButton);
 
     // Cancel
@@ -89,7 +89,7 @@ describe('ChatInput', () => {
     fireEvent.click(cancelButton);
 
     // Should be back to normal mode
-    expect(screen.queryByText('업무실적 모드')).not.toBeInTheDocument();
+    expect(screen.queryByText('업무보고 모드')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('메시지를 입력하세요...')).toBeInTheDocument();
   });
 
