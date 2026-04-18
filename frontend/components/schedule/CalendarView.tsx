@@ -166,14 +166,6 @@ export function CalendarView({
         </div>
 
         <div className="flex items-center gap-4">
-          {/* 포스트잇 색상 팔레트 (PC 월간뷰) */}
-          {showPalette && (
-            <PostItColorPalette
-              selectedColor={selectedPostitColor ?? null}
-              onSelect={onPostitColorSelect}
-            />
-          )}
-
           {/* 프로젝트 관리 버튼 (PC only, 프로젝트 없을 때만 표시) */}
           {!compact && teamProjects.length === 0 && (
             <button
@@ -191,6 +183,14 @@ export function CalendarView({
               </svg>
               프로젝트 관리
             </button>
+          )}
+
+          {/* 포스트잇 색상 팔레트 (PC 월간뷰) */}
+          {showPalette && (
+            <PostItColorPalette
+              selectedColor={selectedPostitColor ?? null}
+              onSelect={onPostitColorSelect}
+            />
           )}
 
           {/* 일정 등록 버튼 (project view에서는 숨김) */}

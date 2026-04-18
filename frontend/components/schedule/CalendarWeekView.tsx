@@ -166,7 +166,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
         style={{ maxHeight: 'calc(100vh - 240px)' }}
       >
         {/* 요일 헤더 — 스크롤 컨테이너와 동일한 너비로 sticky */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex">
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex" style={{ paddingTop: 3, paddingBottom: 3, paddingRight: 3 }}>
           <div className={`${TIME_COL_W} flex-shrink-0`} />
           {weekDays.map((date, index) => {
             const today = isToday(date);
@@ -177,7 +177,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                 type="button"
                 onClick={() => onDateClick?.(date)}
                 className={`
-                  flex-1 flex flex-col items-center py-2 px-1 transition-all duration-150
+                  flex-1 flex flex-col items-center py-1.5 px-1 transition-all duration-150
                   ${today ? 'ring-2 ring-orange-500 rounded-lg' : ''}
                   ${sel && !today ? 'ring-2 ring-primary-500 rounded-lg' : ''}
                   hover:bg-gray-50

@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import type { Project, ProjectSchedule } from '@/types/project';
-import { GanttBar, SCHEDULE_BAR_HEIGHT } from './GanttBar';
+import { GanttBar } from './GanttBar';
 import {
   getProjectWeeks,
   groupWeeksByMonth,
@@ -12,14 +12,9 @@ import {
 } from './ganttUtils';
 
 const MIN_CELL_WIDTH = 40; // px per week (minimum)
-const MIN_ROW_HEIGHT = 44; // px — minimum when no bars
+const MIN_ROW_HEIGHT = 44; // px — minimum row height
 const BAR_GAP = 4;         // px between stacked bars
 const ROW_PADDING = 8;     // px top/bottom padding inside row
-
-function calcRowHeight(numBars: number): number {
-  if (numBars === 0) return MIN_ROW_HEIGHT;
-  return ROW_PADDING * 2 + numBars * SCHEDULE_BAR_HEIGHT + (numBars - 1) * BAR_GAP;
-}
 
 interface GanttChartProps {
   project: Project;
@@ -41,6 +36,34 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
     sortedByPhase.set(phase.id, phaseSchedules);
   }
 
+  // ResizeObserver: right-panel row heights → sync to left-panel label heights
+  const barRowRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [rowHeights, setRowHeights] = useState<number[]>(
+    () => project.phases.map(() => MIN_ROW_HEIGHT)
+  );
+
+  useEffect(() => {
+    const observers: ResizeObserver[] = [];
+    project.phases.forEach((_, idx) => {
+      const el = barRowRefs.current[idx];
+      if (!el) return;
+      const ro = new ResizeObserver(() => {
+        setRowHeights(prev => {
+          const next = [...prev];
+          const h = el.getBoundingClientRect().height;
+          if (next[idx] !== h) {
+            next[idx] = h;
+            return [...next];
+          }
+          return prev;
+        });
+      });
+      ro.observe(el);
+      observers.push(ro);
+    });
+    return () => observers.forEach(ro => ro.disconnect());
+  }, [project.phases.length]);
+
   return (
     <div className="flex overflow-hidden h-full">
       {/* Left: Phase labels (sticky) */}
@@ -50,23 +73,20 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
           <span className="text-xs text-gray-500 font-medium">단계</span>
         </div>
 
-        {/* Phase rows — height matches right panel */}
-        {project.phases.map((phase, idx) => {
-          const rowHeight = calcRowHeight(sortedByPhase.get(phase.id)?.length ?? 0);
-          return (
-            <div
-              key={phase.id}
-              className={`flex items-center justify-center border-b border-gray-200 px-2 ${
-                idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-              }`}
-              style={{ height: rowHeight }}
-            >
-              <span className="text-xs text-gray-700 text-center break-words leading-tight line-clamp-3">
-                {phase.name}
-              </span>
-            </div>
-          );
-        })}
+        {/* Phase rows — height synced from right panel via ResizeObserver */}
+        {project.phases.map((phase, idx) => (
+          <div
+            key={phase.id}
+            className={`flex items-center justify-center border-b border-gray-200 px-2 ${
+              idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+            }`}
+            style={{ height: rowHeights[idx] ?? MIN_ROW_HEIGHT }}
+          >
+            <span className="text-xs text-gray-700 text-center break-words leading-tight line-clamp-3">
+              {phase.name}
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* Right: Scrollable Gantt content */}
@@ -105,59 +125,61 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
           {/* Phase rows with bars */}
           {project.phases.map((phase, phaseIdx) => {
             const phaseSchedules = sortedByPhase.get(phase.id) ?? [];
-            const rowHeight = calcRowHeight(phaseSchedules.length);
             const totalWeeks = weeks.length;
 
             return (
               <div
                 key={phase.id}
-                className={`relative flex border-b border-gray-200 ${
+                ref={el => { barRowRefs.current[phaseIdx] = el; }}
+                className={`relative border-b border-gray-200 ${
                   phaseIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                 }`}
-                style={{ height: rowHeight }}
+                style={{ minHeight: MIN_ROW_HEIGHT }}
               >
-                {/* Background week cells */}
-                {weeks.map((_, wIdx) => (
-                  <div
-                    key={wIdx}
-                    style={{ flex: 1 }}
-                    className={
-                      isMonthBoundary(monthGroups, wIdx)
-                        ? 'border-l-2 border-gray-500'
-                        : 'border-l border-gray-200'
-                    }
-                  />
-                ))}
-
-                {/* Gantt bars — stacked top-to-bottom, sorted by startDate */}
-                {phaseSchedules.map((schedule, barIdx) => {
-                  const startIdx = getWeekIndex(weeks, schedule.startDate, 'start');
-                  const endIdx = getWeekIndex(weeks, schedule.endDate, 'end');
-
-                  const leftPct = (startIdx / totalWeeks) * 100;
-                  const widthPct = ((endIdx - startIdx + 1) / totalWeeks) * 100;
-                  const topPx = ROW_PADDING + barIdx * (SCHEDULE_BAR_HEIGHT + BAR_GAP);
-
-                  return (
+                {/* Background week cells — absolute, fills full row */}
+                <div className="absolute inset-0 flex pointer-events-none">
+                  {weeks.map((_, wIdx) => (
                     <div
-                      key={schedule.id}
-                      className="absolute"
-                      style={{
-                        left: `${leftPct}%`,
-                        width: `${widthPct}%`,
-                        top: topPx,
-                        paddingLeft: '2px',
-                        paddingRight: '2px',
-                        zIndex: 1,
-                      }}
-                    >
-                      <GanttBar
-                        schedule={schedule}
-                        onClick={() => onBarClick(schedule)}
-                      />
-                    </div>
-                  );
-                })}
+                      key={wIdx}
+                      style={{ flex: 1 }}
+                      className={
+                        isMonthBoundary(monthGroups, wIdx)
+                          ? 'border-l-2 border-gray-500'
+                          : 'border-l border-gray-200'
+                      }
+                    />
+                  ))}
+                </div>
+
+                {/* Gantt bars — flex column, each bar uses marginLeft for horizontal position */}
+                <div
+                  className="relative z-10 flex flex-col"
+                  style={{ padding: `${ROW_PADDING}px 0`, gap: BAR_GAP }}
+                >
+                  {phaseSchedules.map((schedule) => {
+                    const startIdx = getWeekIndex(weeks, schedule.startDate, 'start');
+                    const endIdx = getWeekIndex(weeks, schedule.endDate, 'end');
+                    const leftPct = (startIdx / totalWeeks) * 100;
+                    const widthPct = ((endIdx - startIdx + 1) / totalWeeks) * 100;
+
+                    return (
+                      <div
+                        key={schedule.id}
+                        style={{
+                          marginLeft: `${leftPct}%`,
+                          width: `${widthPct}%`,
+                          paddingLeft: 2,
+                          paddingRight: 2,
+                        }}
+                      >
+                        <GanttBar
+                          schedule={schedule}
+                          onClick={() => onBarClick(schedule)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}

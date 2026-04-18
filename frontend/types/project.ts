@@ -61,3 +61,31 @@ export interface ProjectScheduleCreateInput {
   isDelayed: boolean;
   phaseId: string;
 }
+
+export interface SubSchedule {
+  id: string;
+  scheduleId: string;  // parent ProjectSchedule id
+  projectId: string;
+  teamId: string;
+  title: string;
+  color: GanttBarColor;
+  startDate: string;
+  endDate: string;
+  description: string;
+  leader: string;
+  progress: number;
+  isDelayed: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface SubScheduleCreateInput {
+  title: string;
+  color: GanttBarColor;
+  startDate: string;
+  endDate: string;
+  description: string;
+  leader: string;
+  progress: number;
+  isDelayed: boolean;
+}

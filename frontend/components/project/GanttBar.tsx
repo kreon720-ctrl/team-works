@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ProjectSchedule, GanttBarColor } from '@/types/project';
 
 // Static color lookup table for Tailwind v4 compatibility
@@ -14,7 +15,7 @@ const GANTT_COLOR_STYLES: Record<GanttBarColor, { bar: string; barDelayed: strin
 };
 
 export const PROGRESS_BAR_HEIGHT = 20; // px
-export const SCHEDULE_BAR_HEIGHT = 28; // px
+export const SCHEDULE_BAR_HEIGHT = 28; // px — minimum bar height (bar grows with text)
 
 interface GanttBarProps {
   schedule: ProjectSchedule;
@@ -26,7 +27,12 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
   const isDelayed = schedule.isDelayed ?? false;
   const barClass = isDelayed ? styles.barDelayed : styles.bar;
 
-  const fmtDate = (d: string) => d.slice(5).replace('-', '/'); // MM/DD
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
+
+  const fmtDate = (d: string) => {
+    const [, m, day] = d.split('-');
+    return `${parseInt(m)}/${parseInt(day)}`;
+  };
   const label = `${schedule.title} (${fmtDate(schedule.startDate)}~${fmtDate(schedule.endDate)})`;
   const hoverLabel = isDelayed
     ? `${schedule.progress}% (일정지연)`
@@ -44,23 +50,40 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
           onClick();
         }
       }}
+      onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
+      onMouseMove={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={() => setTooltip(null)}
       className={`group relative w-full rounded overflow-hidden cursor-pointer select-none ${barClass}`}
-      style={{ height: SCHEDULE_BAR_HEIGHT }}
+      style={{ minHeight: SCHEDULE_BAR_HEIGHT }}
     >
-      {/* Progress bar overlay */}
+      {/* Hover tooltip — portal to document.body, always on top */}
+      {tooltip && typeof document !== 'undefined' && createPortal(
+        <div
+          className="pointer-events-none"
+          style={{ position: 'fixed', left: tooltip.x + 12, top: tooltip.y + 12, zIndex: 2147483647 }}
+        >
+          <div className="bg-white text-gray-800 text-xs rounded-lg shadow-xl border border-gray-200 px-3 py-2 max-w-xs">
+            <p className="font-semibold leading-snug mb-1 text-gray-900">{schedule.title}</p>
+            <p className="text-gray-500">{fmtDate(schedule.startDate)} ~ {fmtDate(schedule.endDate)}</p>
+            {schedule.description && (
+              <p className="text-gray-600 mt-1 whitespace-pre-wrap">{schedule.description}</p>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Progress bar overlay — stretches full height of bar */}
       <div
-        className={`absolute top-1/2 left-0 rounded-l -translate-y-1/2 ${styles.progress}`}
-        style={{
-          width: `${Math.min(100, Math.max(0, schedule.progress))}%`,
-          height: PROGRESS_BAR_HEIGHT,
-        }}
+        className={`absolute inset-y-0 left-0 rounded-l ${styles.progress}`}
+        style={{ width: `${Math.min(100, Math.max(0, schedule.progress))}%` }}
       />
 
-      {/* Text label — hidden on hover */}
-      <div className="absolute inset-0 flex items-center justify-center px-1 pointer-events-none z-10 group-hover:opacity-0 transition-opacity duration-100">
+      {/* Text label — in flow (determines bar height), hidden on hover */}
+      <div className="relative z-10 flex items-center justify-center px-1.5 py-1 group-hover:opacity-0 transition-opacity duration-100 pointer-events-none">
         <span
-          className={`text-xs font-medium truncate ${styles.text} mix-blend-multiply`}
-          style={{ textShadow: '0 0 2px rgba(255,255,255,0.8)' }}
+          className={`text-xs font-medium text-center leading-tight line-clamp-2 ${styles.text} mix-blend-multiply`}
+          style={{ textShadow: '0 0 2px rgba(255,255,255,0.8)', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
         >
           {label}
         </span>

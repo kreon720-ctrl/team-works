@@ -71,7 +71,7 @@ export default function HomePage() {
       {/* Header */}
       <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-gray-900 truncate">Watermelon Works</h1>
+          <h1 className="text-lg font-semibold text-gray-900 truncate">TEAM WORKS</h1>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm font-normal text-gray-600">{currentUser?.name}</span>

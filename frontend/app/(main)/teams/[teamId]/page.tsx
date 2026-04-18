@@ -230,6 +230,9 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
             </button>
             <h1 className="text-lg font-semibold text-gray-900 truncate">{team.name}</h1>
           </div>
+          <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none">
+            <span className="text-xl font-bold tracking-widest text-gray-900">TEAM WORKS</span>
+          </div>
           <div className="flex items-center gap-2">
             <div className="relative">
               <span className="text-sm font-normal text-gray-600">{currentUser?.name}</span>

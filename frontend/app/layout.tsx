@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Team CalTalk",
+  title: "TEAM WORKS",
   description: "팀 캘린더 + 채팅 통합 앱",
 };
 

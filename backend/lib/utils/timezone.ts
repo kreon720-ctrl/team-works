@@ -112,9 +112,11 @@ export function getKstDateRange(
   const month = baseKst.getMonth()
   const date = baseKst.getDate()
 
-  // Helper: build a UTC Date from a KST calendar date (YYYY-MM-DD parts)
+  // Helper: build a UTC Date from a KST calendar date (y, m=0-indexed, d)
+  // Date.UTC handles overflow/underflow (e.g. d=-4 correctly wraps to previous month)
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000
   const kstMidnight = (y: number, m: number, d: number): Date =>
-    new Date(`${String(y).padStart(4, '0')}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}T00:00:00+09:00`)
+    new Date(Date.UTC(y, m, d) - KST_OFFSET_MS)
 
   switch (view) {
     case 'month': {

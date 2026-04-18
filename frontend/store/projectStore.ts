@@ -7,6 +7,8 @@ import type {
   ProjectSchedule,
   ProjectCreateInput,
   ProjectScheduleCreateInput,
+  SubSchedule,
+  SubScheduleCreateInput,
 } from '@/types/project';
 
 function generateId(): string {
@@ -18,13 +20,15 @@ function getNow(): string {
 }
 
 interface ProjectState {
-  projects: Record<string, Project[]>;       // keyed by teamId
+  projects: Record<string, Project[]>;          // keyed by teamId
   schedules: Record<string, ProjectSchedule[]>; // keyed by projectId
+  subSchedules: Record<string, SubSchedule[]>;  // keyed by scheduleId
   selectedProjectId: string | null;
 
   // Selectors
   getTeamProjects: (teamId: string) => Project[];
   getProjectSchedules: (projectId: string) => ProjectSchedule[];
+  getSubSchedules: (scheduleId: string) => SubSchedule[];
 
   // Project actions
   setSelectedProject: (projectId: string | null) => void;
@@ -41,6 +45,17 @@ interface ProjectState {
   ) => ProjectSchedule;
   updateProjectSchedule: (scheduleId: string, projectId: string, input: ProjectScheduleCreateInput) => void;
   deleteProjectSchedule: (scheduleId: string, projectId: string) => void;
+
+  // Sub-schedule actions
+  createSubSchedule: (
+    scheduleId: string,
+    projectId: string,
+    teamId: string,
+    input: SubScheduleCreateInput,
+    createdBy: string
+  ) => SubSchedule;
+  updateSubSchedule: (subId: string, scheduleId: string, input: SubScheduleCreateInput) => void;
+  deleteSubSchedule: (subId: string, scheduleId: string) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -48,6 +63,7 @@ export const useProjectStore = create<ProjectState>()(
     (set, get) => ({
       projects: {},
       schedules: {},
+      subSchedules: {},
       selectedProjectId: null,
 
       getTeamProjects: (teamId: string): Project[] => {
@@ -56,6 +72,10 @@ export const useProjectStore = create<ProjectState>()(
 
       getProjectSchedules: (projectId: string): ProjectSchedule[] => {
         return get().schedules[projectId] ?? [];
+      },
+
+      getSubSchedules: (scheduleId: string): SubSchedule[] => {
+        return get().subSchedules[scheduleId] ?? [];
       },
 
       setSelectedProject: (projectId: string | null) => {
@@ -218,13 +238,72 @@ export const useProjectStore = create<ProjectState>()(
       deleteProjectSchedule: (scheduleId: string, projectId: string) => {
         set((state) => {
           const projectSchedules = state.schedules[projectId] ?? [];
+          const { [scheduleId]: _removed, ...remainingSubs } = state.subSchedules;
           return {
             schedules: {
               ...state.schedules,
               [projectId]: projectSchedules.filter((s) => s.id !== scheduleId),
             },
+            subSchedules: remainingSubs,
           };
         });
+      },
+
+      createSubSchedule: (
+        scheduleId: string,
+        projectId: string,
+        teamId: string,
+        input: SubScheduleCreateInput,
+        createdBy: string
+      ): SubSchedule => {
+        const now = getNow();
+        const newSub: SubSchedule = {
+          id: generateId(),
+          scheduleId,
+          projectId,
+          teamId,
+          title: input.title,
+          color: input.color,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          description: input.description,
+          leader: input.leader,
+          progress: input.progress,
+          isDelayed: input.isDelayed,
+          createdBy,
+          createdAt: now,
+        };
+        set((state) => ({
+          subSchedules: {
+            ...state.subSchedules,
+            [scheduleId]: [...(state.subSchedules[scheduleId] ?? []), newSub],
+          },
+        }));
+        return newSub;
+      },
+
+      updateSubSchedule: (subId: string, scheduleId: string, input: SubScheduleCreateInput) => {
+        set((state) => ({
+          subSchedules: {
+            ...state.subSchedules,
+            [scheduleId]: (state.subSchedules[scheduleId] ?? []).map((s) =>
+              s.id === subId
+                ? { ...s, title: input.title, color: input.color, startDate: input.startDate,
+                    endDate: input.endDate, description: input.description,
+                    leader: input.leader, progress: input.progress, isDelayed: input.isDelayed }
+                : s
+            ),
+          },
+        }));
+      },
+
+      deleteSubSchedule: (subId: string, scheduleId: string) => {
+        set((state) => ({
+          subSchedules: {
+            ...state.subSchedules,
+            [scheduleId]: (state.subSchedules[scheduleId] ?? []).filter((s) => s.id !== subId),
+          },
+        }));
       },
     }),
     {
