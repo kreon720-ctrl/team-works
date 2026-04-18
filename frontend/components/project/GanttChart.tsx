@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React from 'react';
 import type { Project, ProjectSchedule } from '@/types/project';
 import { GanttBar } from './GanttBar';
 import {
@@ -36,107 +36,80 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
     sortedByPhase.set(phase.id, phaseSchedules);
   }
 
-  // ResizeObserver: right-panel row heights → sync to left-panel label heights
-  const barRowRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const [rowHeights, setRowHeights] = useState<number[]>(
-    () => project.phases.map(() => MIN_ROW_HEIGHT)
-  );
-
-  useEffect(() => {
-    const observers: ResizeObserver[] = [];
-    project.phases.forEach((_, idx) => {
-      const el = barRowRefs.current[idx];
-      if (!el) return;
-      const ro = new ResizeObserver(() => {
-        setRowHeights(prev => {
-          const next = [...prev];
-          const h = el.getBoundingClientRect().height;
-          if (next[idx] !== h) {
-            next[idx] = h;
-            return [...next];
-          }
-          return prev;
-        });
-      });
-      ro.observe(el);
-      observers.push(ro);
-    });
-    return () => observers.forEach(ro => ro.disconnect());
-  }, [project.phases.length]);
+  const LABEL_W = 112; // px — left phase label column width (w-28)
 
   return (
-    <div className="flex overflow-hidden h-full">
-      {/* Left: Phase labels (sticky) */}
-      <div className="flex-none w-28 border-r border-gray-300 bg-white z-10 overflow-y-auto">
-        {/* Header spacer */}
-        <div className="h-14 border-b border-gray-300 flex items-center justify-center flex-none">
-          <span className="text-xs text-gray-500 font-medium">단계</span>
+    /* Single scroll container: both x and y */
+    <div className="overflow-auto h-full">
+      <div style={{ minWidth: `${LABEL_W + weeks.length * MIN_CELL_WIDTH}px` }}>
+
+        {/* ── Month header row (sticky top-0) ────────────────────────── */}
+        <div className="flex h-7 border-b border-gray-200 sticky top-0 z-20 bg-white">
+          {/* Top-left corner: sticky left too */}
+          <div
+            className="flex-none border-r border-gray-300 bg-white sticky left-0 z-30"
+            style={{ width: LABEL_W }}
+          />
+          {monthGroups.map((group) => (
+            <div
+              key={`${group.year}-${group.month}`}
+              style={{ flex: group.weeks.length }}
+              className="border-l-2 border-gray-500 text-center text-xs font-semibold py-1 text-gray-700 overflow-hidden"
+            >
+              {group.month}월
+            </div>
+          ))}
         </div>
 
-        {/* Phase rows — height synced from right panel via ResizeObserver */}
-        {project.phases.map((phase, idx) => (
+        {/* ── Week number header row (sticky top-7) ──────────────────── */}
+        <div className="flex h-7 border-b border-gray-300 sticky top-7 z-20 bg-white">
+          {/* Label column spacer */}
           <div
-            key={phase.id}
-            className={`flex items-center justify-center border-b border-gray-200 px-2 ${
-              idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-            }`}
-            style={{ height: rowHeights[idx] ?? MIN_ROW_HEIGHT }}
+            className="flex-none border-r border-gray-300 bg-white sticky left-0 z-30 flex items-center justify-center"
+            style={{ width: LABEL_W }}
           >
-            <span className="text-xs text-gray-700 text-center break-words leading-tight line-clamp-3">
-              {phase.name}
-            </span>
+            <span className="text-xs text-gray-500 font-medium">단계</span>
           </div>
-        ))}
-      </div>
+          {weeks.map((week, i) => (
+            <div
+              key={i}
+              style={{ flex: 1 }}
+              className={`text-center text-xs text-gray-500 py-1 ${
+                isMonthBoundary(monthGroups, i)
+                  ? 'border-l-2 border-gray-500'
+                  : 'border-l border-gray-200'
+              }`}
+            >
+              {getWeekOfMonth(week)}
+            </div>
+          ))}
+        </div>
 
-      {/* Right: Scrollable Gantt content */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto">
-        <div style={{ minWidth: `${weeks.length * MIN_CELL_WIDTH}px` }}>
-          {/* Month header row */}
-          <div className="flex h-7 border-b border-gray-200 sticky top-0 bg-white z-10">
-            {monthGroups.map((group) => (
+        {/* ── Phase rows ─────────────────────────────────────────────── */}
+        {project.phases.map((phase, phaseIdx) => {
+          const phaseSchedules = sortedByPhase.get(phase.id) ?? [];
+          const totalWeeks = weeks.length;
+          const rowBg = phaseIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+
+          return (
+            <div
+              key={phase.id}
+              className={`flex border-b border-gray-200 ${rowBg}`}
+              style={{ minHeight: MIN_ROW_HEIGHT }}
+            >
+              {/* Phase label — sticky left */}
               <div
-                key={`${group.year}-${group.month}`}
-                style={{ flex: group.weeks.length }}
-                className="border-l-2 border-gray-500 text-center text-xs font-semibold py-1 text-gray-700 overflow-hidden"
+                className={`flex-none border-r border-gray-300 sticky left-0 z-10 flex items-center justify-center px-2 ${rowBg}`}
+                style={{ width: LABEL_W }}
               >
-                {group.month}월
+                <span className="text-xs text-gray-700 text-center break-words leading-tight line-clamp-3">
+                  {phase.name}
+                </span>
               </div>
-            ))}
-          </div>
 
-          {/* Week number header row */}
-          <div className="flex h-7 border-b border-gray-300 sticky top-7 bg-white z-10">
-            {weeks.map((week, i) => (
-              <div
-                key={i}
-                style={{ flex: 1 }}
-                className={`text-center text-xs text-gray-500 py-1 ${
-                  isMonthBoundary(monthGroups, i)
-                    ? 'border-l-2 border-gray-500'
-                    : 'border-l border-gray-200'
-                }`}
-              >
-                {getWeekOfMonth(week)}
-              </div>
-            ))}
-          </div>
-
-          {/* Phase rows with bars */}
-          {project.phases.map((phase, phaseIdx) => {
-            const phaseSchedules = sortedByPhase.get(phase.id) ?? [];
-            const totalWeeks = weeks.length;
-
-            return (
-              <div
-                key={phase.id}
-                ref={el => { barRowRefs.current[phaseIdx] = el; }}
-                className={`relative border-b border-gray-200 ${
-                  phaseIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                }`}
-                style={{ minHeight: MIN_ROW_HEIGHT }}
-              >
-                {/* Background week cells — absolute, fills full row */}
+              {/* Bars column */}
+              <div className="flex-1 relative" style={{ minHeight: MIN_ROW_HEIGHT }}>
+                {/* Background week cells */}
                 <div className="absolute inset-0 flex pointer-events-none">
                   {weeks.map((_, wIdx) => (
                     <div
@@ -151,7 +124,7 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
                   ))}
                 </div>
 
-                {/* Gantt bars — flex column, each bar uses marginLeft for horizontal position */}
+                {/* Gantt bars */}
                 <div
                   className="relative z-10 flex flex-col"
                   style={{ padding: `${ROW_PADDING}px 0`, gap: BAR_GAP }}
@@ -181,9 +154,9 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
                   })}
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

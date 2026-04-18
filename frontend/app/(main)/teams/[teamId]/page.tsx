@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -230,15 +231,14 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
             </button>
             <h1 className="text-lg font-semibold text-gray-900 truncate">{team.name}</h1>
           </div>
-          <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none">
+          <Link href="/" className="absolute left-1/2 -translate-x-1/2 select-none flex items-center gap-2 cursor-pointer">
+            <img src="/partner.png" alt="partner" className="w-[50px] h-[50px] opacity-70" />
             <span className="text-xl font-bold tracking-widest text-gray-900">TEAM WORKS</span>
-          </div>
+          </Link>
           <div className="flex items-center gap-2">
             <div className="relative">
               <div className="flex items-center gap-1.5">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5.121 17.804A9 9 0 1118.88 6.196M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                <img src="/user.png" alt="user" className="w-5 h-5 opacity-50" />
                 <span className="text-sm font-normal text-gray-600">{currentUser?.name}</span>
               </div>
               {isLeader && pendingCount > 0 && (
@@ -258,7 +258,12 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
               size="sm"
               onClick={handleLogout}
             >
-              로그아웃
+              <span className="flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                로그아웃
+              </span>
             </Button>
           </div>
         </header>
