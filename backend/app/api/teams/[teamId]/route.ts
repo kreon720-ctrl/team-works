@@ -50,6 +50,7 @@ export async function GET(
     return NextResponse.json({
       id: team.id,
       name: team.name,
+      description: team.description,
       leaderId: team.leader_id,
       isPublic: team.is_public,
       myRole: roleResult.context.role,
@@ -92,10 +93,10 @@ export async function PATCH(
 
     // 2. 요청 본문 파싱
     const body: UpdateTeamBody = await request.json()
-    const { name, description } = body
+    const { name, description, isPublic } = body
 
     // 3. 팀 수정
-    const updatedTeam = await updateTeam(teamId, { name, description })
+    const updatedTeam = await updateTeam(teamId, { name, description, isPublic })
 
     if (!updatedTeam) {
       return NextResponse.json(

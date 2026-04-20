@@ -1,54 +1,62 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import {
+  fetchNotices,
+  createNotice,
+  deleteNotice as deleteNoticeApi,
+} from '@/lib/api/noticeApi';
 
 export interface Notice {
   id: string;
   teamId: string;
   senderId: string;
-  senderName: string;
+  senderName: string; // coerced from null to '' at API boundary
   content: string;
   createdAt: string; // ISO string
 }
 
 interface NoticeStore {
-  notices: Record<string, Notice[]>; // teamId -> notices[]
+  notices: Record<string, Notice[]>; // teamId -> notices[] (in-memory cache)
 
   getTeamNotices: (teamId: string) => Notice[];
-  addNotice: (teamId: string, input: Omit<Notice, 'id' | 'teamId' | 'createdAt'>) => void;
-  deleteNotice: (teamId: string, noticeId: string) => void;
+  loadTeamNotices: (teamId: string) => Promise<void>;
+  addNotice: (teamId: string, content: string) => Promise<void>;
+  deleteNotice: (teamId: string, noticeId: string) => Promise<void>;
 }
 
-export const useNoticeStore = create<NoticeStore>()(
-  persist(
-    (set, get) => ({
-      notices: {},
+export const useNoticeStore = create<NoticeStore>()((set, get) => ({
+  notices: {},
 
-      getTeamNotices: (teamId) => get().notices[teamId] ?? [],
+  getTeamNotices: (teamId) => get().notices[teamId] ?? [],
 
-      addNotice: (teamId, input) => {
-        const notice: Notice = {
-          id: `notice-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          teamId,
-          createdAt: new Date().toISOString(),
-          ...input,
-        };
-        set((state) => ({
-          notices: {
-            ...state.notices,
-            [teamId]: [...(state.notices[teamId] ?? []), notice],
-          },
-        }));
+  loadTeamNotices: async (teamId) => {
+    const result = await fetchNotices(teamId);
+    set((state) => ({
+      notices: {
+        ...state.notices,
+        [teamId]: result,
       },
+    }));
+  },
 
-      deleteNotice: (teamId, noticeId) => {
-        set((state) => ({
-          notices: {
-            ...state.notices,
-            [teamId]: (state.notices[teamId] ?? []).filter((n) => n.id !== noticeId),
-          },
-        }));
+  addNotice: async (teamId, content) => {
+    const notice = await createNotice(teamId, content);
+    set((state) => ({
+      notices: {
+        ...state.notices,
+        [teamId]: [...(state.notices[teamId] ?? []), notice],
       },
-    }),
-    { name: 'notice-store' }
-  )
-);
+    }));
+  },
+
+  deleteNotice: async (teamId, noticeId) => {
+    await deleteNoticeApi(teamId, noticeId);
+    set((state) => ({
+      notices: {
+        ...state.notices,
+        [teamId]: (state.notices[teamId] ?? []).filter(
+          (n) => n.id !== noticeId
+        ),
+      },
+    }));
+  },
+}));

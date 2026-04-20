@@ -5,7 +5,6 @@ import type { Project, ProjectSchedule, ProjectScheduleCreateInput } from '@/typ
 
 interface UseScheduleActionsOptions {
   teamId: string;
-  currentUserId: string;
   selectedProject: Project | null;
   onScheduleModalClose: () => void;
   onDetailModalClose: () => void;
@@ -13,28 +12,27 @@ interface UseScheduleActionsOptions {
 
 export function useScheduleActions({
   teamId,
-  currentUserId,
   selectedProject,
   onScheduleModalClose,
   onDetailModalClose,
 }: UseScheduleActionsOptions) {
   const store = useProjectStore();
 
-  const handleCreateSchedule = (input: ProjectScheduleCreateInput) => {
+  const handleCreateSchedule = async (input: ProjectScheduleCreateInput) => {
     if (!selectedProject) return;
-    store.createProjectSchedule(selectedProject.id, teamId, input, currentUserId);
+    await store.createProjectSchedule(teamId, selectedProject.id, input);
     onScheduleModalClose();
   };
 
-  const handleUpdateSchedule = (editingSchedule: ProjectSchedule, input: ProjectScheduleCreateInput) => {
+  const handleUpdateSchedule = async (editingSchedule: ProjectSchedule, input: ProjectScheduleCreateInput) => {
     if (!selectedProject) return;
-    store.updateProjectSchedule(editingSchedule.id, selectedProject.id, input);
+    await store.updateProjectSchedule(teamId, selectedProject.id, editingSchedule.id, input);
     onScheduleModalClose();
   };
 
-  const handleDeleteSchedule = (schedule: ProjectSchedule) => {
+  const handleDeleteSchedule = async (schedule: ProjectSchedule) => {
     if (!selectedProject) return;
-    store.deleteProjectSchedule(schedule.id, selectedProject.id);
+    await store.deleteProjectSchedule(teamId, selectedProject.id, schedule.id);
     onDetailModalClose();
   };
 

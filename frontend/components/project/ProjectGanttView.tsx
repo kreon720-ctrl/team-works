@@ -28,6 +28,20 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
   const selectedProject: Project | null =
     projects.find((p) => p.id === rawSelectedId) ?? projects[0] ?? null;
 
+  // Load projects from API on mount / teamId change
+  React.useEffect(() => {
+    store.loadTeamProjects(teamId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
+
+  // Load schedules when selected project changes
+  React.useEffect(() => {
+    if (selectedProject) {
+      store.loadProjectSchedules(teamId, selectedProject.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject?.id]);
+
   // Sync store if fallback differs from stored ID
   React.useEffect(() => {
     if (projects.length > 0 && rawSelectedId !== selectedProject?.id) {
@@ -44,14 +58,12 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
 
   const projectActions = useProjectActions({
     teamId,
-    currentUserId,
     selectedProject,
     onModalClose: modals.closeProjectModal,
   });
 
   const scheduleActions = useScheduleActions({
     teamId,
-    currentUserId,
     selectedProject,
     onScheduleModalClose: modals.closeScheduleModal,
     onDetailModalClose: modals.closeDetailModal,
@@ -188,6 +200,7 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
       <ProjectScheduleDetailModal
         isOpen={modals.showDetailModal}
         schedule={modals.selectedSchedule}
+        teamId={teamId}
         currentUserId={currentUserId}
         phaseName={selectedSchedulePhaseName}
         onClose={modals.closeDetailModal}

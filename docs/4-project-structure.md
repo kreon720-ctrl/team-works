@@ -1,4 +1,4 @@
-# Team CalTalk — 프로젝트 구조 설계 원칙
+# TEAM WORKS — 프로젝트 구조 설계 원칙
 
 ## 문서 이력
 
@@ -11,6 +11,8 @@
 | 1.4 | 2026-04-09 | Vercel 단독 배포 적합성 검토 반영: backend/·frontend/ 각각에 next.config.ts·package.json·tsconfig.json 위치 명시, swagger/ 를 backend/ 내로 이동·Swagger UI route 추가, 환경변수를 서비스별 루트에 분리 명시, NEXT_PUBLIC_API_URL 구조 추가, frontend/lib/apiClient.ts 에 API URL 환경변수 참조 명시 |
 | 1.5 | 2026-04-09 | DB/ 디렉토리명을 database/ 로 변경 |
 | 1.6 | 2026-04-09 | FE-01 완료: frontend/ 초기 세팅 반영 - Providers.tsx 추가, test/ 디렉토리 및 Vitest 설정, globals.css 커스텀 컬러 시스템, Tailwind CSS v4 CSS 기반 적용 |
+| 1.7 | 2026-04-18 | 앱명 Team CalTalk → TEAM WORKS 반영. SCHEDULE_REQUEST → WORK_PERFORMANCE 변경. postits/work-permissions 엔드포인트 추가 |
+| 1.8 | 2026-04-20 | 실제 구현 반영: 백엔드 API Routes(notices/postits/projects/sub-schedules/work-permissions/members/auth/me), 쿼리 파일(notice/permission/postit/project/projectSchedule/subSchedule), 에러 모듈, 테스트 파일 추가. 프론트엔드 app/_components·_hooks 코-로케이션 패턴, project 컴포넌트 전체, chat(NoticeBanner·WorkPermissionModal·useChatPanel), schedule(PostItCard·PostItColorPalette·ScheduleTooltip), common(ResizableSplit), store(noticeStore/projectStore/projectScheduleStore/subScheduleStore), hooks/query(usePostits·useWorkPermissions·useRemoveTeamMember 등), lib/api(noticeApi/projectApi), lib/authInterceptor·tokenManager, types(postit·project) 추가 |
 
 ---
 
@@ -92,27 +94,72 @@
 ### API 엔드포인트 네이밍 (RESTful)
 
 ```
+# 인증
 POST   /api/auth/signup
 POST   /api/auth/login
 POST   /api/auth/refresh
+GET    /api/auth/me
+PATCH  /api/auth/me
 
+# 팀 관리
 GET    /api/teams
 POST   /api/teams
-GET    /api/teams/[teamId]
 GET    /api/teams/public
+GET    /api/teams/[teamId]
 POST   /api/teams/[teamId]/join-requests
 GET    /api/teams/[teamId]/join-requests
 PATCH  /api/teams/[teamId]/join-requests/[requestId]
+DELETE /api/teams/[teamId]/members/[userId]
+
+# 나의 작업
 GET    /api/me/tasks
 
+# 일정
 GET    /api/teams/[teamId]/schedules
 POST   /api/teams/[teamId]/schedules
 GET    /api/teams/[teamId]/schedules/[scheduleId]
 PATCH  /api/teams/[teamId]/schedules/[scheduleId]
 DELETE /api/teams/[teamId]/schedules/[scheduleId]
 
+# 포스트잇
+GET    /api/teams/[teamId]/postits
+POST   /api/teams/[teamId]/postits
+PATCH  /api/teams/[teamId]/postits/[postitId]
+DELETE /api/teams/[teamId]/postits/[postitId]
+
+# 채팅 메시지
 GET    /api/teams/[teamId]/messages
 POST   /api/teams/[teamId]/messages
+
+# 공지사항
+GET    /api/teams/[teamId]/notices
+POST   /api/teams/[teamId]/notices
+DELETE /api/teams/[teamId]/notices/[noticeId]
+
+# 업무보고 조회 권한
+GET    /api/teams/[teamId]/work-permissions
+PATCH  /api/teams/[teamId]/work-permissions
+
+# 프로젝트
+GET    /api/teams/[teamId]/projects
+POST   /api/teams/[teamId]/projects
+GET    /api/teams/[teamId]/projects/[projectId]
+PATCH  /api/teams/[teamId]/projects/[projectId]
+DELETE /api/teams/[teamId]/projects/[projectId]
+
+# 프로젝트 일정
+GET    /api/teams/[teamId]/projects/[projectId]/schedules
+POST   /api/teams/[teamId]/projects/[projectId]/schedules
+GET    /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]
+PATCH  /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]
+DELETE /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]
+
+# 세부 일정
+GET    /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules
+POST   /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules
+GET    /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]
+PATCH  /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]
+DELETE /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]
 ```
 
 ### DB 테이블/컬럼 네이밍
@@ -259,9 +306,13 @@ frontend/
 ├── tsconfig.json                      # TypeScript 경로 매핑
 ├── package.json                       # 의존성 (React, TanStack Query, Zustand 등)
 ├── .env.example                       # 환경변수 키 목록 (NEXT_PUBLIC_API_URL 등)
+├── vitest.config.ts                   # Vitest 테스트 설정
 │
 ├── app/
+│   ├── globals.css                    # Tailwind CSS v4 + 커스텀 컬러 시스템
+│   ├── layout.tsx                     # 루트 레이아웃 (Providers 포함)
 │   ├── (auth)/                        # 인증 불필요 라우트 그룹
+│   │   ├── layout.tsx
 │   │   ├── login/
 │   │   │   └── page.tsx               # S-01 로그인 화면
 │   │   └── signup/
@@ -271,50 +322,82 @@ frontend/
 │       ├── page.tsx                   # S-03 팀 목록 (홈)
 │       ├── teams/
 │       │   ├── new/
-│       │   │   └── page.tsx           # S-04 팀 생성
+│       │   │   └── page.tsx           # 팀 생성
 │       │   ├── explore/
-│       │   │   └── page.tsx           # S-04B 팀 공개 목록 (탐색)
+│       │   │   └── page.tsx           # 팀 공개 목록 (탐색)
 │       │   └── [teamId]/
-│       │       ├── page.tsx           # S-05 팀 메인 (캘린더 + 채팅)
-│       │       └── schedules/
-│       │           ├── new/
-│       │           │   └── page.tsx   # S-06 일정 생성
-│       │           └── [scheduleId]/
-│       │               └── page.tsx   # S-06 일정 상세/수정
-│       ├── me/
-│       │   └── tasks/
-│       │       └── page.tsx           # S-04C 나의 할 일
-│       └── explore/
-│           └── page.tsx               # S-04B 팀 공개 목록 (별도 라우트)
+│       │       ├── page.tsx           # S-05 팀 메인 (캘린더 + 채팅 + 프로젝트)
+│       │       ├── __tests__/         # 팀 메인 페이지 테스트
+│       │       ├── _components/       # 팀 페이지 전용 코-로케이션 컴포넌트
+│       │       │   ├── CalendarSection.tsx   # 캘린더 + 포스트잇 영역
+│       │       │   ├── PostitSection.tsx     # 포스트잇 패널
+│       │       │   ├── TeamPageHeader.tsx    # 팀 헤더 (이름, 프로젝트 탭)
+│       │       │   └── MobileLayout.tsx      # 모바일 레이아웃 분기
+│       │       └── _hooks/            # 팀 페이지 전용 훅
+│       │           ├── useScheduleActions.ts # 일정 생성/수정/삭제 핸들러
+│       │           └── usePostitActions.ts   # 포스트잇 CRUD 핸들러
+│       └── me/
+│           └── tasks/
+│               ├── page.tsx           # S-04C 나의 할 일
+│               └── __tests__/
 │
 ├── components/
-│   ├── Providers.tsx                  # TanStack Query QueryClientProvider 래퍼 (FE-01 추가)
+│   ├── Providers.tsx                  # TanStack Query QueryClientProvider 래퍼
 │   ├── auth/
 │   │   ├── LoginForm.tsx
-│   │   └── SignupForm.tsx
+│   │   ├── SignupForm.tsx
+│   │   └── __tests__/
 │   ├── team/
 │   │   ├── TeamList.tsx
 │   │   ├── TeamCard.tsx
 │   │   ├── TeamCreateForm.tsx
 │   │   ├── TeamExploreList.tsx        # 공개 팀 목록 카드
-│   │   └── JoinRequestActions.tsx     # 가입 신청 승인/거절 컴포넌트
+│   │   ├── JoinRequestActions.tsx     # 가입 신청 승인/거절 컴포넌트
+│   │   └── __tests__/
 │   ├── schedule/
 │   │   ├── CalendarView.tsx           # 월/주/일 뷰 컨테이너
 │   │   ├── CalendarMonthView.tsx
 │   │   ├── CalendarWeekView.tsx
 │   │   ├── CalendarDayView.tsx
 │   │   ├── ScheduleForm.tsx
-│   │   └── ScheduleDetailModal.tsx
+│   │   ├── ScheduleDetailModal.tsx
+│   │   ├── ScheduleTooltip.tsx        # 일정 호버 툴팁
+│   │   ├── PostItCard.tsx             # 포스트잇 카드 컴포넌트
+│   │   ├── PostItColorPalette.tsx     # 포스트잇 색상 선택
+│   │   └── __tests__/
 │   ├── chat/
 │   │   ├── ChatPanel.tsx
 │   │   ├── ChatMessageList.tsx
-│   │   ├── ChatMessageItem.tsx        # SCHEDULE_REQUEST 시각적 구분 포함
-│   │   └── ChatInput.tsx
+│   │   ├── ChatMessageItem.tsx        # NORMAL/WORK_PERFORMANCE 시각적 구분
+│   │   ├── ChatInput.tsx
+│   │   ├── NoticeBanner.tsx           # 채팅 상단 고정 공지 배너
+│   │   ├── WorkPermissionModal.tsx    # 업무보고 조회 권한 설정 모달
+│   │   ├── useChatPanel.ts            # 채팅 패널 로직 훅
+│   │   └── __tests__/
+│   ├── project/
+│   │   ├── ProjectGanttView.tsx       # 프로젝트 목록 + 간트차트 컨테이너
+│   │   ├── GanttChart.tsx             # 간트차트 렌더러
+│   │   ├── GanttBar.tsx               # 간트차트 바 단위
+│   │   ├── SubBar.tsx                 # 세부 일정 바
+│   │   ├── SubScheduleTimeline.tsx    # 세부 일정 타임라인
+│   │   ├── ganttUtils.ts              # 날짜/위치 계산 유틸
+│   │   ├── ProjectCreateModal.tsx     # 프로젝트 생성 모달
+│   │   ├── ProjectScheduleModal.tsx   # 프로젝트 일정 생성/수정 모달
+│   │   ├── ProjectScheduleDetailModal.tsx  # 프로젝트 일정 상세 모달
+│   │   ├── SubScheduleCreateModal.tsx # 세부 일정 생성 모달
+│   │   ├── SubScheduleDetailPopup.tsx # 세부 일정 상세 팝업
+│   │   ├── useGanttModals.ts          # 간트차트 모달 상태 관리 훅
+│   │   ├── useProjectActions.ts       # 프로젝트 CRUD 핸들러
+│   │   ├── useScheduleActions.ts      # 프로젝트 일정 CRUD 핸들러
+│   │   ├── useSubScheduleEditor.ts    # 세부 일정 편집 핸들러
+│   │   └── __tests__/
 │   └── common/
 │       ├── Button.tsx
 │       ├── Input.tsx
 │       ├── Modal.tsx
-│       └── ErrorBoundary.tsx
+│       ├── ResizableSplit.tsx         # 좌우 패널 리사이즈 컴포넌트
+│       ├── ErrorBoundary.tsx
+│       └── __tests__/
 │
 ├── hooks/
 │   ├── query/                         # TanStack Query 훅 (서버 상태)
@@ -323,36 +406,43 @@ frontend/
 │   │   ├── useSchedules.ts
 │   │   ├── useMessages.ts             # refetchInterval 폴링 포함
 │   │   ├── useJoinRequests.ts         # 가입 신청 조회/처리
-│   │   └── useMyTasks.ts              # 나의 할 일 (PENDING 신청 목록)
-│   └── useBreakpoint.ts               # 반응형 분기 훅
+│   │   ├── useMyTasks.ts              # 나의 할 일 (PENDING 신청 목록)
+│   │   ├── usePostits.ts              # 포스트잇 CRUD
+│   │   ├── useWorkPermissions.ts      # 업무보고 조회 권한 조회/수정
+│   │   ├── useRemoveTeamMember.ts     # 팀원 강제 탈퇴
+│   │   ├── useUpdateProfile.ts        # 내 프로필 수정
+│   │   └── useUpdateJoinRequestFromTasks.ts  # 나의 할 일에서 가입 신청 처리
+│   ├── useBreakpoint.ts               # 반응형 분기 훅
+│   ├── useLeaderRole.ts               # 팀장 여부 확인 훅
+│   └── __tests__/
 │
 ├── store/                             # Zustand 스토어 (클라이언트 전역 상태)
 │   ├── authStore.ts                   # 현재 로그인 유저, 토큰
-│   ├── authStore.test.ts              # authStore 단위 테스트 (FE-01 추가)
 │   ├── teamStore.ts                   # 선택된 팀, 선택된 날짜
-│   └── teamStore.test.ts              # teamStore 단위 테스트 (FE-01 추가)
+│   ├── noticeStore.ts                 # 팀별 공지사항 목록
+│   ├── projectStore.ts                # 선택된 프로젝트, 프로젝트 목록
+│   ├── projectScheduleStore.ts        # 프로젝트 일정 목록
+│   ├── subScheduleStore.ts            # 세부 일정 목록
+│   └── __tests__/
 │
 ├── types/
 │   ├── auth.ts                        # User, LoginRequest, LoginResponse 등
 │   ├── team.ts                        # Team, TeamMember, TeamJoinRequest 등
 │   ├── schedule.ts                    # Schedule, CreateScheduleRequest 등
-│   └── chat.ts                        # ChatMessage, MessageType 등
+│   ├── chat.ts                        # ChatMessage, MessageType 등
+│   ├── postit.ts                      # Postit, CreatePostitRequest 등
+│   └── project.ts                     # Project, ProjectSchedule, SubSchedule 등
 │
-├── lib/
-│   ├── apiClient.ts                   # fetch 래퍼 (Authorization 헤더 자동 주입, NEXT_PUBLIC_API_URL 기반 URL 조립)
-│   ├── apiClient.test.ts              # apiClient 단위 테스트 (FE-01 추가)
-│   └── utils/
-│       └── timezone.ts               # UTC ↔ KST 변환 (클라이언트용)
-│       └── timezone.test.ts          # timezone 유틸 단위 테스트 (FE-01 추가)
-│
-├── test/                              # 테스트 설정 및 헬퍼 (FE-01 추가)
-│   └── setup.ts                       # Vitest 글로벌 설정
-│
-├── vitest.config.ts                   # Vitest 테스트 설정 (FE-01 추가)
-│
-└── app/
-    ├── globals.css                    # Tailwind CSS v4 + 커스텀 컬러 시스템 (FE-01 업데이트)
-    └── layout.tsx                     # 루트 레이아웃 (Providers 포함)
+└── lib/
+    ├── apiClient.ts                   # fetch 래퍼 (Authorization 헤더 자동 주입)
+    ├── authInterceptor.ts             # 401 응답 시 토큰 자동 갱신 인터셉터
+    ├── tokenManager.ts                # Access/Refresh Token 인메모리 관리
+    ├── api/                           # 도메인별 API 호출 모듈
+    │   ├── noticeApi.ts               # 공지사항 API 함수
+    │   └── projectApi.ts              # 프로젝트/일정/세부일정 API 함수
+    ├── utils/
+    │   └── timezone.ts               # UTC ↔ KST 변환 (클라이언트용)
+    └── __tests__/
 ```
 
 > **프론트엔드 API 연결 주의**
@@ -372,51 +462,97 @@ backend/
 ├── .env.example                       # 환경변수 키 목록 (DATABASE_URL, JWT_* 등)
 │
 ├── app/
+│   ├── api-docs/
+│   │   └── page.tsx                   # Swagger UI 페이지 (/api-docs)
 │   └── api/
 │       ├── auth/
 │       │   ├── signup/route.ts        # POST /api/auth/signup
 │       │   ├── login/route.ts         # POST /api/auth/login
-│       │   └── refresh/route.ts       # POST /api/auth/refresh
+│       │   ├── refresh/route.ts       # POST /api/auth/refresh
+│       │   ├── me/route.ts            # GET, PATCH /api/auth/me
+│       │   └── auth.test.ts
 │       ├── teams/
 │       │   ├── route.ts               # GET, POST /api/teams
 │       │   ├── public/route.ts        # GET /api/teams/public
+│       │   ├── teams.test.ts
 │       │   └── [teamId]/
 │       │       ├── route.ts           # GET /api/teams/[teamId]
 │       │       ├── join-requests/
 │       │       │   ├── route.ts       # POST, GET /api/teams/[teamId]/join-requests
 │       │       │   └── [requestId]/
 │       │       │       └── route.ts   # PATCH /api/teams/[teamId]/join-requests/[requestId]
+│       │       ├── members/
+│       │       │   └── [userId]/
+│       │       │       └── route.ts   # DELETE /api/teams/[teamId]/members/[userId]
 │       │       ├── schedules/
 │       │       │   ├── route.ts       # GET, POST /api/teams/[teamId]/schedules
-│       │       │   └── [scheduleId]/
-│       │       │       └── route.ts   # GET, PATCH, DELETE
-│       │       └── messages/
-│       │           └── route.ts       # GET, POST /api/teams/[teamId]/messages
+│       │       │   ├── [scheduleId]/
+│       │       │   │   └── route.ts   # GET, PATCH, DELETE
+│       │       │   └── schedules.test.ts
+│       │       ├── postits/
+│       │       │   ├── route.ts       # GET, POST /api/teams/[teamId]/postits
+│       │       │   └── [postitId]/
+│       │       │       └── route.ts   # PATCH, DELETE
+│       │       ├── messages/
+│       │       │   ├── route.ts       # GET, POST /api/teams/[teamId]/messages
+│       │       │   └── messages.test.ts
+│       │       ├── notices/
+│       │       │   ├── route.ts       # GET, POST /api/teams/[teamId]/notices
+│       │       │   └── [noticeId]/
+│       │       │       └── route.ts   # DELETE
+│       │       ├── work-permissions/
+│       │       │   └── route.ts       # GET, PATCH /api/teams/[teamId]/work-permissions
+│       │       └── projects/
+│       │           ├── route.ts       # GET, POST /api/teams/[teamId]/projects
+│       │           └── [projectId]/
+│       │               ├── route.ts   # GET, PATCH, DELETE
+│       │               └── schedules/
+│       │                   ├── route.ts    # GET, POST
+│       │                   └── [scheduleId]/
+│       │                       ├── route.ts   # GET, PATCH, DELETE
+│       │                       └── sub-schedules/
+│       │                           ├── route.ts    # GET, POST
+│       │                           └── [subId]/
+│       │                               └── route.ts  # GET, PATCH, DELETE
 │       └── me/
+│           ├── route.ts               # GET /api/me
 │           └── tasks/route.ts         # GET /api/me/tasks
 │
 ├── swagger/
-│   ├── swagger.json                   # OpenAPI 명세 파일 (정적 서빙)
-│   └── route.ts                       # GET /swagger/swagger.json — 명세 파일 서빙 route
+│   └── swagger.json                   # OpenAPI 명세 파일
 │
 └── lib/
     ├── db/
-    │   ├── pool.ts                    # pg Pool 글로벌 싱글턴 (backend/lib/db/pool.ts)
+    │   ├── pool.ts                    # pg Pool 글로벌 싱글턴 (max: 5)
     │   └── queries/
     │       ├── userQueries.ts
     │       ├── teamQueries.ts
     │       ├── joinRequestQueries.ts  # 가입 신청 CRUD
     │       ├── scheduleQueries.ts
-    │       └── chatQueries.ts         # KST 날짜 그룹핑 포함
+    │       ├── chatQueries.ts         # KST 날짜 그룹핑 포함
+    │       ├── postitQueries.ts       # 포스트잇 CRUD
+    │       ├── noticeQueries.ts       # 공지사항 CRUD
+    │       ├── permissionQueries.ts   # 업무보고 조회 권한 조회/수정
+    │       ├── projectQueries.ts      # 프로젝트 CRUD
+    │       ├── projectScheduleQueries.ts  # 프로젝트 일정 CRUD
+    │       └── subScheduleQueries.ts  # 세부 일정 CRUD
     ├── auth/
     │   ├── jwt.ts                     # Access/Refresh Token 발급·검증
-    │   └── password.ts                # bcrypt 해싱·검증
+    │   ├── jwt.test.ts
+    │   ├── password.ts                # bcrypt 해싱·검증
+    │   └── password.test.ts
+    ├── errors/
+    │   └── databaseError.ts           # DB 에러 표준화 처리
     ├── middleware/
     │   ├── withAuth.ts                # JWT 검증 (401 처리)
-    │   └── withTeamRole.ts            # 팀 내 역할 검증 (403 처리)
+    │   ├── withAuth.test.ts
+    │   ├── withTeamRole.ts            # 팀 내 역할 검증 (403 처리)
+    │   └── withTeamRole.test.ts
     └── utils/
         ├── apiResponse.ts             # 표준 응답 형식 헬퍼
-        └── timezone.ts               # UTC ↔ KST 변환 (서버용)
+        ├── apiResponse.test.ts
+        ├── timezone.ts               # UTC ↔ KST 변환 (서버용)
+        └── timezone.test.ts
 ```
 
 > **Swagger UI 서빙 주의**

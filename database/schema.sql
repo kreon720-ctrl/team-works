@@ -1,4 +1,4 @@
--- Team CalTalk — Database Schema
+-- TEAM WORKS — Database Schema
 -- PostgreSQL 초기 마이그레이션 (schema v1)
 -- 실행: psql -U postgres -d caltalk -f database/schema.sql
 
@@ -146,3 +146,90 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_team_id_sent_at
 -- work_performance_permissions
 CREATE INDEX IF NOT EXISTS idx_wpp_team
     ON work_performance_permissions(team_id);
+
+-- =====================
+-- 9. projects
+-- =====================
+CREATE TABLE IF NOT EXISTS projects (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    name        VARCHAR(200) NOT NULL,
+    description TEXT         NULL,
+    start_date  DATE         NOT NULL,
+    end_date    DATE         NOT NULL,
+    progress    INTEGER      NOT NULL DEFAULT 0,
+    manager     VARCHAR(100) NOT NULL DEFAULT '',
+    phases      JSONB        NOT NULL DEFAULT '[]',
+    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_projects_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_projects_progress CHECK (progress BETWEEN 0 AND 100)
+);
+
+-- 10. project_schedules
+CREATE TABLE IF NOT EXISTS project_schedules (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT         NULL,
+    color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
+    start_date  DATE         NOT NULL,
+    end_date    DATE         NOT NULL,
+    leader      VARCHAR(100) NOT NULL DEFAULT '',
+    progress    INTEGER      NOT NULL DEFAULT 0,
+    is_delayed  BOOLEAN      NOT NULL DEFAULT false,
+    phase_id    UUID         NULL,
+    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_project_schedules_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_project_schedules_progress CHECK (progress BETWEEN 0 AND 100),
+    CONSTRAINT chk_project_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
+);
+
+-- 11. sub_schedules
+CREATE TABLE IF NOT EXISTS sub_schedules (
+    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_schedule_id UUID         NOT NULL REFERENCES project_schedules(id) ON DELETE CASCADE,
+    project_id          UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    team_id             UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by          UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    title               VARCHAR(200) NOT NULL,
+    description         TEXT         NULL,
+    color               VARCHAR(20)  NOT NULL DEFAULT 'indigo',
+    start_date          DATE         NOT NULL,
+    end_date            DATE         NOT NULL,
+    leader              VARCHAR(100) NOT NULL DEFAULT '',
+    progress            INTEGER      NOT NULL DEFAULT 0,
+    is_delayed          BOOLEAN      NOT NULL DEFAULT false,
+    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_sub_schedules_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_sub_schedules_progress CHECK (progress BETWEEN 0 AND 100),
+    CONSTRAINT chk_sub_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
+);
+
+-- projects indexes
+CREATE INDEX IF NOT EXISTS idx_projects_team_id ON projects(team_id);
+
+-- project_schedules indexes
+CREATE INDEX IF NOT EXISTS idx_project_schedules_project_id ON project_schedules(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_schedules_team_id ON project_schedules(team_id);
+
+-- sub_schedules indexes
+CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_schedule_id ON sub_schedules(project_schedule_id);
+CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_id ON sub_schedules(project_id);
+
+-- 12. notices
+CREATE TABLE IF NOT EXISTS notices (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    sender_id  UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    content    TEXT        NOT NULL,
+    created_at TIMESTAMP   NOT NULL DEFAULT now(),
+    CONSTRAINT chk_notices_content CHECK (char_length(content) <= 2000)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notices_team_id ON notices(team_id);

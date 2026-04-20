@@ -1,4 +1,4 @@
-# Team CalTalk 사용자 시나리오 문서
+# TEAM WORKS 사용자 시나리오 문서
 
 ## 문서 이력
 
@@ -7,35 +7,53 @@
 | 1.0 | 2026-04-07 | 최초 작성 |
 | 1.1 | 2026-04-08 | SC-02(팀 생성) 단순화, SC-03(초대 수락) 제거 → SC-02B(팀 탐색·가입 신청), SC-02C(팀장 승인/거절) 신규 추가. 부록 API 목록 갱신 |
 | 1.2 | 2026-04-08 | SC-03(일정 삭제) 신규 추가, 부록 API 목록에 DELETE 엔드포인트 추가 |
+| 1.3 | 2026-04-18 | 앱명 Team CalTalk → TEAM WORKS 반영. SCHEDULE_REQUEST → WORK_PERFORMANCE 변경 |
+| 1.4 | 2026-04-20 | 포스트잇(SC-10), 업무보고 조회 권한(SC-11), 프로젝트 관리(SC-12~SC-14), 공지사항(SC-15), 권한 기반 가시성 통합 검증(SC-16) 추가. 테스트 페르소나 5명 이상으로 확장. SC-03·SC-05·SC-06 일정 권한 오류 수정(LEADER 전용→생성자 본인) |
 
 ---
 
 ## 개요
 
-본 문서는 Team CalTalk의 사용자 페르소나가 각 목표를 달성하기 위해 앱을 사용하는 흐름을 단계별로 서술합니다.
+본 문서는 TEAM WORKS의 사용자 페르소나가 각 목표를 달성하기 위해 앱을 사용하는 흐름을 단계별로 서술합니다.
 개발자가 화면 흐름과 API 호출 순서를 바로 파악할 수 있는 수준으로 작성되었습니다.
 
-### 페르소나 요약
+### 테스트 팀 구성
 
-| 페르소나 | 역할 | 주요 사용 환경 |
-|----------|------|----------------|
-| Persona A | LEADER (팀장, 40대) | 데스크탑, 아침 출근 후 주간 일정 확인 및 즉시 수정. 가입 신청 승인/거절 처리 |
-| Persona B | MEMBER (팀원, 20~30대) | 모바일, 공개 팀 탐색 후 가입 신청. 승인 후 출퇴근 중 일정·채팅 동시 확인 및 변경 요청 |
+**팀 이름**: 프로젝트팀 알파 (공개 팀)
+
+| 페르소나 ID | 이름 | 역할 | 업무보고 열람 권한 | 주요 사용 환경 |
+|------------|------|------|------------------|----------------|
+| PA | 김민준 | LEADER (팀장) | 항상 가능 | 데스크탑 |
+| PB | 이서연 | MEMBER | 허용 (팀장이 부여) | 모바일 |
+| PC | 박지호 | MEMBER | 미허용 | 데스크탑 |
+| PD | 최유나 | MEMBER | 허용 (팀장이 부여) | 모바일 |
+| PE | 정도현 | MEMBER | 미허용 | 데스크탑 |
+| PF | 한소율 | MEMBER | 미허용 | 모바일 |
+
+> 팀 설정: 업무보고 열람 권한 허용 목록 = [이서연, 최유나]. 나머지 MEMBER(박지호·정도현·한소율)는 업무보고 열람 불가.
 
 ### 시나리오 목록
 
 | ID | 제목 | 페르소나 | 연관 UC |
 |----|------|----------|---------|
-| SC-01 | 회원가입 및 로그인 | 공통 | UC-01 |
-| SC-02 | 팀 생성 | LEADER | UC-02 |
-| SC-02B | 공개 팀 탐색 및 가입 신청 | MEMBER (가입 희망자) | UC-02B |
-| SC-02C | 가입 신청 승인/거절 (나의 할 일) | LEADER | UC-02C |
-| SC-04 | 팀 월간 일정 조회 | LEADER / MEMBER | UC-03 |
-| SC-05 | 팀 일정 추가 | LEADER | UC-04 |
-| SC-06 | 팀 일정 수정 | LEADER | UC-04 |
-| SC-07 | 날짜별 채팅 조회 및 메시지 전송 | LEADER / MEMBER | UC-05 |
-| SC-08 | 일정 변경 요청 채팅 전송 | MEMBER | UC-06 |
-| SC-09 | 캘린더 + 채팅 동시 화면에서 날짜 연동 | LEADER / MEMBER | UC-07 |
+| SC-01 | 회원가입 및 로그인 (6명 순차 가입) | 공통 | UC-01 |
+| SC-02 | 팀 생성 (김민준이 팀장으로 팀 개설) | PA (LEADER) | UC-02 |
+| SC-02B | 공개 팀 탐색 및 가입 신청 (5명 순차 신청) | PB~PF (MEMBER 지원자) | UC-02B |
+| SC-02C | 가입 신청 일괄 승인 (팀장이 5명 승인) | PA (LEADER) | UC-02C |
+| SC-03 | 팀 일정 삭제 (생성자 본인만 가능) | PA / PB | UC-04 |
+| SC-04 | 팀 월간 일정 조회 | PA~PF 공통 | UC-03 |
+| SC-05 | 팀 일정 추가 (팀원도 생성 가능) | PA / PB | UC-04 |
+| SC-06 | 팀 일정 수정 (생성자 본인만 가능) | PA / PB | UC-04 |
+| SC-07 | 날짜별 채팅 조회 및 메시지 전송 | PA~PF 공통 | UC-05 |
+| SC-08 | 업무보고 채팅 전송 | PB~PF (MEMBER) | UC-06 |
+| SC-09 | 캘린더 + 채팅 동시 화면에서 날짜 연동 | PA~PF 공통 | UC-07 |
+| SC-10 | 포스트잇 작성·수정·삭제 | PA / PC | UC-08 |
+| SC-11 | 업무보고 조회 권한 설정 및 가시성 검증 | PA (설정) / PB·PC (검증) | UC-13 |
+| SC-12 | 프로젝트 생성·수정·삭제 | PA / PB | UC-09 |
+| SC-13 | 프로젝트 일정 생성·수정·삭제 | PA / PC | UC-10 |
+| SC-14 | 세부 일정 생성·수정·삭제 | PB / PD | UC-11 |
+| SC-15 | 공지사항 작성·삭제 권한 검증 | PA / PB / PC | UC-12 |
+| SC-16 | 권한 기반 가시성 통합 검증 (핵심 테스트) | PA~PF 전원 | UC-04, UC-09~UC-13 |
 
 ---
 
@@ -194,7 +212,7 @@
 | 1 | 캘린더에서 삭제할 일정을 클릭하여 상세 팝업을 연다 | `GET /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송. 일정 상세 정보 렌더링 | `GET /api/teams/[teamId]/schedules/[scheduleId]` |
 | 2 | 상세 팝업에서 [삭제] 버튼을 클릭한다 | 확인 다이얼로그 표시 ("정말 삭제하시겠습니까?") | — |
 | 3 | 확인을 클릭한다 | `DELETE /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송 | `DELETE /api/teams/[teamId]/schedules/[scheduleId]` |
-| 4 | — | 서버가 LEADER 권한 검증 후 Schedule 레코드 삭제 | — |
+| 4 | — | 서버가 Schedule.createdBy = 요청자 확인 후 삭제 처리 | — |
 | 5 | — | 응답 200 OK | — |
 | 6 | — | 캘린더 뷰 갱신. 삭제된 일정이 해당 날짜 셀에서 제거됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
 
@@ -206,7 +224,7 @@
 
 | 케이스 | 시스템 반응 |
 |--------|-------------|
-| **MEMBER가 일정 삭제 시도** | UI에서 [삭제] 버튼 미표시. 직접 `DELETE /api/teams/[teamId]/schedules/[scheduleId]` 호출 시 → **403 Forbidden** 반환 |
+| **일정 생성자가 아닌 사용자의 삭제 시도** | UI에서 [삭제] 버튼 미표시. 직접 API 호출 시 → **403 Forbidden** 반환. "일정 삭제 권한이 없습니다" 메시지 표시 |
 | 존재하지 않는 scheduleId | 404 Not Found |
 | 다른 팀 일정에 대한 삭제 시도 | 서버가 teamId 기반 권한 확인 → 403 Forbidden |
 
@@ -245,11 +263,11 @@
 
 ---
 
-## SC-05 팀 일정 추가 (LEADER)
+## SC-05 팀 일정 추가 (팀원)
 
-- **페르소나**: Persona A (LEADER)
-- **목표**: 팀 캘린더에 새로운 일정을 등록한다
-- **전제조건**: 로그인 상태. LEADER 권한으로 팀에 소속. 팀 메인 화면(S-05) 또는 캘린더 뷰 진입 상태
+- **페르소나**: PA (김민준, LEADER), PB (이서연, MEMBER)
+- **목표**: 팀 캘린더에 새로운 일정을 등록한다. 팀 구성원이라면 LEADER·MEMBER 구분 없이 생성할 수 있음을 검증한다
+- **전제조건**: 로그인 상태. 팀에 소속된 구성원(LEADER 또는 MEMBER). 팀 메인 화면(S-05) 또는 캘린더 뷰 진입 상태
 
 ### 단계별 흐름
 
@@ -258,7 +276,7 @@
 | 1 | 캘린더에서 [+ 일정 추가] 버튼 또는 특정 날짜 셀을 클릭한다 | `/teams/[teamId]/schedules/new` (S-06) 또는 인라인 생성 폼 렌더링 | — |
 | 2 | 제목(필수), 설명(선택), 시작 일시, 종료 일시를 입력한다 | 클라이언트 측 유효성 검증: 제목 필수, 제목 최대 200자, startAt < endAt 확인 | — |
 | 3 | [저장] 버튼을 클릭한다 | `POST /api/teams/[teamId]/schedules` 요청 전송 (body: title, description, startAt, endAt) | `POST /api/teams/[teamId]/schedules` |
-| 4 | — | 서버가 LEADER 권한 검증 후 Schedule 레코드 생성 (createdBy: 현재 사용자 id). startAt < endAt 서버 측 재검증 | — |
+| 4 | — | 서버가 팀 구성원 여부 확인 후 Schedule 레코드 생성 (createdBy: 요청자). startAt < endAt 서버 측 재검증 | — |
 | 5 | — | 응답 201 Created (body: scheduleId, title, startAt, endAt) | — |
 | 6 | — | 캘린더 뷰 갱신. 새로 추가된 일정이 해당 날짜 셀에 표시됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
 
@@ -273,15 +291,15 @@
 | 제목 미입력 | 클라이언트 유효성 검증 실패. "제목은 필수입니다" 인라인 오류. API 요청 미발생 |
 | 제목 200자 초과 | 클라이언트 유효성 검증 실패. "제목은 최대 200자까지 입력 가능합니다" 인라인 오류 |
 | startAt >= endAt | 클라이언트 및 서버 모두 유효성 검증. "종료 시각은 시작 시각 이후여야 합니다" 오류 표시 |
-| MEMBER 권한 사용자가 일정 추가 시도 | UI에서 [+ 일정 추가] 버튼 미표시. 직접 API 호출 시 `POST /api/teams/[teamId]/schedules` → 403 Forbidden |
+| 팀 구성원이 아닌 외부 사용자가 일정 추가 시도 | 직접 API 호출 시 `POST /api/teams/[teamId]/schedules` → 403 Forbidden. 팀원이면 LEADER·MEMBER 모두 생성 가능 |
 
 ---
 
-## SC-06 팀 일정 수정 (LEADER)
+## SC-06 팀 일정 수정 (생성자 본인)
 
-- **페르소나**: Persona A (LEADER)
-- **목표**: 등록된 팀 일정의 내용을 변경한다
-- **전제조건**: 로그인 상태. LEADER 권한으로 팀에 소속. 수정 대상 Schedule이 DB에 존재. 캘린더 뷰에서 해당 일정이 표시된 상태
+- **페르소나**: PA (김민준, LEADER), PB (이서연, MEMBER)
+- **목표**: 등록된 팀 일정의 내용을 변경한다. 수정은 일정 생성자 본인만 가능함을 검증한다
+- **전제조건**: 로그인 상태. 팀에 소속. 수정 대상 Schedule의 생성자 본인. 캘린더 뷰에서 해당 일정이 표시된 상태
 
 ### 단계별 흐름
 
@@ -291,7 +309,7 @@
 | 2 | 상세 팝업에서 [수정] 버튼을 클릭한다 | 수정 폼으로 전환 (기존 값 pre-fill) | — |
 | 3 | 변경할 필드를 수정한다 | 클라이언트 측 유효성 검증 (제목 필수, 최대 200자, startAt < endAt) | — |
 | 4 | [저장] 버튼을 클릭한다 | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송 (body: 변경된 필드) | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` |
-| 5 | — | 서버가 LEADER 권한 검증 후 Schedule 레코드 업데이트. startAt < endAt 서버 측 재검증 | — |
+| 5 | — | 서버가 Schedule.createdBy = 요청자 확인 후 레코드 업데이트. startAt < endAt 서버 측 재검증 | — |
 | 6 | — | 응답 200 OK | — |
 | 7 | — | 캘린더 뷰 갱신. 수정된 일정 내용이 반영됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
 
@@ -303,7 +321,7 @@
 
 | 케이스 | 시스템 반응 |
 |--------|-------------|
-| **MEMBER가 일정 수정 시도** | UI에서 [수정] 버튼 미표시 (역할 기반 렌더링 제어). MEMBER가 직접 `PATCH /api/teams/[teamId]/schedules/[scheduleId]` 호출 시 → **403 Forbidden** 반환. "일정 수정 권한이 없습니다" 메시지 표시 |
+| **일정 생성자가 아닌 사용자의 수정 시도** | UI에서 [수정] 버튼 미표시 (생성자 기반 렌더링 제어). 생성자가 아닌 사용자가 직접 API 호출 시 → **403 Forbidden** 반환. "일정 수정 권한이 없습니다" 메시지 표시 |
 | startAt >= endAt으로 수정 시도 | 클라이언트 및 서버 유효성 검증 실패. "종료 시각은 시작 시각 이후여야 합니다" 오류 표시. 저장 미처리 |
 | 존재하지 않는 scheduleId | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` → 404 Not Found |
 | 다른 팀 일정에 대한 수정 시도 | 서버가 teamId 기반 권한 확인 → 403 Forbidden (BR-06) |
@@ -322,7 +340,7 @@
 |---|------------|-------------|-----|
 | 1 | 팀 메인 화면에 진입하면 기본적으로 오늘 날짜 채팅이 로드된다 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` 요청 자동 발생 (date: 오늘 KST 날짜) | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
 | 2 | — | 서버가 sentAt 기준 KST 날짜로 그룹핑된 해당 날짜 메시지 목록 반환 (BR-05). 타 팀 메시지 미포함 (BR-06) | — |
-| 3 | — | 채팅 영역에 메시지 목록 렌더링. SCHEDULE_REQUEST 타입 메시지는 시각적으로 구분 표시 (FR-05-4) | — |
+| 3 | — | 채팅 영역에 메시지 목록 렌더링. WORK_PERFORMANCE 타입 메시지는 시각적으로 구분 표시 (FR-05-4) | — |
 | 4 | — | TanStack Query가 `refetchInterval` 설정에 따라 3~5초마다 자동 폴링 재요청. 새 메시지 수신 시 목록 갱신 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` (반복 폴링) |
 
 ### 단계별 흐름 — 메시지 전송
@@ -352,28 +370,28 @@
 
 ---
 
-## SC-08 일정 변경 요청 채팅 전송 (MEMBER)
+## SC-08 업무보고 채팅 전송 (MEMBER)
 
 - **페르소나**: Persona B (MEMBER)
-- **목표**: 팀 일정 변경이 필요한 상황을 LEADER에게 공식 채팅 요청으로 전달한다
+- **목표**: 팀장에게 업무 상황을 공식 채팅으로 보고한다
 - **전제조건**: 로그인 상태. MEMBER 권한으로 팀에 소속. 팀 메인 화면(S-05) 채팅 영역 진입 상태 (BR-04)
 
 ### 단계별 흐름
 
 | # | 사용자 행동 | 시스템 반응 | API |
 |---|------------|-------------|-----|
-| 1 | 채팅 영역에서 [일정 변경 요청] 버튼을 클릭한다 | 일정 변경 요청 메시지 입력 모드로 전환. 입력창 또는 별도 모달 렌더링 | — |
-| 2 | 변경 요청 내용(사유, 희망 일정 등)을 텍스트로 입력한다 | 클라이언트 측 유효성 검증: 최대 2000자, 빈 메시지 불가 | — |
-| 3 | [전송] 버튼을 클릭한다 | `POST /api/teams/[teamId]/messages` 요청 전송 (body: content, type: "SCHEDULE_REQUEST") | `POST /api/teams/[teamId]/messages` |
-| 4 | — | 서버가 ChatMessage 레코드 생성 (type: SCHEDULE_REQUEST, senderId: 현재 MEMBER, sentAt: 현재 서버 시각 KST) | — |
+| 1 | 채팅 영역에서 [업무보고] 버튼을 클릭한다 | 업무보고 메시지 입력 모드로 전환. 입력창 또는 별도 모달 렌더링 | — |
+| 2 | 보고 내용을 텍스트로 입력한다 | 클라이언트 측 유효성 검증: 최대 2000자, 빈 메시지 불가 | — |
+| 3 | [전송] 버튼을 클릭한다 | `POST /api/teams/[teamId]/messages` 요청 전송 (body: content, type: "WORK_PERFORMANCE") | `POST /api/teams/[teamId]/messages` |
+| 4 | — | 서버가 ChatMessage 레코드 생성 (type: WORK_PERFORMANCE, senderId: 현재 MEMBER, sentAt: 현재 서버 시각 KST) | — |
 | 5 | — | 응답 201 Created | — |
-| 6 | — | 메시지 전송 성공 후 TanStack Query 즉시 refetch 발생. 채팅 목록에 SCHEDULE_REQUEST 메시지가 일반 메시지와 시각적으로 구분된 형태(예: 다른 배경색 또는 뱃지)로 표시됨 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
-| 7 | LEADER가 다음 폴링 주기(3~5초) 이내에 채팅을 확인하면 | SCHEDULE_REQUEST 타입 메시지가 시각적으로 강조 표시되어 일정 변경 요청임을 인지할 수 있음 | — |
+| 6 | — | 메시지 전송 성공 후 TanStack Query 즉시 refetch 발생. 채팅 목록에 WORK_PERFORMANCE 메시지가 일반 메시지와 시각적으로 구분된 형태(예: 다른 배경색 또는 뱃지)로 표시됨 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
+| 7 | LEADER가 다음 폴링 주기(3~5초) 이내에 채팅을 확인하면 | WORK_PERFORMANCE 타입 메시지가 시각적으로 강조 표시되어 업무보고임을 인지할 수 있음 | — |
 
 ### 결과
-- ChatMessage(type: SCHEDULE_REQUEST) 레코드가 DB에 저장된다
-- 팀 채팅 이력에 MEMBER의 일정 변경 요청이 공식적으로 기록된다
-- LEADER는 폴링 주기 이내에 요청을 인지하고, 이를 검토하여 SC-06(일정 수정)을 진행할 수 있다
+- ChatMessage(type: WORK_PERFORMANCE) 레코드가 DB에 저장된다
+- 팀 채팅 이력에 MEMBER의 업무보고가 공식적으로 기록된다
+- LEADER는 항상 모든 업무보고를 열람할 수 있으며, 다른 MEMBER는 팀장이 부여한 권한이 있을 경우에만 열람 가능하다
 
 ### 예외 처리
 
@@ -430,7 +448,226 @@
 
 ---
 
-## 부록: API 엔드포인트 요약
+---
+
+## SC-10 포스트잇 작성·수정·삭제
+
+- **페르소나**: PA (김민준, LEADER), PC (박지호, MEMBER)
+- **목표**: 날짜별 팀 메모를 포스트잇으로 남기고, 생성자만 수정·삭제할 수 있음을 검증한다
+- **전제조건**: PA·PC 모두 로그인 상태. 팀에 소속. 팀 캘린더 화면 진입
+
+### 단계별 흐름 — 포스트잇 생성 및 수정/삭제 권한 검증
+
+| # | 페르소나 | 사용자 행동 | 시스템 반응 | API |
+|---|----------|------------|-------------|-----|
+| 1 | PA | 캘린더에서 특정 날짜(예: 2026-04-25)를 선택하고 [포스트잇 추가] 버튼을 클릭한다 | 포스트잇 생성 폼 렌더링 (날짜·색상·내용 입력) | — |
+| 2 | PA | "오늘 오후 3시 거래처 미팅 준비 완료" 내용 입력 후 [저장]을 클릭한다 | `POST /api/teams/[teamId]/postits` 요청 전송 (body: date, color, content) | `POST /api/teams/[teamId]/postits` |
+| 3 | — | — | 201 Created. 해당 날짜에 포스트잇 등록됨 | — |
+| 4 | PC | 같은 날짜의 포스트잇 목록을 조회한다 | `GET /api/teams/[teamId]/postits?date=2026-04-25` 요청. PA가 작성한 포스트잇 확인됨 | `GET /api/teams/[teamId]/postits?date=2026-04-25` |
+| 5 | PC | PA가 작성한 포스트잇의 [수정] 버튼을 클릭한다 | UI에서 [수정] 버튼이 표시되지 않음 (생성자 아님). 직접 API 호출 시 403 Forbidden | — |
+| 6 | PC | "회의실 2층으로 변경" 내용의 새 포스트잇을 작성한다 | `POST /api/teams/[teamId]/postits` 요청. 201 Created | `POST /api/teams/[teamId]/postits` |
+| 7 | PA | PC가 작성한 포스트잇의 [삭제]를 시도한다 | UI에서 [삭제] 버튼 미표시. 직접 API 호출 시 403 Forbidden | — |
+| 8 | PA | PA 본인이 작성한 포스트잇을 [삭제]한다 | `DELETE /api/teams/[teamId]/postits/[postitId]` 요청. 200 OK. 목록에서 제거됨 | `DELETE /api/teams/[teamId]/postits/[postitId]` |
+
+### 결과
+- 팀 구성원 누구나 포스트잇을 생성할 수 있다
+- 수정·삭제는 생성자 본인만 가능하며, 타인의 포스트잇에는 수정·삭제 버튼이 표시되지 않는다
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| 생성자가 아닌 사용자가 수정·삭제 API 직접 호출 | 403 Forbidden. "포스트잇 수정/삭제 권한이 없습니다" |
+| 내용이 빈 포스트잇 저장 시도 | 클라이언트 유효성 검증. API 요청 미발생 |
+
+---
+
+## SC-11 업무보고 조회 권한 설정 및 가시성 검증
+
+- **페르소나**: PA (김민준, LEADER 설정), PB (이서연, 허용), PC (박지호, 미허용)
+- **목표**: 팀장이 업무보고 열람 권한을 팀원별로 설정하고, 허용된 팀원만 업무보고를 볼 수 있음을 검증한다
+- **전제조건**: 전원 로그인 상태. 팀에 소속. PE(정도현)가 업무보고를 이미 전송한 상태
+
+### 단계별 흐름 — 권한 설정
+
+| # | 페르소나 | 사용자 행동 | 시스템 반응 | API |
+|---|----------|------------|-------------|-----|
+| 1 | PE | "이번 주 작업 완료: 기획서 초안 작성 및 검토 요청 드립니다" 업무보고 전송 | `POST /api/teams/[teamId]/messages` (type: WORK_PERFORMANCE). 201 Created | `POST /api/teams/[teamId]/messages` |
+| 2 | PA | 팀 설정에서 [업무보고 열람 권한 관리] 메뉴에 진입한다 | 현재 권한 목록 조회: `GET /api/teams/[teamId]/work-permissions`. 초기값 빈 배열(전체 허용 상태) | `GET /api/teams/[teamId]/work-permissions` |
+| 3 | PA | 이서연(PB)과 최유나(PD)만 선택 후 [저장]을 클릭한다 | `PATCH /api/teams/[teamId]/work-permissions` (body: userIds: [PB.id, PD.id]). 200 OK | `PATCH /api/teams/[teamId]/work-permissions` |
+| 4 | PB | 채팅에서 당일 날짜 메시지를 조회한다 | NORMAL 메시지와 함께 PE의 WORK_PERFORMANCE 메시지가 표시됨 (열람 허용 상태) | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
+| 5 | PC | 채팅에서 같은 날짜 메시지를 조회한다 | NORMAL 메시지만 표시됨. PE의 WORK_PERFORMANCE 메시지는 보이지 않음 (열람 미허용) | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
+| 6 | PC | [업무보고 열람 권한 설정] 메뉴를 클릭한다 | 403 Forbidden. "팀장만 권한을 설정할 수 있습니다" | `PATCH /api/teams/[teamId]/work-permissions` |
+| 7 | PA | 권한 목록을 빈 배열([])로 설정한다 | `PATCH /api/teams/[teamId]/work-permissions` (body: userIds: []). 전체 권한 해제 | `PATCH /api/teams/[teamId]/work-permissions` |
+| 8 | PC | 다시 채팅을 조회한다 | 이제 PE의 WORK_PERFORMANCE 메시지가 PC에게도 표시됨 (전체 허용으로 변경됨) | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
+
+### 결과
+- 팀장만 업무보고 열람 권한을 설정할 수 있다
+- 허용된 MEMBER만 WORK_PERFORMANCE 메시지를 볼 수 있다
+- 빈 배열 설정 시 전체 구성원이 업무보고를 열람할 수 있다
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| MEMBER가 권한 설정 API 직접 호출 | 403 Forbidden |
+| 존재하지 않는 userId를 권한 목록에 포함 | 400 Bad Request |
+
+---
+
+## SC-12 프로젝트 생성·수정·삭제
+
+- **페르소나**: PA (김민준, LEADER), PB (이서연, MEMBER)
+- **목표**: 팀 구성원 누구나 프로젝트를 생성할 수 있으며, 수정·삭제는 생성자 본인만 가능함을 검증한다
+- **전제조건**: 전원 로그인 상태. 팀에 소속. 프로젝트 목록 화면(S-07) 진입
+
+### 단계별 흐름 — 프로젝트 생성 및 권한 검증
+
+| # | 페르소나 | 사용자 행동 | 시스템 반응 | API |
+|---|----------|------------|-------------|-----|
+| 1 | PB | [프로젝트 생성] 버튼을 클릭한다 | 프로젝트 생성 폼 렌더링 | — |
+| 2 | PB | 프로젝트명: "2분기 마케팅 캠페인", 기간: 2026-05-01~2026-06-30, 담당자: "이서연" 입력 후 [저장] | `POST /api/teams/[teamId]/projects` 요청. 201 Created. phases: [] 기본값으로 생성 | `POST /api/teams/[teamId]/projects` |
+| 3 | PB | 생성된 프로젝트에 단계 추가: "기획", "실행", "마무리" | `PATCH /api/teams/[teamId]/projects/[projectId]` (body: phases: [{id, name: "기획", order: 1}, ...]) | `PATCH /api/teams/[teamId]/projects/[projectId]` |
+| 4 | PA | PB가 만든 프로젝트의 [수정] 버튼을 클릭한다 | UI에서 [수정] 버튼 미표시 (생성자 아님). 직접 API 호출 시 403 Forbidden | — |
+| 5 | PA | [프로젝트 생성] 버튼으로 새 프로젝트 "3분기 신제품 출시"를 생성한다 | `POST /api/teams/[teamId]/projects` 요청. 201 Created | `POST /api/teams/[teamId]/projects` |
+| 6 | PB | PA가 만든 프로젝트를 [삭제] 시도한다 | 403 Forbidden. "프로젝트 삭제 권한이 없습니다" | — |
+| 7 | PA | PA 본인이 만든 프로젝트를 삭제한다 | `DELETE /api/teams/[teamId]/projects/[projectId]`. 200 OK. 하위 프로젝트 일정·세부 일정 연쇄 삭제 | `DELETE /api/teams/[teamId]/projects/[projectId]` |
+
+### 결과
+- LEADER·MEMBER 모두 프로젝트를 생성할 수 있다
+- 수정·삭제는 생성자 본인만 가능하다
+- 프로젝트 삭제 시 하위 프로젝트 일정과 세부 일정이 함께 삭제된다
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| endDate < startDate | 400 Bad Request. "종료일은 시작일 이후여야 합니다" |
+| 생성자가 아닌 사용자의 수정·삭제 시도 | 403 Forbidden |
+
+---
+
+## SC-13 프로젝트 일정 생성·수정·삭제
+
+- **페르소나**: PA (김민준, LEADER), PC (박지호, MEMBER)
+- **목표**: 프로젝트 내 행(row) 단위 일정을 생성하고, 생성자만 수정·삭제할 수 있음을 검증한다
+- **전제조건**: PB가 생성한 "2분기 마케팅 캠페인" 프로젝트가 존재. 간트차트 화면(S-08) 진입
+
+### 단계별 흐름
+
+| # | 페르소나 | 사용자 행동 | 시스템 반응 | API |
+|---|----------|------------|-------------|-----|
+| 1 | PC | 프로젝트 간트차트에서 [일정 추가] 버튼을 클릭한다 | 프로젝트 일정 생성 폼 렌더링 | — |
+| 2 | PC | 제목: "SNS 콘텐츠 기획", 기간: 2026-05-01~2026-05-15, 담당자: "박지호", 단계: "기획" 선택 후 [저장] | `POST /api/teams/[teamId]/projects/[projectId]/schedules` 요청. 201 Created. 간트차트에 행으로 표시됨 | `POST /api/teams/[teamId]/projects/[projectId]/schedules` |
+| 3 | PA | 같은 프로젝트에 "광고 집행" 일정을 추가한다 | `POST /api/teams/[teamId]/projects/[projectId]/schedules` 요청. 201 Created | `POST /api/teams/[teamId]/projects/[projectId]/schedules` |
+| 4 | PC | PC 본인이 만든 "SNS 콘텐츠 기획" 일정의 진행률을 50%로 수정한다 | `PATCH /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]` (body: progress: 50). 200 OK | `PATCH /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]` |
+| 5 | PC | PA가 만든 "광고 집행" 일정을 수정 시도한다 | UI에서 [수정] 버튼 미표시. 직접 API 호출 시 403 Forbidden | — |
+| 6 | PA | PA 본인이 만든 "광고 집행" 일정을 삭제한다 | `DELETE /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]`. 200 OK. 하위 세부 일정 연쇄 삭제 | `DELETE /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]` |
+
+### 결과
+- 팀 구성원 누구나 프로젝트 일정을 생성할 수 있다
+- 수정·삭제는 생성자 본인만 가능하다
+- 프로젝트 일정 삭제 시 하위 세부 일정이 함께 삭제된다
+
+---
+
+## SC-14 세부 일정 생성·수정·삭제
+
+- **페르소나**: PB (이서연, MEMBER), PD (최유나, MEMBER)
+- **목표**: 프로젝트 일정의 세부 작업을 등록하고 권한을 검증한다
+- **전제조건**: PC가 생성한 "SNS 콘텐츠 기획" 프로젝트 일정이 존재. 간트차트 화면(S-08) 진입
+
+### 단계별 흐름
+
+| # | 페르소나 | 사용자 행동 | 시스템 반응 | API |
+|---|----------|------------|-------------|-----|
+| 1 | PB | "SNS 콘텐츠 기획" 일정의 [세부 일정 추가]를 클릭한다 | 세부 일정 생성 폼 렌더링 | — |
+| 2 | PB | 제목: "인스타그램 콘텐츠 초안", 기간: 2026-05-01~2026-05-07, 담당자: "이서연" 입력 후 [저장] | `POST /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules` 요청. 201 Created | `POST /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules` |
+| 3 | PD | "유튜브 썸네일 디자인" 세부 일정을 같은 프로젝트 일정 하위에 추가한다 | `POST ...` 요청. 201 Created | `POST /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules` |
+| 4 | PB | PB 본인이 만든 세부 일정의 진행률을 100%로, isDelayed를 false로 수정한다 | `PATCH ...` (body: progress: 100, isDelayed: false). 200 OK | `PATCH /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]` |
+| 5 | PB | PD가 만든 세부 일정을 삭제 시도한다 | 403 Forbidden. "세부 일정 삭제 권한이 없습니다" | — |
+| 6 | PD | PD 본인이 만든 세부 일정을 삭제한다 | 200 OK. 목록에서 제거됨 | `DELETE /api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]` |
+
+### 결과
+- 팀 구성원 누구나 세부 일정을 생성할 수 있다
+- 수정·삭제는 생성자 본인만 가능하다
+
+---
+
+## SC-15 공지사항 작성·삭제 권한 검증
+
+- **페르소나**: PA (김민준, LEADER), PB (이서연, MEMBER), PC (박지호, MEMBER)
+- **목표**: 팀 구성원 누구나 공지사항을 작성할 수 있으며, 삭제는 작성자 본인 또는 팀장만 가능함을 검증한다
+- **전제조건**: 전원 로그인 상태. 팀 채팅 화면 진입
+
+### 단계별 흐름
+
+| # | 페르소나 | 사용자 행동 | 시스템 반응 | API |
+|---|----------|------------|-------------|-----|
+| 1 | PB | 채팅 화면에서 [공지 작성] 버튼을 클릭하고 "다음 주 월요일 오전 10시 전체 회의 있습니다" 입력 후 [등록] | `POST /api/teams/[teamId]/notices` 요청. 201 Created. 채팅 상단에 공지 고정됨 | `POST /api/teams/[teamId]/notices` |
+| 2 | PC | 채팅 화면에 진입한다 | 채팅 상단에 PB가 올린 공지사항이 고정 표시됨 | `GET /api/teams/[teamId]/notices` |
+| 3 | PC | PB가 올린 공지사항의 [삭제] 버튼을 클릭한다 | UI에서 [삭제] 버튼이 표시되지 않음 (작성자·팀장 아님). 직접 API 호출 시 403 Forbidden | — |
+| 4 | PA | PB가 올린 공지사항을 팀장 권한으로 [삭제]한다 | `DELETE /api/teams/[teamId]/notices/[noticeId]` 요청. 200 OK. 채팅 상단에서 공지 제거됨 | `DELETE /api/teams/[teamId]/notices/[noticeId]` |
+| 5 | PC | 공지사항 작성: "이번 주 금요일 회식 장소 투표 부탁드립니다" | `POST /api/teams/[teamId]/notices` 요청. 201 Created | `POST /api/teams/[teamId]/notices` |
+| 6 | PC | PC 본인이 작성한 공지사항을 [삭제]한다 | `DELETE /api/teams/[teamId]/notices/[noticeId]` 요청. 200 OK | `DELETE /api/teams/[teamId]/notices/[noticeId]` |
+
+### 결과
+- LEADER·MEMBER 모두 공지사항을 작성할 수 있으며 채팅 상단에 고정된다
+- 삭제는 작성자 본인 또는 팀장만 가능하다
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| 2000자 초과 공지 작성 시도 | 400 Bad Request. "공지사항은 최대 2000자까지 입력 가능합니다" |
+| 작성자·팀장이 아닌 사용자의 삭제 시도 | 403 Forbidden |
+
+---
+
+## SC-16 권한 기반 가시성 통합 검증 (핵심 테스트 시나리오)
+
+- **페르소나**: PA~PF 전원
+- **목표**: 6명 팀 환경에서 일정·프로젝트·업무보고·공지사항의 권한 기반 가시성을 종합 검증한다
+- **전제조건**: SC-02C 완료(6명 팀 구성). SC-11의 권한 설정 완료(업무보고 허용: PB·PD, 미허용: PC·PE·PF)
+
+### 검증 매트릭스
+
+| 기능 | PA (팀장) | PB (허용 MEMBER) | PC (미허용 MEMBER) | PD (허용 MEMBER) | PE (미허용 MEMBER) | PF (미허용 MEMBER) |
+|------|:---------:|:---------------:|:-----------------:|:---------------:|:-----------------:|:-----------------:|
+| 팀 일정 조회 | O | O | O | O | O | O |
+| 팀 일정 생성 | O | O | O | O | O | O |
+| 본인 일정 수정·삭제 | O | O | O | O | O | O |
+| 타인 일정 수정·삭제 | X | X | X | X | X | X |
+| 프로젝트 조회 | O | O | O | O | O | O |
+| 프로젝트 생성 | O | O | O | O | O | O |
+| 본인 프로젝트 수정·삭제 | O | O | O | O | O | O |
+| 타인 프로젝트 수정·삭제 | X | X | X | X | X | X |
+| 일반 채팅 열람 | O | O | O | O | O | O |
+| 업무보고 채팅 열람 | O | O | X | O | X | X |
+| 업무보고 조회 권한 설정 | O | X | X | X | X | X |
+| 공지사항 작성 | O | O | O | O | O | O |
+| 본인 공지 삭제 | O | O | O | O | O | O |
+| 타인 공지 삭제 | O (팀장) | X | X | X | X | X |
+| 가입 신청 승인/거절 | O | X | X | X | X | X |
+
+### 단계별 통합 검증 흐름
+
+| # | 검증 항목 | 페르소나 | 행동 | 기대 결과 |
+|---|----------|----------|------|-----------|
+| 1 | 업무보고 전송 후 가시성 | PE | WORK_PERFORMANCE 메시지 전송 | PA·PB·PD에게만 표시, PC·PE·PF에게는 미표시 |
+| 2 | 일정 생성 후 수정 권한 | PF | 일정 생성 후 PE가 수정 시도 | PF 생성 일정은 PF만 수정 가능. PE는 403 |
+| 3 | 프로젝트 생성 후 삭제 권한 | PD | 프로젝트 생성 후 PF가 삭제 시도 | PD 생성 프로젝트는 PD·PA만 삭제 불가 — PD만 삭제 가능, PA도 403 |
+| 4 | 공지사항 삭제 권한 | PC | 공지 작성 후 PD가 삭제 시도 | PD는 403. PA(팀장) 또는 PC(작성자)만 삭제 가능 |
+| 5 | 권한 일괄 해제 후 가시성 | PA | work-permissions를 빈 배열로 설정 | PC·PE·PF 모두 이제 업무보고 열람 가능 |
+| 6 | 권한 재설정 후 가시성 | PA | work-permissions를 [PB.id]만으로 재설정 | PB만 업무보고 열람 가능. PD·PC·PE·PF 모두 미열람 |
+
+### 결과
+- 팀 내 역할(LEADER/MEMBER)과 생성자 기반 권한이 모든 기능에서 일관되게 동작한다
+- 업무보고 열람 권한은 팀장이 실시간으로 변경 가능하며 즉시 반영된다
+
+---
+
+## 부록: API 엔드포인트 요약 (업데이트)
 
 | 시나리오 | 메서드 | 엔드포인트 | 설명 |
 |----------|--------|------------|------|
@@ -438,18 +675,36 @@
 | SC-01 | POST | `/api/auth/login` | 로그인 |
 | SC-01 | POST | `/api/auth/refresh` | Access Token 재발급 |
 | SC-02 | POST | `/api/teams` | 팀 생성 |
-| SC-02B | GET | `/api/teams/public` | 공개 팀 목록 조회 (팀 탐색) |
-| SC-02B | POST | `/api/teams/[teamId]/join-requests` | 팀 가입 신청 제출 |
-| SC-02C | GET | `/api/me/tasks` | 나의 할 일 목록 (전체 팀 PENDING 신청) |
-| SC-02C | GET | `/api/teams/[teamId]/join-requests` | 특정 팀의 PENDING 가입 신청 목록 |
+| SC-02B | GET | `/api/teams/public` | 공개 팀 목록 조회 |
+| SC-02B | POST | `/api/teams/[teamId]/join-requests` | 팀 가입 신청 |
+| SC-02C | GET | `/api/me/tasks` | 나의 할 일 목록 |
+| SC-02C | GET | `/api/teams/[teamId]/join-requests` | 특정 팀 PENDING 신청 목록 |
 | SC-02C | PATCH | `/api/teams/[teamId]/join-requests/[requestId]` | 가입 신청 승인/거절 |
-| SC-04 | GET | `/api/teams` | 내 팀 목록 조회 |
-| SC-04 | GET | `/api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` | 월간 일정 조회 |
-| SC-04, SC-05, SC-06 | GET | `/api/teams/[teamId]/schedules/[scheduleId]` | 일정 상세 조회 |
+| SC-03~SC-06 | GET | `/api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` | 팀 일정 조회 |
+| SC-03~SC-06 | GET | `/api/teams/[teamId]/schedules/[scheduleId]` | 일정 상세 조회 |
 | SC-05 | POST | `/api/teams/[teamId]/schedules` | 일정 생성 |
 | SC-06 | PATCH | `/api/teams/[teamId]/schedules/[scheduleId]` | 일정 수정 |
 | SC-03 | DELETE | `/api/teams/[teamId]/schedules/[scheduleId]` | 일정 삭제 |
-| SC-07, SC-08, SC-09 | GET | `/api/teams/[teamId]/messages?date=YYYY-MM-DD` | 날짜별 채팅 조회 (폴링) |
-| SC-07, SC-08 | POST | `/api/teams/[teamId]/messages` | 채팅 메시지 전송 |
+| SC-07~SC-09 | GET | `/api/teams/[teamId]/messages?date=YYYY-MM-DD` | 날짜별 채팅 조회 |
+| SC-07~SC-09 | POST | `/api/teams/[teamId]/messages` | 채팅 메시지 전송 |
+| SC-10 | GET | `/api/teams/[teamId]/postits?date=YYYY-MM-DD` | 날짜별 포스트잇 조회 |
+| SC-10 | POST | `/api/teams/[teamId]/postits` | 포스트잇 생성 |
+| SC-10 | PATCH | `/api/teams/[teamId]/postits/[postitId]` | 포스트잇 수정 |
+| SC-10 | DELETE | `/api/teams/[teamId]/postits/[postitId]` | 포스트잇 삭제 |
+| SC-11 | GET | `/api/teams/[teamId]/work-permissions` | 업무보고 열람 권한 조회 |
+| SC-11 | PATCH | `/api/teams/[teamId]/work-permissions` | 업무보고 열람 권한 설정 |
+| SC-12 | GET | `/api/teams/[teamId]/projects` | 프로젝트 목록 조회 |
+| SC-12 | POST | `/api/teams/[teamId]/projects` | 프로젝트 생성 |
+| SC-12 | PATCH | `/api/teams/[teamId]/projects/[projectId]` | 프로젝트 수정 |
+| SC-12 | DELETE | `/api/teams/[teamId]/projects/[projectId]` | 프로젝트 삭제 |
+| SC-13 | POST | `/api/teams/[teamId]/projects/[projectId]/schedules` | 프로젝트 일정 생성 |
+| SC-13 | PATCH | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]` | 프로젝트 일정 수정 |
+| SC-13 | DELETE | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]` | 프로젝트 일정 삭제 |
+| SC-14 | POST | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules` | 세부 일정 생성 |
+| SC-14 | PATCH | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]` | 세부 일정 수정 |
+| SC-14 | DELETE | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]` | 세부 일정 삭제 |
+| SC-15 | GET | `/api/teams/[teamId]/notices` | 공지사항 목록 조회 |
+| SC-15 | POST | `/api/teams/[teamId]/notices` | 공지사항 작성 |
+| SC-15 | DELETE | `/api/teams/[teamId]/notices/[noticeId]` | 공지사항 삭제 |
 
 ---

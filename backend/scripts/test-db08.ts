@@ -53,12 +53,12 @@ async function run() {
     if (m1.type !== 'NORMAL') throw new Error(`type이 NORMAL이 아님: ${m1.type}`)
     console.log(`  ✅ id=${m1.id}, type=${m1.type}, content=${m1.content}`)
 
-    // 2. createChatMessage — SCHEDULE_REQUEST 타입
-    console.log('[2] createChatMessage (SCHEDULE_REQUEST)')
-    const m2 = await createChatMessage({ teamId, senderId: userId, type: 'SCHEDULE_REQUEST', content: '일정 요청입니다', sentAt: inKst2 })
+    // 2. createChatMessage — WORK_PERFORMANCE 타입
+    console.log('[2] createChatMessage (WORK_PERFORMANCE)')
+    const m2 = await createChatMessage({ teamId, senderId: userId, type: 'WORK_PERFORMANCE', content: '업무보고입니다', sentAt: inKst2 })
     const m3 = await createChatMessage({ teamId, senderId: userId, content: '마지막 메시지', sentAt: inKst3 })
     messageIds.push(m2.id, m3.id)
-    if (m2.type !== 'SCHEDULE_REQUEST') throw new Error(`type이 SCHEDULE_REQUEST가 아님: ${m2.type}`)
+    if (m2.type !== 'WORK_PERFORMANCE') throw new Error(`type이 WORK_PERFORMANCE가 아님: ${m2.type}`)
     console.log(`  ✅ id=${m2.id}, type=${m2.type}`)
 
     // 타 팀 메시지 (격리 확인용)

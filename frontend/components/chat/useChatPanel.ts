@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSendMessage } from '@/hooks/query/useMessages';
 import { useSetWorkPermissions } from '@/hooks/query/useWorkPermissions';
 import { useAuthStore } from '@/store/authStore';
@@ -29,6 +29,10 @@ export function useChatPanel({
   const [showModal, setShowModal] = useState(false);
   const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    noticeStore.loadTeamNotices(teamId);
+  }, [teamId]);
+
   const handleOpenModal = () => {
     if (serverPermittedIds.length > 0) {
       setDraftIds(new Set(serverPermittedIds));
@@ -54,12 +58,7 @@ export function useChatPanel({
 
   const handleSend = (content: string, mode: ChatMessageMode) => {
     if (mode === 'NOTICE') {
-      if (!currentUser) return;
-      noticeStore.addNotice(teamId, {
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        content,
-      });
+      noticeStore.addNotice(teamId, content);
       return;
     }
     sendMessage.mutate({

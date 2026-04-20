@@ -163,9 +163,6 @@ export function CalendarView({
             </>
           )}
 
-        </div>
-
-        <div className="flex items-center gap-4">
           {/* 프로젝트 관리 버튼 (PC only, 프로젝트 없을 때만 표시) */}
           {!compact && teamProjects.length === 0 && (
             <button
@@ -184,32 +181,34 @@ export function CalendarView({
               프로젝트 관리
             </button>
           )}
+        </div>
 
-          {/* 포스트잇 색상 팔레트 (PC 월간뷰) */}
-          {showPalette && (
-            <PostItColorPalette
-              selectedColor={selectedPostitColor ?? null}
-              onSelect={onPostitColorSelect}
-            />
-          )}
-
+        <div className="flex items-center gap-4">
           {/* 일정 등록 버튼 (project view에서는 숨김) */}
           {!isProjectView && canCreateSchedule && onCreateSchedule && (
-            <button
-              type="button"
-              onClick={() => onCreateSchedule()}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-white font-medium hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150 ${
-                compact ? 'text-xs' : 'text-sm'
-              }`}
-              aria-label="일정 등록"
-            >
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => onCreateSchedule()}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-white font-medium hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150 ${
+                  compact ? 'text-xs' : 'text-sm'
+                }`}
+                aria-label="일정 등록"
+              >
+                {!compact && (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                )}
+                {compact ? '등록' : '일정 등록'}
+              </button>
               {!compact && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                  새로운 일정을 추가합니다.
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                </div>
               )}
-              {compact ? '등록' : '일정 등록'}
-            </button>
+            </div>
           )}
 
           {/* View tabs */}
@@ -250,6 +249,14 @@ export function CalendarView({
               </button>
             ))}
           </div>
+
+          {/* 포스트잇 색상 팔레트 (PC 월간뷰, 오른쪽 끝) */}
+          {showPalette && (
+            <PostItColorPalette
+              selectedColor={selectedPostitColor ?? null}
+              onSelect={onPostitColorSelect}
+            />
+          )}
         </div>
       </div>
 

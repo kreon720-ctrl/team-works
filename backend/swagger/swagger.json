@@ -70,7 +70,7 @@
       },
       "Team": {
         "type": "object",
-        "required": ["id", "name", "leaderId", "myRole", "createdAt"],
+        "required": ["id", "name", "leaderId", "isPublic", "myRole", "createdAt"],
         "properties": {
           "id": {
             "type": "string",
@@ -80,6 +80,17 @@
           "name": {
             "type": "string",
             "example": "개발팀"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "팀 설명 (선택)",
+            "example": "프론트엔드/백엔드 통합 개발팀"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "공개 팀 여부 — true일 때 공개 팀 목록에 노출",
+            "example": true
           },
           "leaderId": {
             "type": "string",
@@ -110,6 +121,12 @@
           "name": {
             "type": "string",
             "example": "개발팀"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "팀 설명 (선택)",
+            "example": "프론트엔드/백엔드 통합 개발팀"
           },
           "leaderId": {
             "type": "string",
@@ -287,7 +304,7 @@
       },
       "Schedule": {
         "type": "object",
-        "required": ["id", "teamId", "title", "startAt", "endAt", "createdBy", "createdAt", "updatedAt"],
+        "required": ["id", "teamId", "title", "color", "startAt", "endAt", "createdBy", "createdAt", "updatedAt"],
         "properties": {
           "id": {
             "type": "string",
@@ -308,6 +325,13 @@
             "nullable": true,
             "example": "이번 주 진행 상황 공유 및 다음 주 계획 수립"
           },
+          "color": {
+            "type": "string",
+            "enum": ["indigo", "blue", "emerald", "amber", "rose"],
+            "default": "indigo",
+            "description": "일정 색상 (Gantt/캘린더 표시용)",
+            "example": "indigo"
+          },
           "startAt": {
             "type": "string",
             "format": "date-time",
@@ -322,6 +346,12 @@
             "type": "string",
             "format": "uuid",
             "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          },
+          "creatorName": {
+            "type": "string",
+            "nullable": true,
+            "description": "일정 생성자 이름 (JOIN 결과)",
+            "example": "홍길동"
           },
           "createdAt": {
             "type": "string",
@@ -1801,8 +1831,7 @@
           }
         }
       }
-    }
-  },
+    },
     "/teams/{teamId}/work-permissions": {
       "get": {
         "tags": ["WorkPermissions"],

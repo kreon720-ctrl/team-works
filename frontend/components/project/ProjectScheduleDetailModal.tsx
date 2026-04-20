@@ -21,6 +21,7 @@ const GANTT_COLOR_DISPLAY: Record<GanttBarColor, { bg: string; border: string; l
 interface ProjectScheduleDetailModalProps {
   isOpen: boolean;
   schedule: ProjectSchedule | null;
+  teamId: string;
   currentUserId: string;
   phaseName?: string;
   onClose: () => void;
@@ -41,6 +42,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 export function ProjectScheduleDetailModal({
   isOpen,
   schedule,
+  teamId,
   currentUserId,
   phaseName,
   onClose,
@@ -51,6 +53,7 @@ export function ProjectScheduleDetailModal({
   return (
     <ProjectScheduleDetailModalBody
       schedule={schedule}
+      teamId={teamId}
       currentUserId={currentUserId}
       phaseName={phaseName}
       onClose={onClose}
@@ -62,6 +65,7 @@ export function ProjectScheduleDetailModal({
 
 interface ProjectScheduleDetailModalBodyProps {
   schedule: ProjectSchedule;
+  teamId: string;
   currentUserId: string;
   phaseName?: string;
   onClose: () => void;
@@ -71,6 +75,7 @@ interface ProjectScheduleDetailModalBodyProps {
 
 function ProjectScheduleDetailModalBody({
   schedule,
+  teamId,
   currentUserId,
   phaseName,
   onClose,
@@ -91,7 +96,7 @@ function ProjectScheduleDetailModalBody({
     openCreate,
     openEdit,
     closeCreate,
-  } = useSubScheduleEditor({ schedule, currentUserId });
+  } = useSubScheduleEditor({ schedule, teamId, currentUserId });
 
   const isOwner   = schedule.createdBy === currentUserId;
   const colorInfo = GANTT_COLOR_DISPLAY[schedule.color] ?? GANTT_COLOR_DISPLAY.indigo;

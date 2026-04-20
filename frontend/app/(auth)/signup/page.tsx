@@ -8,12 +8,12 @@ export default function SignupPage() {
     <>
       {/* Logo / Title */}
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 leading-tight">
-          Team CalTalk
-        </h1>
-        <p className="text-base font-normal text-gray-600 mt-2">
-          회원가입
-        </p>
+        <div className="flex items-center justify-center gap-2">
+          <img src="/logo.png" alt="TEAM WORKS 로고" className="w-9 h-9" />
+          <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+            TEAM WORKS
+          </h1>
+        </div>
       </div>
 
       {/* Signup Form */}

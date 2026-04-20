@@ -1,9 +1,14 @@
 -- =============================================
--- Database Reset Script for Team CalTalk
+-- Database Reset Script for TEAM WORKS
 -- Run this with: psql -U postgres -d caltalk -f database/reset-and-reapply.sql
 -- =============================================
 
 -- 1. Drop all existing tables (in reverse dependency order)
+DROP TABLE IF EXISTS notices CASCADE;
+DROP TABLE IF EXISTS sub_schedules CASCADE;
+DROP TABLE IF EXISTS project_schedules CASCADE;
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS work_performance_permissions CASCADE;
 DROP TABLE IF EXISTS postits CASCADE;
 DROP TABLE IF EXISTS chat_messages CASCADE;
 DROP TABLE IF EXISTS schedules CASCADE;
@@ -18,9 +23,9 @@ DROP EXTENSION IF EXISTS "pgcrypto";
 -- 3. Recreate extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 4. Recreate all tables (from schema.sql)
+-- 4. Recreate all tables
 
--- users
+-- 1. users
 CREATE TABLE IF NOT EXISTS users (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     email         VARCHAR(255) NOT NULL,
@@ -30,7 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
     CONSTRAINT uq_users_email UNIQUE (email)
 );
 
--- teams
+-- 2. teams
 CREATE TABLE IF NOT EXISTS teams (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     name       VARCHAR(100) NOT NULL,
@@ -40,7 +45,7 @@ CREATE TABLE IF NOT EXISTS teams (
     created_at TIMESTAMP    NOT NULL DEFAULT now()
 );
 
--- team_members
+-- 3. team_members
 CREATE TABLE IF NOT EXISTS team_members (
     team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -50,7 +55,7 @@ CREATE TABLE IF NOT EXISTS team_members (
     CONSTRAINT chk_team_members_role CHECK (role IN ('LEADER', 'MEMBER'))
 );
 
--- team_join_requests
+-- 4. team_join_requests
 CREATE TABLE IF NOT EXISTS team_join_requests (
     id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id      UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
@@ -61,7 +66,7 @@ CREATE TABLE IF NOT EXISTS team_join_requests (
     CONSTRAINT chk_team_join_requests_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
 );
 
--- schedules
+-- 5. schedules
 CREATE TABLE IF NOT EXISTS schedules (
     id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
@@ -77,7 +82,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     CONSTRAINT chk_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 
--- postits
+-- 6. postits
 CREATE TABLE IF NOT EXISTS postits (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
@@ -90,7 +95,7 @@ CREATE TABLE IF NOT EXISTS postits (
     CONSTRAINT chk_postits_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 
--- chat_messages
+-- 7. chat_messages
 CREATE TABLE IF NOT EXISTS chat_messages (
     id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id   UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
@@ -103,18 +108,130 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     CONSTRAINT chk_chat_messages_content CHECK (char_length(content) <= 2000)
 );
 
--- Indexes
+-- 8. work_performance_permissions
+CREATE TABLE IF NOT EXISTS work_performance_permissions (
+    team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (team_id, user_id)
+);
+
+-- 9. projects
+CREATE TABLE IF NOT EXISTS projects (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    name        VARCHAR(200) NOT NULL,
+    description TEXT         NULL,
+    start_date  DATE         NOT NULL,
+    end_date    DATE         NOT NULL,
+    progress    INTEGER      NOT NULL DEFAULT 0,
+    manager     VARCHAR(100) NOT NULL DEFAULT '',
+    phases      JSONB        NOT NULL DEFAULT '[]',
+    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_projects_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_projects_progress CHECK (progress BETWEEN 0 AND 100)
+);
+
+-- 10. project_schedules
+CREATE TABLE IF NOT EXISTS project_schedules (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT         NULL,
+    color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
+    start_date  DATE         NOT NULL,
+    end_date    DATE         NOT NULL,
+    leader      VARCHAR(100) NOT NULL DEFAULT '',
+    progress    INTEGER      NOT NULL DEFAULT 0,
+    is_delayed  BOOLEAN      NOT NULL DEFAULT false,
+    phase_id    UUID         NULL,
+    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_project_schedules_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_project_schedules_progress CHECK (progress BETWEEN 0 AND 100),
+    CONSTRAINT chk_project_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
+);
+
+-- 11. sub_schedules
+CREATE TABLE IF NOT EXISTS sub_schedules (
+    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_schedule_id UUID         NOT NULL REFERENCES project_schedules(id) ON DELETE CASCADE,
+    project_id          UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    team_id             UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by          UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    title               VARCHAR(200) NOT NULL,
+    description         TEXT         NULL,
+    color               VARCHAR(20)  NOT NULL DEFAULT 'indigo',
+    start_date          DATE         NOT NULL,
+    end_date            DATE         NOT NULL,
+    leader              VARCHAR(100) NOT NULL DEFAULT '',
+    progress            INTEGER      NOT NULL DEFAULT 0,
+    is_delayed          BOOLEAN      NOT NULL DEFAULT false,
+    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_sub_schedules_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_sub_schedules_progress CHECK (progress BETWEEN 0 AND 100),
+    CONSTRAINT chk_sub_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
+);
+
+-- 12. notices
+CREATE TABLE IF NOT EXISTS notices (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    sender_id  UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    content    TEXT        NOT NULL,
+    created_at TIMESTAMP   NOT NULL DEFAULT now(),
+    CONSTRAINT chk_notices_content CHECK (char_length(content) <= 2000)
+);
+
+-- 5. Recreate all indexes
+
+-- users
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- teams
 CREATE INDEX IF NOT EXISTS idx_teams_leader_id ON teams(leader_id);
+
+-- team_members
 CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_team_join_requests_pending_unique ON team_join_requests(team_id, requester_id) WHERE status = 'PENDING';
+
+-- team_join_requests
 CREATE INDEX IF NOT EXISTS idx_team_join_requests_team_id_status ON team_join_requests(team_id, status);
 CREATE INDEX IF NOT EXISTS idx_team_join_requests_requester_id ON team_join_requests(requester_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_join_requests_pending_unique
+    ON team_join_requests(team_id, requester_id) WHERE status = 'PENDING';
+
+-- schedules
 CREATE INDEX IF NOT EXISTS idx_schedules_team_id_start_at ON schedules(team_id, start_at);
 CREATE INDEX IF NOT EXISTS idx_schedules_team_id_end_at ON schedules(team_id, end_at);
+
+-- postits
 CREATE INDEX IF NOT EXISTS idx_postits_team_id_date ON postits(team_id, date);
+
+-- chat_messages
 CREATE INDEX IF NOT EXISTS idx_chat_messages_team_id_sent_at ON chat_messages(team_id, sent_at DESC);
 
+-- work_performance_permissions
+CREATE INDEX IF NOT EXISTS idx_wpp_team ON work_performance_permissions(team_id);
+
+-- projects
+CREATE INDEX IF NOT EXISTS idx_projects_team_id ON projects(team_id);
+
+-- project_schedules
+CREATE INDEX IF NOT EXISTS idx_project_schedules_project_id ON project_schedules(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_schedules_team_id ON project_schedules(team_id);
+
+-- sub_schedules
+CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_schedule_id ON sub_schedules(project_schedule_id);
+CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_id ON sub_schedules(project_id);
+
+-- notices
+CREATE INDEX IF NOT EXISTS idx_notices_team_id ON notices(team_id);
+
 -- Done!
-SELECT 'Database reset and schema applied successfully!' AS result;
+SELECT 'TEAM WORKS DB reset complete — 12 tables created.' AS result;

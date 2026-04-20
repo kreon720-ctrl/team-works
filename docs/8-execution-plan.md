@@ -1,4 +1,4 @@
-# Team CalTalk — 구체적 실행계획
+# TEAM WORKS — 구체적 실행계획
 
 ## 문서 이력
 
@@ -15,7 +15,7 @@
 | 1.8 | 2026-04-10 | FE-03 인증 화면 완료: LoginForm, SignupForm, (auth)/(main) 레이아웃, 인증 가드, middleware, 113개 테스트 통과, 91.3% 커버리지 |
 | 1.9 | 2026-04-10 | FE-04 팀 화면 완료: TeamList, TeamCard, TeamCreateForm, TeamExploreList, 홈/팀생성/팀탐색 페이지, 146개 테스트 통과, 92.11% 커버리지 |
 | 1.10 | 2026-04-10 | FE-05 캘린더 컴포넌트 완료: CalendarView, CalendarMonthView, CalendarWeekView, CalendarDayView, 월/주/일 뷰 전환 및 날짜 네비게이션, 176개 테스트 통과, 91.83% 커버리지 |
-| 1.11 | 2026-04-10 | FE-06 채팅 컴포넌트 완료: ChatPanel, ChatMessageList, ChatMessageItem, ChatInput, SCHEDULE_REQUEST 시각적 구분, 3초 폴링, 2000자 제한, 200개 테스트 통과, 92.33% 커버리지 |
+| 1.11 | 2026-04-10 | FE-06 채팅 컴포넌트 완료: ChatPanel, ChatMessageList, ChatMessageItem, ChatInput, WORK_PERFORMANCE 시각적 구분, 3초 폴링, 2000자 제한, 200개 테스트 통과, 92.33% 커버리지 |
 | 1.12 | 2026-04-10 | FE-07 팀 메인 화면 완료: teams/[teamId]/page.tsx, 반응형 레이아웃(데스크탑 좌우 분할/모바일 탭 전환), 날짜 연동, 23개 테스트 통과 |
 | 1.13 | 2026-04-10 | FE-08 일정 폼 + 나의 할 일 화면 완료: ScheduleForm, ScheduleDetailModal, JoinRequestActions, me/tasks/page.tsx, 45개 테스트 통과 |
 | 1.14 | 2026-04-10 | FE-09 권한 기반 UI 제어 + 토큰 갱신 완료: useLeaderRole 훅, apiClient 401 리프레시 로직 검증, 17개 테스트 통과 |
@@ -127,7 +127,7 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 - [x] `team_members` 테이블: (team_id, user_id) 복합 PK, role ENUM('LEADER','MEMBER'), created_at
 - [x] `team_join_requests` 테이블: id(UUID PK), team_id(FK), requester_id(FK→users), status ENUM('PENDING','APPROVED','REJECTED'), requested_at, responded_at
 - [x] `schedules` 테이블: id(UUID PK), team_id(FK), title(VARCHAR 200), description, start_at, end_at, CHECK(end_at > start_at), created_by(FK→users), created_at, updated_at
-- [x] `chat_messages` 테이블: id(UUID PK), team_id(FK), sender_id(FK→users), type ENUM('NORMAL','SCHEDULE_REQUEST'), content(TEXT 2000자), sent_at, created_at
+- [x] `chat_messages` 테이블: id(UUID PK), team_id(FK), sender_id(FK→users), type ENUM('NORMAL','WORK_PERFORMANCE'), content(TEXT 2000자), sent_at, created_at
 - [x] 인덱스: `users(email)`, `team_members(user_id)`, `team_join_requests(team_id, status)`, `team_join_requests(requester_id)`, `schedules(team_id, start_at, end_at)`, `chat_messages(team_id, sent_at DESC)`
 - [x] PostgreSQL에 실행 (`psql -f database/schema.sql`)
 
@@ -195,7 +195,7 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 
 **DB-08 테스트 결과** (`backend/scripts/test-db08.ts`):
 - [x] createChatMessage(NORMAL) → team_id·type·content 반환 확인
-- [x] createChatMessage(SCHEDULE_REQUEST) → type=SCHEDULE_REQUEST 확인
+- [x] createChatMessage(WORK_PERFORMANCE) → type=WORK_PERFORMANCE 확인
 - [x] getMessagesByDate → KST 날짜 기준 UTC 범위 변환, 3건 조회, sender_name JOIN 포함
 - [x] getMessagesByDate → 팀 격리 확인, sent_at 오름차순 정렬 확인
 - [x] getMessagesByDate → 범위 외 날짜 → 0건, KST 경계(04-11 00:30) 미포함 확인
@@ -536,7 +536,7 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 
 **완료 조건**:
 - [x] GET: `?date=YYYY-MM-DD` KST 기준, sentAt 오름차순, senderName 포함 — ✅ 6개 테스트
-- [x] POST: NORMAL/SCHEDULE_REQUEST 타입 모두 저장, content 2000자 제한 — ✅ 7개 테스트
+- [x] POST: NORMAL/WORK_PERFORMANCE 타입 모두 저장, content 2000자 제한 — ✅ 7개 테스트
 - [x] 팀 격리 확인 (타 팀 메시지 미노출) — ✅ withTeamRole로 검증
 
 **BE-12 구현 상세**:
@@ -553,13 +553,13 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 **POST /api/teams/:teamId/messages** (`backend/app/api/teams/[teamId]/messages/route.ts`):
 - ✅ withTeamRole()로 팀 멤버십 검증
 - ✅ 메시지 내용 검증: 필수 필드, 최대 2000자
-- ✅ 타입 검증: NORMAL 또는 SCHEDULE_REQUEST 만 허용
+- ✅ 타입 검증: NORMAL 또는 WORK_PERFORMANCE 만 허용
 - ✅ createChatMessage()로 메시지 저장
 - ✅ senderId는 인증된 사용자 ID 자동 사용
 
 **BE-12 테스트 결과** (`backend/app/api/teams/[teamId]/messages/messages.test.ts`):
 - ✅ GET /messages (6개): 날짜별 조회, 최신 메시지, limit 파라미터, before cursor, 인증 실패, 접근 권한 없음
-- ✅ POST /messages (7개): NORMAL 전송, SCHEDULE_REQUEST 전송, 내용 누락, 내용 초과, 잘못된 타입, 인증 실패, 접근 권한 없음
+- ✅ POST /messages (7개): NORMAL 전송, WORK_PERFORMANCE 전송, 내용 누락, 내용 초과, 잘못된 타입, 인증 실패, 접근 권한 없음
 - ✅ 총 13개 테스트 통과
 
 ---
@@ -724,13 +724,13 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 - [x] FE-02
 
 **작업 내용**:
-- [x] `frontend/components/chat/ChatMessageList.tsx`: 메시지 목록, SCHEDULE_REQUEST 강조 스타일
+- [x] `frontend/components/chat/ChatMessageList.tsx`: 메시지 목록, WORK_PERFORMANCE 강조 스타일
 - [x] `frontend/components/chat/ChatMessageItem.tsx`: 발신자명, 시간, 타입별 배경색 구분
 - [x] `frontend/components/chat/ChatInput.tsx`: 텍스트 입력, [전송], [일정 변경 요청] 버튼, Enter 전송
 - [x] `frontend/components/chat/ChatPanel.tsx`: ChatMessageList + ChatInput 조합, refetchInterval:3000 관리
 
 **완료 조건**:
-- [x] SCHEDULE_REQUEST 메시지 시각적 구분 확인 — ✅ orange-50 배경, orange-300 테두리, orange-900 텍스트 적용
+- [x] WORK_PERFORMANCE 메시지 시각적 구분 확인 — ✅ orange-50 배경, orange-300 테두리, orange-900 텍스트 적용
 - [x] 3초마다 메시지 폴링 갱신 확인 — ✅ useMessages 훅에서 refetchInterval: 3000 설정
 - [x] 메시지 2000자 초과 입력 방지 — ✅ maxLength 속성 및 isValidContent 검증 적용
 - [x] 테스트 200개 통과, 커버리지 92.33%
@@ -744,8 +744,8 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 - ✅ isLeader prop을 ChatMessageItem에 전달
 
 **ChatMessageItem** (`frontend/components/chat/ChatMessageItem.tsx`):
-- ✅ SCHEDULE_REQUEST 메시지: orange-50 배경, orange-300 테두리, orange-900 텍스트
-- ✅ SCHEDULE_REQUEST 메시지: "일정변경요청" 배지 표시 (orange-100 배경)
+- ✅ WORK_PERFORMANCE 메시지: orange-50 배경, orange-300 테두리, orange-900 텍스트
+- ✅ WORK_PERFORMANCE 메시지: "일정변경요청" 배지 표시 (orange-100 배경)
 - ✅ 일반 메시지: 흰색 배경, 회색 테두리
 - ✅ LEADER 배지 표시 (amber-100 배경) — 일반 메시지만 표시
 - ✅ UTC → KST 시간 변환 및 표시
@@ -754,8 +754,8 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 - ✅ 메시지 입력창 (textarea, 최대 2000자)
 - ✅ Enter 키로 메시지 전송 (Shift+Enter는 줄바꿈)
 - ✅ [전송] 버튼 — 유효성 검증 실패 시 비활성화
-- ✅ [일정요청] 토글 버튼 — NORMAL/SCHEDULE_REQUEST 모드 전환
-- ✅ SCHEDULE_REQUEST 모드: orange 테마 인디케이터 표시
+- ✅ [일정요청] 토글 버튼 — NORMAL/WORK_PERFORMANCE 모드 전환
+- ✅ WORK_PERFORMANCE 모드: orange 테마 인디케이터 표시
 - ✅ 글자 수 카운터 표시 (현재 / 최대자)
 - ✅ isPending 상태에서 입력 비활성화
 
@@ -768,9 +768,9 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 
 **FE-06 테스트 결과** (`frontend/components/chat/__tests__/`):
 - ✅ ChatPanel (5개): 렌더링, 로딩 상태, 에러 상태, 메시지 전송, isLeader 전달
-- ✅ ChatMessageList (4개): 빈 상태, 날짜별 그룹핑, SCHEDULE_REQUEST 구분, isLeader 전달
-- ✅ ChatMessageItem (5개): 일반 메시지, SCHEDULE_REQUEST 메시지, LEADER 배지, 시간 표시
-- ✅ ChatInput (10개): 렌더링, 메시지 전송, Enter 전송, 빈 메시지 방지, SCHEDULE_REQUEST 토글, 글자 수 제한, 캐릭터 카운트, 비활성화 상태
+- ✅ ChatMessageList (4개): 빈 상태, 날짜별 그룹핑, WORK_PERFORMANCE 구분, isLeader 전달
+- ✅ ChatMessageItem (5개): 일반 메시지, WORK_PERFORMANCE 메시지, LEADER 배지, 시간 표시
+- ✅ ChatInput (10개): 렌더링, 메시지 전송, Enter 전송, 빈 메시지 방지, WORK_PERFORMANCE 토글, 글자 수 제한, 캐릭터 카운트, 비활성화 상태
 - ✅ 총 24개 테스트 (채팅 컴포넌트), 전체 200개 테스트 통과
 - ✅ 전체 커버리지: Statements 92.33%, Branches 84.74%, Functions 91.35%, Lines 93.75%
 
@@ -899,7 +899,7 @@ FE-01 (초기세팅) ✅ → FE-02 (공통 컴포넌트 + Query 훅) → FE-03 (
 - [x] **SC-04/SC-05**: 팀 일정 조회 (월/주/일) → 일정 추가·수정·삭제
 - [x] **SC-03**: LEADER로 일정 삭제 → 캘린더에서 제거 확인
 - [x] **SC-06**: MEMBER 계정으로 일정 수정 시도 → 버튼 미노출 확인
-- [x] **SC-07/SC-08**: 채팅 메시지 전송 → 3초 폴링 갱신 → SCHEDULE_REQUEST 전송
+- [x] **SC-07/SC-08**: 채팅 메시지 전송 → 3초 폴링 갱신 → WORK_PERFORMANCE 전송
 - [x] **SC-09**: 캘린더 날짜 선택 → 채팅 날짜 연동 (데스크탑/모바일)
 
 **완료 조건**:

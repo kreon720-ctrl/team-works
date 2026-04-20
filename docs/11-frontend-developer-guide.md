@@ -1326,7 +1326,7 @@ if (response.ok) {
       "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
       "senderId": "e5f6a7b8-c9d0-1234-efgh-c1234567890b",
       "senderName": "김철수",
-      "type": "SCHEDULE_REQUEST",
+      "type": "WORK_PERFORMANCE",
       "content": "내일 회의 추가 부탁합니다.",
       "sentAt": "2026-04-09T11:00:00.000Z",
       "createdAt": "2026-04-09T11:00:00.000Z"
@@ -1336,7 +1336,7 @@ if (response.ok) {
 ```
 
 **필드 설명**
-- `type`: "NORMAL" (일반 메시지) 또는 "SCHEDULE_REQUEST" (일정 요청)
+- `type`: "NORMAL" (일반 메시지) 또는 "WORK_PERFORMANCE" (일정 요청)
 - `sentAt`: 메시지 전송 시간 (ISO 8601, UTC)
 - 메시지는 `sentAt` 오름차순 정렬
 
@@ -1414,13 +1414,13 @@ const olderMessages = await fetch(
 
 ```json
 {
-  "type": "SCHEDULE_REQUEST",
+  "type": "WORK_PERFORMANCE",
   "content": "내일 회의 추가 부탁합니다."
 }
 ```
 
 **필드 설명**
-- `type` (string, 선택): "NORMAL" (기본값) 또는 "SCHEDULE_REQUEST"
+- `type` (string, 선택): "NORMAL" (기본값) 또는 "WORK_PERFORMANCE"
 - `content` (string, 필수): 메시지 내용 (최대 2000자)
 
 **Response (201 Created)**
@@ -2387,7 +2387,7 @@ class ApiClient {
 
   async sendMessage(
     teamId: string,
-    message: { type?: 'NORMAL' | 'SCHEDULE_REQUEST'; content: string }
+    message: { type?: 'NORMAL' | 'WORK_PERFORMANCE'; content: string }
   ) {
     return this.post<any>(`/api/teams/${teamId}/messages`, message)
   }
