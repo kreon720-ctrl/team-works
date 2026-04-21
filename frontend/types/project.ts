@@ -47,7 +47,7 @@ export interface ProjectCreateInput {
   endDate: string;
   progress: number;
   manager: string;
-  phases: { name: string }[];
+  phases: { id?: string; name: string }[];
 }
 
 export interface ProjectScheduleCreateInput {

@@ -45,7 +45,7 @@ export function ProjectCreateModal({
       setProgress(project.progress);
       setManager(project.manager);
       setPhases(
-        project.phases.map((p) => ({ tempId: p.id, name: p.name }))
+        project.phases.map((p) => ({ tempId: p.id ?? makeTempId(), name: p.name }))
       );
     }
   }, [mode, project]);
@@ -99,7 +99,11 @@ export function ProjectCreateModal({
       manager: manager.trim(),
       phases: phases
         .filter((p) => p.name.trim())
-        .map((p) => ({ name: p.name.trim() })),
+        .map((p) => ({
+          // tempId prefixed with 'temp-' means new phase (no server ID yet)
+          ...(p.tempId.startsWith('temp-') ? {} : { id: p.tempId }),
+          name: p.name.trim(),
+        })),
     });
   };
 

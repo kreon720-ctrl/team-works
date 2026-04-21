@@ -8,7 +8,7 @@ import {
   ChatMessage,
   MessageType,
 } from '@/lib/db/queries/chatQueries'
-import { kstDateToUtcRange } from '@/lib/utils/timezone'
+import { getCurrentKstDate } from '@/lib/utils/timezone'
 
 interface CreateMessageBody {
   type?: MessageType
@@ -59,6 +59,7 @@ export async function GET(
     }
 
     return NextResponse.json({
+      date: date ?? getCurrentKstDate(),
       messages: messages.map(msg => ({
         id: msg.id,
         teamId: msg.team_id,
@@ -105,7 +106,7 @@ export async function POST(
     const { type = 'NORMAL', content } = body
 
     // 필수 필드 검증
-    if (!content) {
+    if (!content || content.trim().length === 0) {
       return NextResponse.json(
         { error: '메시지 내용은 필수입니다.' },
         { status: 400 }

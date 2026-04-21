@@ -15,7 +15,7 @@ interface UpdateProjectBody {
   endDate?: string
   progress?: number
   manager?: string
-  phases?: Array<{ id: string; name: string; order: number }>
+  phases?: Array<{ id?: string; name: string; order?: number }>
 }
 
 function formatDate(value: unknown): string {
@@ -129,7 +129,13 @@ export async function PATCH(
     if ('endDate' in body) updateParams.endDate = endDate
     if ('progress' in body) updateParams.progress = progress
     if ('manager' in body) updateParams.manager = manager
-    if ('phases' in body) updateParams.phases = phases
+    if ('phases' in body) {
+      updateParams.phases = (phases ?? []).map((p, i) => ({
+        id: p.id ?? crypto.randomUUID(),
+        name: p.name,
+        order: p.order ?? i + 1,
+      }))
+    }
 
     const updated = await updateProject(teamId, projectId, updateParams)
 

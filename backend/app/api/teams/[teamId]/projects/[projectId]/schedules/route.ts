@@ -136,6 +136,11 @@ export async function POST(
       )
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (phaseId && !UUID_RE.test(phaseId)) {
+      return NextResponse.json({ error: '유효하지 않은 단계 ID입니다.' }, { status: 400 })
+    }
+
     const schedule = await createProjectSchedule({
       projectId,
       teamId,

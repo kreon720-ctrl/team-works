@@ -1,5 +1,6 @@
 import { pool } from '@/lib/db/pool'
 import { hasWorkPermission } from './permissionQueries'
+import { kstDateToUtcRange } from '@/lib/utils/timezone'
 
 export type MessageType = 'NORMAL' | 'WORK_PERFORMANCE'
 
@@ -20,14 +21,6 @@ export interface CreateChatMessageParams {
   type?: MessageType
   content: string
   sentAt?: Date
-}
-
-// KST(UTC+9) 날짜 문자열(YYYY-MM-DD)을 UTC 범위로 변환
-// 예: '2026-04-08' (KST) → { start: '2026-04-07T15:00:00Z', end: '2026-04-08T15:00:00Z' }
-function kstDateToUtcRange(kstDate: string): { start: Date; end: Date } {
-  const start = new Date(`${kstDate}T00:00:00+09:00`)
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
-  return { start, end }
 }
 
 export async function createChatMessage(

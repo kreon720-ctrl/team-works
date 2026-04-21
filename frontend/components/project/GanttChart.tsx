@@ -6,9 +6,9 @@ import { GanttBar } from './GanttBar';
 import {
   getProjectWeeks,
   groupWeeksByMonth,
-  getWeekOfMonth,
   getWeekIndex,
   isMonthBoundary,
+  type MonthGroup,
 } from './ganttUtils';
 
 const MIN_CELL_WIDTH = 40; // px per week (minimum)
@@ -25,7 +25,22 @@ interface GanttChartProps {
 
 export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) {
   const weeks = getProjectWeeks(project.startDate, project.endDate);
-  const monthGroups = groupWeeksByMonth(weeks);
+
+  // endDate 이후 달로 분류된 주(목요일 컨벤션 부작용)를 endDate의 달로 재분류 후 병합
+  const [endYear, endMon] = project.endDate.split('-').map(Number);
+  const monthGroups = groupWeeksByMonth(weeks).reduce<MonthGroup[]>((acc, group) => {
+    const overEnd = group.year > endYear || (group.year === endYear && group.month > endMon);
+    const ey = overEnd ? endYear : group.year;
+    const em = overEnd ? endMon : group.month;
+    const existing = acc.find((g) => g.year === ey && g.month === em);
+    if (existing) {
+      existing.weeks.push(...group.weeks);
+      existing.weekIndices.push(...group.weekIndices);
+    } else {
+      acc.push({ ...group, year: ey, month: em });
+    }
+    return acc;
+  }, []);
 
   // Pre-sort schedules per phase by startDate (ascending)
   const sortedByPhase = new Map<string, ProjectSchedule[]>();
@@ -70,19 +85,26 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
           >
             <span className="text-xs text-gray-500 font-medium">단계</span>
           </div>
-          {weeks.map((week, i) => (
-            <div
-              key={i}
-              style={{ flex: 1 }}
-              className={`text-center text-xs text-gray-500 py-1 ${
-                isMonthBoundary(monthGroups, i)
-                  ? 'border-l-2 border-gray-500'
-                  : 'border-l border-gray-200'
-              }`}
-            >
-              {getWeekOfMonth(week)}
-            </div>
-          ))}
+          {(() => {
+            // Build index→sequential week number map from monthGroups (avoids Thursday-convention artifacts)
+            const weekNumMap = new Map<number, number>();
+            for (const group of monthGroups) {
+              group.weekIndices.forEach((wIdx, seq) => weekNumMap.set(wIdx, seq + 1));
+            }
+            return weeks.map((_, i) => (
+              <div
+                key={i}
+                style={{ flex: 1 }}
+                className={`text-center text-xs text-gray-500 py-1 ${
+                  isMonthBoundary(monthGroups, i)
+                    ? 'border-l-2 border-gray-500'
+                    : 'border-l border-gray-200'
+                }`}
+              >
+                {weekNumMap.get(i) ?? ''}
+              </div>
+            ));
+          })()}
         </div>
 
         {/* ── Phase rows ─────────────────────────────────────────────── */}
@@ -93,7 +115,7 @@ export function GanttChart({ project, schedules, onBarClick }: GanttChartProps) 
 
           return (
             <div
-              key={phase.id}
+              key={phase.id ?? `phase-${phaseIdx}`}
               className={`flex border-b border-gray-200 ${rowBg}`}
               style={{ minHeight: MIN_ROW_HEIGHT }}
             >

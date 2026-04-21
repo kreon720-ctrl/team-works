@@ -12,7 +12,7 @@ interface CreateProjectBody {
   endDate?: string
   progress?: number
   manager?: string
-  phases?: Array<{ id: string; name: string; order: number }>
+  phases?: Array<{ id?: string; name: string; order?: number }>
 }
 
 function formatDate(value: unknown): string {
@@ -116,7 +116,11 @@ export async function POST(
       endDate,
       progress: progress ?? 0,
       manager: manager ?? '',
-      phases: phases ?? [],
+      phases: (phases ?? []).map((p, i) => ({
+        id: p.id ?? crypto.randomUUID(),
+        name: p.name,
+        order: p.order ?? i + 1,
+      })),
     })
 
     return NextResponse.json(toProjectResponse(project), { status: 201 })
