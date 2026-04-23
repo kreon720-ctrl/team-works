@@ -44,7 +44,7 @@ export function TeamPageHeader({
           <h1 className="text-lg font-semibold text-gray-900 truncate dark:text-dark-text">{teamName}</h1>
         </div>
         <Link href="/" className="absolute left-1/2 -translate-x-1/2 select-none flex items-center gap-2 cursor-pointer">
-          <img src="/partner.png" alt="partner" className="w-[50px] h-[50px] opacity-70" />
+          <img src="/partner.png" alt="partner" className="w-[50px] h-[50px] opacity-70 dark:opacity-100 dark:[filter:brightness(0)_saturate(100%)_invert(75%)_sepia(70%)_saturate(600%)_hue-rotate(5deg)]" />
           <span className="text-xl font-bold tracking-widest text-gray-900 dark:text-dark-text">TEAM WORKS</span>
         </Link>
         <div className="flex items-center gap-2">
