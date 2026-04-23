@@ -190,7 +190,7 @@ export function CalendarView({
               <button
                 type="button"
                 onClick={() => onCreateSchedule()}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-white font-medium hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150 ${
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#FFB800] text-gray-900 font-medium hover:bg-[#E6A600] active:bg-[#CC9200] transition-colors duration-150 ${
                   compact ? 'text-xs' : 'text-sm'
                 }`}
                 aria-label="일정 등록"
