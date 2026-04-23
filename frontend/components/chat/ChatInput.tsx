@@ -35,7 +35,7 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
   };
 
   return (
-    <div className="w-full bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-dark-border p-4">
+    <div className="w-full bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-dark-border px-4 pt-2 pb-2">
       {/* Mode indicator */}
       {mode === 'WORK_PERFORMANCE' && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-teal-50 border border-teal-300 px-3 py-2">
@@ -129,10 +129,6 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
         </div>
       </div>
 
-      {/* Character count */}
-      <div className="mt-2 text-xs text-gray-400 dark:text-dark-text-disabled text-right">
-        {content.length} / {maxContentLength}자
-      </div>
     </div>
   );
 }
