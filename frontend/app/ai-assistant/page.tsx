@@ -100,7 +100,7 @@ export default function AIAssistantPage() {
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-dark-base">
       {/* Header */}
       <header className="flex items-center justify-center gap-2 h-14 px-4 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border shrink-0">
-        <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 dark:bg-dark-elevated text-gray-900 dark:text-dark-text shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-full bg-amber-50 dark:bg-dark-elevated text-[#FFB800] shrink-0">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             {/* 안테나 */}
             <line x1="12" y1="6" x2="12" y2="3" />
@@ -117,7 +117,7 @@ export default function AIAssistantPage() {
           </svg>
         </div>
         <div className="flex items-baseline gap-2 whitespace-nowrap">
-          <h1 className="text-base font-semibold text-gray-900 dark:text-dark-text">AI 버틀러 찰떡이</h1>
+          <h1 className="text-base font-semibold text-[#FFB800]">AI 버틀러 찰떡이</h1>
           <span className="text-xs text-gray-400 dark:text-dark-text-disabled">TEAM WORKS 사용 안내</span>
         </div>
       </header>
