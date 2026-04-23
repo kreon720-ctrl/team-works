@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, KeyboardEvent } from 'react';
-import { Button } from '@/components/common/Button';
 
 export type ChatMessageMode = 'NORMAL' | 'WORK_PERFORMANCE' | 'NOTICE';
 
@@ -78,16 +77,19 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
 
         <div className="flex flex-col gap-2">
           {/* Send button */}
-          <Button
+          <button
             type="button"
-            variant="primary"
-            size="sm"
             onClick={handleSend}
             disabled={!isValidContent || isPending}
-            loading={isPending}
+            className="inline-flex items-center justify-center gap-1 rounded-lg py-1.5 px-3 text-xs font-medium transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
           >
-            전송
-          </Button>
+            {isPending ? (
+              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : '전송'}
+          </button>
 
           {/* 업무보고 toggle */}
           <button
