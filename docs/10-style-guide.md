@@ -7,6 +7,7 @@
 | 1.0 | 2026-04-07 | - | 최초 작성 |
 | 1.1 | 2026-04-08 | - | Semantic 컬러 설명에서 "초대" 표현 제거, 상태 배지 예시를 가입 신청 상태(PENDING/APPROVED/REJECTED)로 교체, 아이콘 매핑에서 "팀원 초대" → "가입 신청" 수정 |
 | 1.2 | 2026-04-18 | - | 앱명 Team CalTalk → TEAM WORKS 반영. SCHEDULE_REQUEST → WORK_PERFORMANCE 변경 |
+| 1.3 | 2026-04-23 | - | 다크 모드 일정바·프로젝트바·세부일정바·포스트잇 컬러 팔레트 정의 (Royal Amber / Electric Indigo / Deep Emerald / Crimson Red / Ice Silver) |
 
 ---
 
@@ -1114,6 +1115,75 @@ Premium 카드 (좌측 액센트 바):
 오늘 날짜 선:  "dark:bg-dark-accent-strong"
 ```
 
+#### 일정바 / 프로젝트바 / 세부일정바 / 포스트잇 — 다크 모드 컬러 팔레트
+
+다크 배경(`#141313`)에서 충분한 명도 대비를 확보하면서 과도한 채도를 피하기 위해 아래 5가지 색상을 UI 요소별로 사용합니다.
+
+| 컬러명 | HEX | 느낌 및 용도 |
+|--------|-----|-------------|
+| **Royal Amber** | `#FFB800` | 핵심 강조·CTA — 가장 눈에 띄어야 하는 바나 포스트잇 |
+| **Electric Indigo** | `#6366F1` | 세련된 기술적 강조 — 기본 일정바·프로젝트바 기준색 |
+| **Deep Emerald** | `#10B981` | 신뢰·완료·성장 — 완료 상태 바, 긍정 지표 |
+| **Crimson Red** | `#EF4444` | 긴급·지연·경고 — 지연 상태 바, 마감 임박 일정 |
+| **Ice Silver** | `#E2E8F0` | 보조·중립 — 낮은 우선순위 포스트잇, 보조 아이콘 텍스트 |
+
+---
+
+##### 일정바 (Calendar Event Bar) — 다크 모드
+
+| 상태 | 컬러명 | HEX | Tailwind 클래스 조합 |
+|------|--------|-----|----------------------|
+| 기본 일정 | Electric Indigo | `#6366F1` | `dark:bg-[#6366F1] dark:text-white` |
+| 강조 / 핵심 마감 | Royal Amber | `#FFB800` | `dark:bg-[#FFB800] dark:text-gray-900` |
+| 완료 일정 | Deep Emerald | `#10B981` | `dark:bg-[#10B981] dark:text-white` |
+| 지연 / 긴급 일정 | Crimson Red | `#EF4444` | `dark:bg-[#EF4444] dark:text-white` |
+| 보조 / 낮은 우선순위 | Ice Silver | `#E2E8F0` | `dark:bg-[#E2E8F0] dark:text-gray-800` |
+
+> **텍스트 대비 원칙:** Royal Amber(`#FFB800`)·Ice Silver(`#E2E8F0`) 배경은 어두운 텍스트(`dark:text-gray-900` / `dark:text-gray-800`), 나머지 3가지 배경은 흰색(`dark:text-white`) 사용.
+
+---
+
+##### 프로젝트바 (Gantt Project Bar) — 다크 모드
+
+| 상태 | 컬러명 | HEX | Tailwind 클래스 |
+|------|--------|-----|-----------------|
+| 진행 중 | Electric Indigo | `#6366F1` | `dark:bg-[#6366F1] dark:text-white` |
+| 완료 | Deep Emerald | `#10B981` | `dark:bg-[#10B981] dark:text-white` |
+| 지연 | Crimson Red | `#EF4444` | `dark:bg-[#EF4444] dark:text-white` |
+| 핵심 마일스톤 | Royal Amber | `#FFB800` | `dark:bg-[#FFB800] dark:text-gray-900` |
+
+---
+
+##### 세부일정바 (Sub-schedule Gantt Bar) — 다크 모드
+
+기존 `GanttBarColor` 타입(`indigo | blue | emerald | amber | rose`)과 1:1 대응합니다.
+
+| GanttBarColor | 컬러명 | HEX | Tailwind 클래스 | 텍스트 |
+|---------------|--------|-----|-----------------|--------|
+| `indigo` | Electric Indigo | `#6366F1` | `dark:bg-[#6366F1]` | `dark:text-white` |
+| `blue` | Electric Indigo | `#6366F1` | `dark:bg-[#6366F1]` | `dark:text-white` |
+| `emerald` | Deep Emerald | `#10B981` | `dark:bg-[#10B981]` | `dark:text-white` |
+| `amber` | Royal Amber | `#FFB800` | `dark:bg-[#FFB800]` | `dark:text-gray-900` |
+| `rose` | Crimson Red | `#EF4444` | `dark:bg-[#EF4444]` | `dark:text-white` |
+
+> `indigo`와 `blue`는 다크 모드에서 동일한 Electric Indigo(`#6366F1`)로 통일합니다. amber(`#FFB800`)는 밝은 배경이므로 텍스트를 `dark:text-gray-900`으로 지정해 대비를 확보합니다.
+
+---
+
+##### 포스트잇 (Post-it) — 다크 모드
+
+라이트 모드의 선명한 노랑 계열 대신, 다크 배경과 자연스럽게 어우러지도록 **반투명 틴트 배경 + 컬러 테두리** 조합을 사용합니다.
+
+| 포스트잇 색상 | 컬러명 | 배경 (15% 불투명도) | 테두리 | 텍스트 |
+|--------------|--------|---------------------|--------|--------|
+| 기본 (노랑) | Royal Amber | `dark:bg-[#FFB800]/15` | `dark:border-[#FFB800]/40` | `dark:text-dark-text` |
+| 인디고 | Electric Indigo | `dark:bg-[#6366F1]/15` | `dark:border-[#6366F1]/40` | `dark:text-dark-text` |
+| 초록 | Deep Emerald | `dark:bg-[#10B981]/15` | `dark:border-[#10B981]/40` | `dark:text-dark-text` |
+| 빨강 | Crimson Red | `dark:bg-[#EF4444]/15` | `dark:border-[#EF4444]/40` | `dark:text-dark-text` |
+| 회색 | Ice Silver | `dark:bg-[#E2E8F0]/10` | `dark:border-[#E2E8F0]/20` | `dark:text-dark-text-muted` |
+
+> 완전 채움(solid) 배경은 다크 화면에서 지나치게 튀므로 반드시 투명도(`/15`)를 적용합니다. 테두리 투명도(`/40`)로 색상 힌트를 유지합니다.
+
 ---
 
 ### 12.4 컬러 사용 요약 (다크 모드)
@@ -1132,6 +1202,12 @@ Premium 카드 (좌측 액센트 바):
 | 에러 텍스트 | `dark:text-dark-error` |
 | 활성 탭 밑줄 | `dark:border-b-2 dark:border-dark-accent` |
 | 오늘 날짜 | `dark:bg-dark-accent-strong dark:text-gray-900` |
+| 기본 일정바 | `dark:bg-[#6366F1] dark:text-white` |
+| 강조 일정바 / 핵심 마일스톤 | `dark:bg-[#FFB800] dark:text-gray-900` |
+| 완료 일정바 / 프로젝트바 | `dark:bg-[#10B981] dark:text-white` |
+| 지연 / 긴급 바 | `dark:bg-[#EF4444] dark:text-white` |
+| 포스트잇 기본 (노랑) | `dark:bg-[#FFB800]/15 dark:border-[#FFB800]/40 dark:text-dark-text` |
+| 포스트잇 보조 (회색) | `dark:bg-[#E2E8F0]/10 dark:border-[#E2E8F0]/20 dark:text-dark-text-muted` |
 
 ---
 

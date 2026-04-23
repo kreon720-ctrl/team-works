@@ -7,11 +7,11 @@ import type { ProjectSchedule, GanttBarColor } from '@/types/project';
 // Static color lookup table for Tailwind v4 compatibility
 // (no dynamic class names - all classes must be statically present)
 const GANTT_COLOR_STYLES: Record<GanttBarColor, { bar: string; barDelayed: string; progress: string; text: string }> = {
-  indigo:  { bar: 'bg-indigo-100 border border-indigo-300',   barDelayed: 'bg-indigo-100 border-2 border-red-500',   progress: 'bg-indigo-300',   text: 'text-indigo-900' },
-  blue:    { bar: 'bg-blue-100 border border-blue-300',       barDelayed: 'bg-blue-100 border-2 border-red-500',     progress: 'bg-blue-300',     text: 'text-blue-900' },
-  emerald: { bar: 'bg-emerald-100 border border-emerald-300', barDelayed: 'bg-emerald-100 border-2 border-red-500',  progress: 'bg-emerald-300',  text: 'text-emerald-900' },
-  amber:   { bar: 'bg-amber-100 border border-amber-300',     barDelayed: 'bg-amber-100 border-2 border-red-500',    progress: 'bg-amber-300',    text: 'text-amber-900' },
-  rose:    { bar: 'bg-rose-100 border border-rose-300',       barDelayed: 'bg-rose-100 border-2 border-red-500',     progress: 'bg-rose-300',     text: 'text-rose-900' },
+  indigo:  { bar: 'bg-indigo-100 border border-indigo-300 dark:bg-[#6366F1] dark:border-[#6366F1]',   barDelayed: 'bg-indigo-100 border-2 border-red-500 dark:bg-[#EF4444] dark:border-[#EF4444]',   progress: 'bg-indigo-300 dark:bg-white/30',   text: 'text-indigo-900 dark:text-white' },
+  blue:    { bar: 'bg-blue-100 border border-blue-300 dark:bg-[#6366F1] dark:border-[#6366F1]',       barDelayed: 'bg-blue-100 border-2 border-red-500 dark:bg-[#EF4444] dark:border-[#EF4444]',     progress: 'bg-blue-300 dark:bg-white/30',     text: 'text-blue-900 dark:text-white' },
+  emerald: { bar: 'bg-emerald-100 border border-emerald-300 dark:bg-[#10B981] dark:border-[#10B981]', barDelayed: 'bg-emerald-100 border-2 border-red-500 dark:bg-[#EF4444] dark:border-[#EF4444]',  progress: 'bg-emerald-300 dark:bg-white/30',  text: 'text-emerald-900 dark:text-white' },
+  amber:   { bar: 'bg-amber-100 border border-amber-300 dark:bg-[#FFB800] dark:border-[#FFB800]',     barDelayed: 'bg-amber-100 border-2 border-red-500 dark:bg-[#EF4444] dark:border-[#EF4444]',    progress: 'bg-amber-300 dark:bg-gray-900/20', text: 'text-amber-900 dark:text-gray-900' },
+  rose:    { bar: 'bg-rose-100 border border-rose-300 dark:bg-[#EF4444] dark:border-[#EF4444]',       barDelayed: 'bg-rose-100 border-2 border-red-500 dark:bg-[#EF4444] dark:border-[#EF4444]',     progress: 'bg-rose-300 dark:bg-white/30',     text: 'text-rose-900 dark:text-white' },
 };
 
 export const PROGRESS_BAR_HEIGHT = 20; // px

@@ -32,11 +32,11 @@ function estimateTextHeight(schedule: Schedule, barWidthPx: number): number {
 
 // 색상별 Tailwind 클래스 매핑
 const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string; border: string; hover: string; textLight: string }> = {
-  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-400', hover: 'hover:bg-indigo-200', textLight: 'text-indigo-600' },
-  blue: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-400', hover: 'hover:bg-blue-200', textLight: 'text-blue-600' },
-  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-400', hover: 'hover:bg-emerald-200', textLight: 'text-emerald-600' },
-  amber: { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-400', hover: 'hover:bg-amber-200', textLight: 'text-amber-600' },
-  rose: { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-400', hover: 'hover:bg-rose-200', textLight: 'text-rose-600' },
+  indigo: { bg: 'bg-indigo-100 dark:bg-[#6366F1]', text: 'text-indigo-800 dark:text-white', border: 'border-indigo-400 dark:border-[#6366F1]', hover: 'hover:bg-indigo-200 dark:hover:brightness-110', textLight: 'text-indigo-600 dark:text-white/80' },
+  blue: { bg: 'bg-blue-100 dark:bg-[#6366F1]', text: 'text-blue-800 dark:text-white', border: 'border-blue-400 dark:border-[#6366F1]', hover: 'hover:bg-blue-200 dark:hover:brightness-110', textLight: 'text-blue-600 dark:text-white/80' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-[#10B981]', text: 'text-emerald-800 dark:text-white', border: 'border-emerald-400 dark:border-[#10B981]', hover: 'hover:bg-emerald-200 dark:hover:brightness-110', textLight: 'text-emerald-600 dark:text-white/80' },
+  amber: { bg: 'bg-amber-100 dark:bg-[#FFB800]', text: 'text-amber-800 dark:text-gray-900', border: 'border-amber-400 dark:border-[#FFB800]', hover: 'hover:bg-amber-200 dark:hover:brightness-110', textLight: 'text-amber-600 dark:text-gray-900/70' },
+  rose: { bg: 'bg-rose-100 dark:bg-[#EF4444]', text: 'text-rose-800 dark:text-white', border: 'border-rose-400 dark:border-[#EF4444]', hover: 'hover:bg-rose-200 dark:hover:brightness-110', textLight: 'text-rose-600 dark:text-white/80' },
 };
 
 interface CalendarDayViewProps {

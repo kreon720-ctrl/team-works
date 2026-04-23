@@ -18,11 +18,11 @@ interface CalendarWeekViewProps {
 
 // 색상별 Tailwind 클래스 매핑
 const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string; hover: string; bgDarker: string }> = {
-  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800', hover: 'hover:bg-indigo-200', bgDarker: 'bg-indigo-200' },
-  blue: { bg: 'bg-blue-100', text: 'text-blue-800', hover: 'hover:bg-blue-200', bgDarker: 'bg-blue-200' },
-  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-800', hover: 'hover:bg-emerald-200', bgDarker: 'bg-emerald-200' },
-  amber: { bg: 'bg-amber-100', text: 'text-amber-800', hover: 'hover:bg-amber-200', bgDarker: 'bg-amber-200' },
-  rose: { bg: 'bg-rose-100', text: 'text-rose-800', hover: 'hover:bg-rose-200', bgDarker: 'bg-rose-200' },
+  indigo: { bg: 'bg-indigo-100 dark:bg-[#6366F1]', text: 'text-indigo-800 dark:text-white', hover: 'hover:bg-indigo-200 dark:hover:brightness-110', bgDarker: 'bg-indigo-200 dark:bg-[#6366F1]' },
+  blue: { bg: 'bg-blue-100 dark:bg-[#6366F1]', text: 'text-blue-800 dark:text-white', hover: 'hover:bg-blue-200 dark:hover:brightness-110', bgDarker: 'bg-blue-200 dark:bg-[#6366F1]' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-[#10B981]', text: 'text-emerald-800 dark:text-white', hover: 'hover:bg-emerald-200 dark:hover:brightness-110', bgDarker: 'bg-emerald-200 dark:bg-[#10B981]' },
+  amber: { bg: 'bg-amber-100 dark:bg-[#FFB800]', text: 'text-amber-800 dark:text-gray-900', hover: 'hover:bg-amber-200 dark:hover:brightness-110', bgDarker: 'bg-amber-200 dark:bg-[#FFB800]' },
+  rose: { bg: 'bg-rose-100 dark:bg-[#EF4444]', text: 'text-rose-800 dark:text-white', hover: 'hover:bg-rose-200 dark:hover:brightness-110', bgDarker: 'bg-rose-200 dark:bg-[#EF4444]' },
 };
 
 export function CalendarWeekView({ currentDate, schedules = [], selectedDate, onDateClick, onScheduleClick }: CalendarWeekViewProps) {

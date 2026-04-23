@@ -21,11 +21,11 @@ interface CalendarMonthViewProps {
 }
 
 const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string }> = {
-  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800' },
-  blue: { bg: 'bg-blue-100', text: 'text-blue-800' },
-  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-800' },
-  amber: { bg: 'bg-amber-100', text: 'text-amber-800' },
-  rose: { bg: 'bg-rose-100', text: 'text-rose-800' },
+  indigo: { bg: 'bg-indigo-100 dark:bg-[#6366F1]', text: 'text-indigo-800 dark:text-white' },
+  blue: { bg: 'bg-blue-100 dark:bg-[#6366F1]', text: 'text-blue-800 dark:text-white' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-[#10B981]', text: 'text-emerald-800 dark:text-white' },
+  amber: { bg: 'bg-amber-100 dark:bg-[#FFB800]', text: 'text-amber-800 dark:text-gray-900' },
+  rose: { bg: 'bg-rose-100 dark:bg-[#EF4444]', text: 'text-rose-800 dark:text-white' },
 };
 
 const AVG_CHAR_WIDTH_PX = 13;
