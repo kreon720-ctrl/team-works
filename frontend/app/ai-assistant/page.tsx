@@ -117,7 +117,7 @@ export default function AIAssistantPage() {
           </svg>
         </div>
         <div className="flex items-baseline gap-2 whitespace-nowrap">
-          <h1 className="text-base font-semibold text-gray-900">AI 버틀러 찰떡</h1>
+          <h1 className="text-base font-semibold text-gray-900">AI 버틀러 찰떡이</h1>
           <span className="text-xs text-gray-400">TEAM WORKS 사용 안내</span>
         </div>
       </header>
