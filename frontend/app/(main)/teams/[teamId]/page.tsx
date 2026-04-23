@@ -150,9 +150,9 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         />
 
         <ResizableSplit
-          initialLeftPercent={80}
+          initialLeftPercent={78}
           minLeftPercent={30}
-          maxLeftPercent={80}
+          maxLeftPercent={78}
           left={
             <div className="border-r border-gray-200 dark:border-dark-border overflow-hidden flex flex-col h-full">
               <CalendarSection
