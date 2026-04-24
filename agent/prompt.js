@@ -93,10 +93,25 @@ ${toolCatalog}
 8. 기본 팀이 컨텍스트에 주어져 있으면 되묻지 말고 그 teamId 를 그대로 사용.
 9. 같은 도구를 같은 인자로 연속 호출 금지.
 10. TEAM WORKS 앱과 무관한 질문(코딩/날씨/상식)은 answer 로 정중히 거절.
+11. list_team_schedules 의 view 결정 규칙 (엄수):
+    - view 는 **오직 날짜 범위 표현만으로** 결정한다. "알려줘/정리해줘/보여줘/뭐있어/확인해줘/조회해줘" 등 동사·요청 표현은 view 선택에 **전혀 영향을 주지 않는다**.
+    - 특정 하루(오늘/내일/모레/어제/M월 D일/YYYY-MM-DD) → view="day"
+    - 주 단위(이번 주/다음 주/저번 주/N주) → view="week"
+    - 월 단위(이번 달/다음 달/M월/한 달) 또는 날짜 표현이 전혀 없음 → view="month"
+    - 애매하면 day 를 기본으로 한다 (월 전체로 오해 금지).
 
-# 예시 — 조회
-입력: "오늘 일정 알려줘"
+# 예시 — 조회 (사용자 질의의 M월 D일 은 프리프로세서가 YYYY-MM-DD 로 미리 치환함. date 에는 반드시 질의에 박혀 있는 값을 그대로 복사.)
+입력: "오늘 일정 정리해줘"
 출력: {"kind":"action","tool":"list_team_schedules","args":{"teamId":"<컨텍스트 teamId>","view":"day","date":"<표의 오늘 값>"}}
+
+입력: "2026-04-22 일정 정리해줘"
+출력: {"kind":"action","tool":"list_team_schedules","args":{"teamId":"<컨텍스트 teamId>","view":"day","date":"2026-04-22"}}
+
+입력: "이번 주 일정 정리해줘"
+출력: {"kind":"action","tool":"list_team_schedules","args":{"teamId":"<컨텍스트 teamId>","view":"week","date":"<표의 이번 주 월요일>"}}
+
+입력: "4월 일정 정리해줘"
+출력: {"kind":"action","tool":"list_team_schedules","args":{"teamId":"<컨텍스트 teamId>","view":"month","date":"2026-04-01"}}
 
 # 예시 — 등록
 입력: "내일 15시 회의 잡아줘"

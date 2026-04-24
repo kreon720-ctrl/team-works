@@ -27,6 +27,19 @@ app.post('/chat', async (req, res) => {
 
   try {
     const result = await runAgent({ question, jwt, userHint });
+    console.log('[agent][chat]', JSON.stringify({
+      question,
+      userHint,
+      kind: result.kind,
+      trace: result.trace?.map((t) => ({
+        role: t.role,
+        tool: t.tool,
+        args: t.args,
+        result: t.result && typeof t.result === 'object'
+          ? { count: t.result.count, view: t.result.view, date: t.result.date }
+          : undefined,
+      })),
+    }));
     if (result.kind === 'answer') {
       return res.json({ kind: 'answer', answer: result.answer });
     }

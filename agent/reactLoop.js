@@ -67,6 +67,21 @@ export function normalizeKoreanDateInQuestion(text) {
     return `${currentMonth}월 ${di}일`;
   });
 
+  // Final pass: canonicalize absolute dates to YYYY-MM-DD so gemma2:9b cannot
+  // confuse a specific date ("4월 22일") with "오늘" from few-shot examples.
+  // Must run after all Korean-date producers above so they also get collapsed.
+  const currentYear = currentKstYear();
+  out = out.replace(
+    /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/g,
+    (_m, y, mo, d) =>
+      `${y}-${String(+mo).padStart(2, '0')}-${String(+d).padStart(2, '0')}`
+  );
+  out = out.replace(
+    /(\d{1,2})월\s*(\d{1,2})일/g,
+    (_m, mo, d) =>
+      `${currentYear}-${String(+mo).padStart(2, '0')}-${String(+d).padStart(2, '0')}`
+  );
+
   return out;
 }
 
@@ -74,6 +89,23 @@ function currentKstMonth() {
   const nowUtc = new Date();
   const kst = new Date(nowUtc.getTime() + 9 * 60 * 60 * 1000);
   return kst.getUTCMonth() + 1;
+}
+
+function currentKstYear() {
+  const nowUtc = new Date();
+  const kst = new Date(nowUtc.getTime() + 9 * 60 * 60 * 1000);
+  return kst.getUTCFullYear();
+}
+
+/**
+ * If the question contains one or more YYYY-MM-DD tokens (already
+ * canonicalized by normalizeKoreanDateInQuestion), return the first one.
+ * Used to bind the date the model must pass through to list_team_schedules.
+ */
+function extractFirstAbsoluteDate(text) {
+  if (typeof text !== 'string') return null;
+  const m = text.match(/(?<![\d-])(\d{4}-\d{2}-\d{2})(?![\d-])/);
+  return m ? m[1] : null;
 }
 
 /* --------------------------- date preprocessor --------------------------- */
@@ -234,9 +266,20 @@ export async function runAgent({ question, jwt, userHint }) {
     if (normalized !== question) {
       trace.push({ role: 'normalize', from: question, to: normalized });
     }
+
+    // gemma2:9b sometimes ignores the explicit YYYY-MM-DD in the user message
+    // and falls back to "오늘" from dateContext. When the question carries an
+    // absolute date we bind it as a hard directive so the model cannot drift.
+    // The directive is **tool-agnostic**: naming a specific tool here biases
+    // intent classification (e.g. a create request gets routed to list).
+    const boundDate = extractFirstAbsoluteDate(normalized);
+    const userContent = boundDate
+      ? `${normalized}\n\n[강제 지시: 이 질의가 지칭하는 날짜는 "${boundDate}" 이다. 도구 호출 시 날짜 관련 필드(date / startAt / endAt)에는 반드시 이 날짜를 사용하고, "오늘" 등 다른 값으로 대체하지 말 것. 단, 이 지시문이 도구 선택(조회 vs 등록)에는 영향을 주지 않음 — 사용자의 동사("알려줘"·"정리해줘" = 조회, "등록해줘"·"추가해줘" = 등록)로 판단.]`
+      : normalized;
+
     const messages = [
       { role: 'system', content: system },
-      { role: 'user', content: normalized },
+      { role: 'user', content: userContent },
     ];
 
     for (let step = 0; step < MAX_STEPS; step++) {
@@ -317,6 +360,19 @@ export async function runAgent({ question, jwt, userHint }) {
         args: toolArgs,
         result: observation,
       });
+
+      // Deterministic short-circuit for schedule lookups: the model's free-form
+      // summary is unreliable (wrong dates, hallucinated counts), so we format
+      // the final answer ourselves from the observation and skip a second chat
+      // round.
+      if (toolName === 'list_team_schedules') {
+        return {
+          kind: 'answer',
+          answer: formatScheduleAnswer(observation),
+          trace,
+        };
+      }
+
       messages.push({ role: 'assistant', content: raw });
       messages.push({
         role: 'user',
@@ -369,6 +425,45 @@ function formatDateTime(iso) {
   const m = iso.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2})/);
   if (!m) return null;
   return { date: m[1], time: m[2] };
+}
+
+/**
+ * Render a list_team_schedules observation as a single Korean sentence
+ *   "M월 D일 H시 <제목>, M월 D일 H시 <제목> ... 일정이 있습니다."
+ *
+ * Hour-only when minute == 0, else "H시 M분". Assumes KST ISO (+09:00) input
+ * from the MCP tool, which already normalizes timestamps.
+ */
+function formatScheduleAnswer(observation) {
+  const schedules = Array.isArray(observation?.schedules)
+    ? observation.schedules
+    : [];
+  if (schedules.length === 0) {
+    return '해당 기간에 등록된 일정이 없습니다.';
+  }
+
+  const sorted = [...schedules].sort((a, b) =>
+    String(a?.startAt ?? '').localeCompare(String(b?.startAt ?? ''))
+  );
+
+  const parts = sorted.map((s) => {
+    const title = typeof s?.title === 'string' && s.title.trim()
+      ? s.title.trim()
+      : '(제목 없음)';
+    const m = String(s?.startAt ?? '').match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/
+    );
+    if (!m) return title;
+    const month = +m[2];
+    const day = +m[3];
+    const hour = +m[4];
+    const minute = +m[5];
+    const datePart = `${month}월 ${day}일`;
+    const timePart = minute === 0 ? `${hour}시` : `${hour}시 ${minute}분`;
+    return `${datePart} ${timePart} ${title}`;
+  });
+
+  return `${parts.join(', ')} 일정이 있습니다.`;
 }
 
 function safeParseJson(raw) {
