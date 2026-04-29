@@ -10,6 +10,7 @@ import { useSchedules } from '@/hooks/query/useSchedules';
 import { usePostits } from '@/hooks/query/usePostits';
 import { useMyTasks } from '@/hooks/query/useMyTasks';
 import { ChatPanel } from '@/components/chat/ChatPanel';
+import { AIAssistantPanel } from '@/components/ai-assistant/AIAssistantPanel';
 import { ResizableSplit } from '@/components/common/ResizableSplit';
 import { Button } from '@/components/common/Button';
 import { TeamPageHeader } from './_components/TeamPageHeader';
@@ -39,7 +40,9 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
     setCalendarView,
   } = useTeamStore();
 
-  const [activeTab, setActiveTab] = useState<'calendar' | 'chat'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'chat' | 'ai-assistant'>('calendar');
+  // 데스크탑 우측 패널의 탭 — 팀채팅 / AI 버틀러
+  const [rightTab, setRightTab] = useState<'chat' | 'ai-assistant'>('chat');
 
   const { data: schedulesData } = useSchedules(teamId, {
     view: calendarView,
@@ -196,24 +199,72 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
             </div>
           }
           right={
-            <>
-              <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface">
-                <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">
-                  {new Date(selectedDate).toLocaleDateString('ko-KR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    weekday: 'short',
-                  })}{' '}
-                  채팅
-                </h2>
+            <div className="flex flex-col h-full">
+              {/* 탭 헤더 — 팀채팅 / AI 버틀러 */}
+              <div className="flex border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setRightTab('chat')}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors duration-150 ${
+                    rightTab === 'chat'
+                      ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
+                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
+                  }`}
+                >
+                  {/* 채팅 말풍선 아이콘 */}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    <circle cx="9" cy="12" r="0.6" fill="currentColor" stroke="none" />
+                    <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
+                    <circle cx="15" cy="12" r="0.6" fill="currentColor" stroke="none" />
+                  </svg>
+                  팀채팅
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab('ai-assistant')}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors duration-150 ${
+                    rightTab === 'ai-assistant'
+                      ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
+                      : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
+                  }`}
+                >
+                  {/* AI sparkle 아이콘 */}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 3 13.7 8.3 19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z" />
+                    <path d="M18 14 18.7 16 21 16.7 18.7 17.3 18 19.3 17.3 17.3 15.3 16.7 17.3 16z" />
+                    <path d="M5 4 5.5 5.5 7 6 5.5 6.5 5 8 4.5 6.5 3 6 4.5 5.5z" />
+                  </svg>
+                  AI 버틀러
+                </button>
               </div>
-              <ChatPanel
-                teamId={teamId}
-                date={selectedDate}
-                isLeader={isLeader}
-              />
-            </>
+
+              {/* 본문 — 활성 탭에 따라 ChatPanel 또는 AIAssistantPanel */}
+              {rightTab === 'chat' ? (
+                <div className="flex flex-col flex-1 min-h-0">
+                  <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
+                    <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">
+                      {new Date(selectedDate).toLocaleDateString('ko-KR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        weekday: 'short',
+                      })}{' '}
+                      채팅
+                    </h2>
+                  </div>
+                  <ChatPanel
+                    teamId={teamId}
+                    date={selectedDate}
+                    isLeader={isLeader}
+                  />
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0">
+                  <AIAssistantPanel teamId={teamId} teamName={team.name} />
+                </div>
+              )}
+            </div>
           }
         />
 
@@ -239,6 +290,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
 
       <MobileLayout
         teamId={teamId}
+        teamName={team.name}
         currentDate={currentDate}
         selectedDate={selectedDate}
         calendarView={calendarView}

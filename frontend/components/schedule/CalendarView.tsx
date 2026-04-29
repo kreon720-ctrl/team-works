@@ -103,6 +103,14 @@ export function CalendarView({
   const teamProjects = rawTeamProjects ?? [];
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const setSelectedProject = useProjectStore((s) => s.setSelectedProject);
+  const loadTeamProjects = useProjectStore((s) => s.loadTeamProjects);
+
+  // 팀 진입 시점에 프로젝트 목록 prefetch — ProjectGanttView 가 마운트되기 전(초기 월/주/일 뷰)에도
+  // 상단 탭에 프로젝트명을 즉시 노출하기 위함. compact 모드(모바일)는 프로젝트 탭 미표시라 스킵.
+  React.useEffect(() => {
+    if (!teamId || compact) return;
+    loadTeamProjects(teamId);
+  }, [teamId, compact, loadTeamProjects]);
 
   // 뷰 탭: 프로젝트가 있으면 프로젝트명 탭들(PC only) + 월/주/일
   const viewTabs: { id: CalendarViewType; label: string }[] = [

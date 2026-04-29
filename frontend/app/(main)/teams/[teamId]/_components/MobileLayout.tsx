@@ -2,18 +2,22 @@
 
 import React from 'react';
 import { ChatPanel } from '@/components/chat/ChatPanel';
+import { AIAssistantPanel } from '@/components/ai-assistant/AIAssistantPanel';
 import { CalendarSection } from './CalendarSection';
 import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType } from '@/types/schedule';
 
+type MobileTab = 'calendar' | 'chat' | 'ai-assistant';
+
 interface MobileLayoutProps {
   teamId: string;
+  teamName: string;
   currentDate: Date;
   selectedDate: string;
   calendarView: CalendarViewType;
   schedules: Schedule[];
   isLeader: boolean;
-  activeTab: 'calendar' | 'chat';
-  onTabChange: (tab: 'calendar' | 'chat') => void;
+  activeTab: MobileTab;
+  onTabChange: (tab: MobileTab) => void;
   onViewChange: (view: 'month' | 'week' | 'day' | 'project') => void;
   onDateChange: (date: Date) => void;
   onDateClick: (date: Date) => void;
@@ -40,6 +44,7 @@ interface MobileLayoutProps {
 
 export function MobileLayout({
   teamId,
+  teamName,
   currentDate,
   selectedDate,
   calendarView,
@@ -88,13 +93,37 @@ export function MobileLayout({
         <button
           type="button"
           onClick={() => onTabChange('chat')}
-          className={`flex-1 py-3 px-4 text-sm font-medium text-center border-b-2 transition-colors duration-150 ${
+          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-3 px-4 text-sm font-medium border-b-2 transition-colors duration-150 ${
             activeTab === 'chat'
               ? 'text-primary-600 border-primary-500'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
           }`}
         >
-          채팅
+          {/* 채팅 말풍선 아이콘 */}
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            <circle cx="9" cy="12" r="0.6" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
+            <circle cx="15" cy="12" r="0.6" fill="currentColor" stroke="none" />
+          </svg>
+          팀채팅
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange('ai-assistant')}
+          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-3 px-4 text-sm font-medium border-b-2 transition-colors duration-150 ${
+            activeTab === 'ai-assistant'
+              ? 'text-primary-600 border-primary-500'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          {/* AI sparkle 아이콘 */}
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3 13.7 8.3 19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z" />
+            <path d="M18 14 18.7 16 21 16.7 18.7 17.3 18 19.3 17.3 17.3 15.3 16.7 17.3 16z" />
+            <path d="M5 4 5.5 5.5 7 6 5.5 6.5 5 8 4.5 6.5 3 6 4.5 5.5z" />
+          </svg>
+          AI 버틀러
         </button>
       </div>
 
@@ -152,6 +181,13 @@ export function MobileLayout({
             date={selectedDate}
             isLeader={isLeader}
           />
+        </div>
+
+        {/* AI 버틀러 tab */}
+        <div
+          className={`h-[calc(100vh-8rem)] ${activeTab === 'ai-assistant' ? 'flex' : 'hidden'} flex-col`}
+        >
+          <AIAssistantPanel teamId={teamId} teamName={teamName} />
         </div>
       </div>
     </>
