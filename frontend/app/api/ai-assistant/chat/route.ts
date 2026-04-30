@@ -447,6 +447,52 @@ function filterByKeyword<T extends { title: string; description: string | null }
   );
 }
 
+// 시간대 (오전·오후) — KST 기준 시(hour) 범위로 startAt 필터링.
+// 객관적 이분법인 오전/오후만 자동 매핑. 저녁·새벽·아침·밤·점심·야식 같이
+// 사람마다 경계가 다른 키워드는 자동 매핑 대신 사용자에게 구체 시각을 요청.
+type TimeBand = { start: number; end: number; label: string };
+
+const OBJECTIVE_BANDS: Record<string, TimeBand> = {
+  오전: { start: 0, end: 12, label: '오전' },
+  오후: { start: 12, end: 24, label: '오후' },
+};
+
+const AMBIGUOUS_BANDS = ['저녁', '새벽', '아침', '밤', '점심', '야식'];
+
+const HAS_SPECIFIC_TIME = /\d+\s*시|\d+\s*[:：]\s*\d+/;
+
+type TimeBandResult =
+  | { kind: 'objective'; band: TimeBand }
+  | { kind: 'ambiguous'; keyword: string }
+  | { kind: 'none' };
+
+// 사용자 질의에서 시간대 키워드 검출.
+// "오후 3시" 처럼 구체 시각이 같이 있으면 시간대 키워드는 보조 표현으로 간주 → none.
+function detectTimeBand(question: string): TimeBandResult {
+  if (HAS_SPECIFIC_TIME.test(question)) return { kind: 'none' };
+  for (const [kw, band] of Object.entries(OBJECTIVE_BANDS)) {
+    if (question.includes(kw)) return { kind: 'objective', band };
+  }
+  for (const kw of AMBIGUOUS_BANDS) {
+    if (question.includes(kw)) return { kind: 'ambiguous', keyword: kw };
+  }
+  return { kind: 'none' };
+}
+
+// startAt 의 KST 시(hour) 가 band 의 [start, end) 범위 안인지로 필터.
+function filterByTimeBand<T extends { startAt: string }>(
+  schedules: T[],
+  band: TimeBand | null | undefined
+): T[] {
+  if (!band) return schedules;
+  return schedules.filter((s) => {
+    const kstHour = new Date(
+      new Date(s.startAt).getTime() + 9 * 60 * 60 * 1000
+    ).getUTCHours();
+    return kstHour >= band.start && kstHour < band.end;
+  });
+}
+
 // schedule_query 본체 — 자연어 파싱 + DB 조회 + keyword 필터 + 0건이면 month 자동 확장.
 //
 // 확장 규칙: keyword 가 있고 첫 검색이 day/week 였는데 0건이면 month 로 재조회.
@@ -456,27 +502,40 @@ async function runScheduleQuery(opts: {
   question: string;
   teamId: string;
   jwt: string;
+  band?: TimeBand | null;
 }): Promise<{
   schedules: Schedule[];
-  range: { view: 'day' | 'week' | 'month'; date: string; keyword: string };
+  range: {
+    view: 'day' | 'week' | 'month';
+    date: string;
+    keyword: string;
+    band?: TimeBand;
+  };
 }> {
-  const { question, teamId, jwt } = opts;
+  const { question, teamId, jwt, band } = opts;
   const initial = await parseScheduleQuery(question);
   const allInitial = await getSchedules({
     teamId, jwt, view: initial.view, date: initial.date,
   });
-  const filteredInitial = filterByKeyword(allInitial, initial.keyword);
+  const filteredInitial = filterByTimeBand(
+    filterByKeyword(allInitial, initial.keyword),
+    band,
+  );
+  const rangeBand = band ?? undefined;
   if (filteredInitial.length || !initial.keyword || initial.view === 'month') {
-    return { schedules: filteredInitial, range: initial };
+    return { schedules: filteredInitial, range: { ...initial, band: rangeBand } };
   }
-  // keyword 매치 0건 + 좁은 범위 → month 로 확장 재조회
+  // keyword 매치 0건 + 좁은 범위 → month 로 확장 재조회 (시간대 필터도 다시 적용)
   const expanded = await getSchedules({
     teamId, jwt, view: 'month', date: initial.date,
   });
-  const filteredExpanded = filterByKeyword(expanded, initial.keyword);
+  const filteredExpanded = filterByTimeBand(
+    filterByKeyword(expanded, initial.keyword),
+    band,
+  );
   return {
     schedules: filteredExpanded,
-    range: { view: 'month', date: initial.date, keyword: initial.keyword },
+    range: { view: 'month', date: initial.date, keyword: initial.keyword, band: rangeBand },
   };
 }
 
@@ -513,7 +572,12 @@ function formatSchedules(
   schedules: Schedule[],
   opts: {
     teamName?: string;
-    range?: { view: 'day' | 'week' | 'month'; date: string; keyword?: string };
+    range?: {
+      view: 'day' | 'week' | 'month';
+      date: string;
+      keyword?: string;
+      band?: TimeBand;
+    };
   }
 ): string {
   const teamPrefix = opts.teamName ? `${opts.teamName} 팀의 ` : '';
@@ -525,9 +589,10 @@ function formatSchedules(
     if (r.view === 'month') return `${r.date.slice(0, 7)} `;
     return '';
   })();
+  const bandLabel = opts.range?.band?.label ? `${opts.range.band.label} ` : '';
   const keywordLabel = opts.range?.keyword ? `'${opts.range.keyword}' ` : '';
   if (!schedules.length) {
-    return `${teamPrefix}${rangeLabel}${keywordLabel}일정이 없어요.`;
+    return `${teamPrefix}${rangeLabel}${bandLabel}${keywordLabel}일정이 없어요.`;
   }
   const lines = schedules.map((s) => {
     const start = new Date(s.startAt);
@@ -542,7 +607,7 @@ function formatSchedules(
     });
     return `• ${startStr} ~ ${endStr}  ${s.title}${s.description ? ` — ${s.description}` : ''}`;
   });
-  return `${teamPrefix}${rangeLabel}${keywordLabel}일정 ${schedules.length}건:\n${lines.join('\n')}`;
+  return `${teamPrefix}${rangeLabel}${bandLabel}${keywordLabel}일정 ${schedules.length}건:\n${lines.join('\n')}`;
 }
 
 // 거절 안내 메시지.
@@ -651,7 +716,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               }
               case 'schedule_query': {
                 send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
-                const { schedules, range } = await runScheduleQuery({ question, teamId, jwt });
+                const tb = detectTimeBand(question);
+                if (tb.kind === 'ambiguous') {
+                  // 모호 키워드 (저녁/새벽/아침/밤/점심/야식) — 일정 조회 건너뛰고 안내만.
+                  send({
+                    type: 'token',
+                    text: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
+                  });
+                  break;
+                }
+                const band = tb.kind === 'objective' ? tb.band : null;
+                const { schedules, range } = await runScheduleQuery({ question, teamId, jwt, band });
                 send({
                   type: 'sources',
                   sources: schedules.map((s) => ({
@@ -787,7 +862,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         });
       }
       case 'schedule_query': {
-        const { schedules, range } = await runScheduleQuery({ question, teamId, jwt });
+        const tb = detectTimeBand(question);
+        if (tb.kind === 'ambiguous') {
+          return NextResponse.json({
+            answer: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
+            source: 'schedule',
+            classification: cls,
+            ...ragMeta,
+          });
+        }
+        const band = tb.kind === 'objective' ? tb.band : null;
+        const { schedules, range } = await runScheduleQuery({ question, teamId, jwt, band });
         return NextResponse.json({
           answer: formatSchedules(schedules, { teamName, range }),
           sources: schedules,
