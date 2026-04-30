@@ -689,6 +689,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   });
                   break;
                 }
+                if ('error' in parsed) {
+                  // 시스템 오류 (Ollama 미연결, JSON 파싱 실패 등) — 사용자 입력은 정상.
+                  // 원인을 그대로 노출해 운영자/사용자가 즉시 진단 가능.
+                  send({
+                    type: 'token',
+                    text: `AI 응답을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.\n(원인: ${parsed.error})`,
+                  });
+                  break;
+                }
                 send({
                   type: 'token',
                   text: `좀 더 구체적으로 말씀해 주시겠어요?\n(예: "내일 오후 3시 주간 회의 등록해줘")`,
@@ -790,8 +799,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       case 'schedule_create': {
         const parsed = await parseScheduleArgs(question);
         if (!parsed.ok) {
+          // 시스템 오류 (Ollama 미연결, JSON 파싱 실패 등) — 입력 부족과 분리해 노출.
+          const answer =
+            'error' in parsed
+              ? `AI 응답을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.\n(원인: ${parsed.error})`
+              : 'needs' in parsed
+              ? parsed.hint
+              : `좀 더 구체적으로 말씀해 주시겠어요?\n(예: "내일 오후 3시 주간 회의 등록해줘")`;
           return NextResponse.json({
-            answer: `좀 더 구체적으로 말씀해 주시겠어요?\n(예: "내일 오후 3시 주간 회의 등록해줘")`,
+            answer,
             source: 'schedule',
             classification: cls,
             ...ragMeta,
