@@ -70,8 +70,10 @@ npm run server
 | `retriever.js` | 질문 임베딩 → 코사인 유사도 top-k 검색 |
 | `promptBuilder.js` | Modelfile 페르소나 + 가드레일 + 검색 청크 조합 |
 | `ollamaClient.js` | Ollama `/api/embed`, `/api/chat` 래퍼 |
-| `server.js`  | Express 기반 `/chat`, `/health` |
+| `modelResolver.js` | 런타임 채팅 모델 자동 해석 (Ollama `/api/ps` 조회) |
+| `server.js`  | Express 기반 `/chat`, `/classify`, `/parse-schedule-*`, `/health` |
 | `ask.js`     | CLI 대화 클라이언트 |
+| `docs/classify-rules.md` | 의도 분류 정책 (LLM system prompt) — 운영자가 코드 변경 없이 편집 |
 
 ## 동작 원리 한눈에
 

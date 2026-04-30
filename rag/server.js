@@ -1,9 +1,19 @@
 import express from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { retrieve } from "./retriever.js";
 import { buildMessages } from "./promptBuilder.js";
 import { chat, chatStreamRaw } from "./ollamaClient.js";
 import { resolveChatModel } from "./modelResolver.js";
 import { SERVER_PORT, TOP_K } from "./config.js";
+
+// 분류 규칙 md 파일을 부팅 시 1회 로드해 LLM 분류기 system prompt 로 사용.
+// 운영자가 분류 정책을 코드 변경 없이 편집할 수 있게 외부화.
+// 파일 없으면 명시 throw — 핵심 의존성으로 다룸.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CLASSIFY_RULES_PATH = path.join(__dirname, "docs", "classify-rules.md");
+const CLASSIFY_RULES = fs.readFileSync(CLASSIFY_RULES_PATH, "utf8");
 
 // TEAM WORKS 도메인 키워드 — 매치되면 강한 사용법 시그널로 보고 즉시 RAG 라우팅.
 // 단, SCHEDULE_KEYWORDS 와 동시 매치되면 일정 의도가 우선.
@@ -113,18 +123,86 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-// 키워드 기반 4-way 분류기.
-// 응답: { intent, reason?, subreason?, matched?, isTeamWorks }
-//   intent: 'usage' | 'general' | 'schedule_query' | 'schedule_create' | 'blocked' | 'unknown'
+// LLM 분류기 — 키워드가 위험 분기(blocked/unknown)로 떨어뜨린 입력에 대해
+// docs/classify-rules.md 를 system prompt 로 LLM 의미 기반 재분류.
+// /parse-schedule-* 와 같은 패턴: temperature 0.1 + 짧은 num_predict + JSON 정규식 추출 + 실패 throw.
+const VALID_INTENTS = ["usage", "general", "schedule_query", "schedule_create", "blocked", "unknown"];
+
+async function classifyIntentLLM(question, model) {
+  const result = await chat(
+    model,
+    [
+      { role: "system", content: CLASSIFY_RULES },
+      { role: "user", content: question },
+    ],
+    { temperature: 0.1, num_predict: 96 }
+  );
+  const raw = result.message?.content || "";
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error("classify-llm: JSON 추출 실패");
+  const parsed = JSON.parse(m[0]);
+  if (!VALID_INTENTS.includes(parsed.intent)) {
+    throw new Error(`classify-llm: invalid intent ${parsed.intent}`);
+  }
+  return {
+    intent: parsed.intent,
+    reason: typeof parsed.reason === "string" ? parsed.reason : "llm",
+  };
+}
+
+// 키워드 분류 + 위험 분기(blocked/unknown)일 때 LLM 검증.
+// 응답: { intent, reason?, subreason?, matched?, isTeamWorks, ... }
+//   - 위험 분기에서 LLM 이 다른 의도 반환 시 override + kwIntent 기록
+//   - LLM 동의 시 llmConfirmed:true
+//   - LLM 실패/timeout 시 llmError 기록 + 키워드 결과 fallback
 // `isTeamWorks` 는 backward-compat — `intent === 'usage'` 와 동치.
-// 'unknown' 은 route.ts 의 RAG 시도 + 거절형 fallback 으로 처리됨.
+const LLM_TIMEOUT_MS = 6000;
+
 app.post("/classify", async (req, res) => {
   const { question } = req.body ?? {};
   if (!question || typeof question !== "string") {
     return res.status(400).json({ error: "`question` (string) is required" });
   }
-  const result = classifyIntent(question);
-  return res.json({ ...result, isTeamWorks: result.intent === "usage" });
+  const kw = classifyIntent(question);
+
+  // fast-path — 명확한 분류는 키워드 결과 그대로
+  if (kw.intent !== "blocked" && kw.intent !== "unknown") {
+    return res.json({ ...kw, isTeamWorks: kw.intent === "usage" });
+  }
+
+  // 위험 분기 — LLM 검증
+  try {
+    const model = await resolveChatModel();
+    const llmPromise = classifyIntentLLM(question, model);
+    const timeoutPromise = new Promise((_, rej) =>
+      setTimeout(() => rej(new Error("llm-timeout")), LLM_TIMEOUT_MS)
+    );
+    const llm = await Promise.race([llmPromise, timeoutPromise]);
+
+    // LLM 이 다른 intent → override
+    if (llm.intent !== kw.intent) {
+      return res.json({
+        intent: llm.intent,
+        reason: "llm-override",
+        kwIntent: kw.intent,
+        llmReason: llm.reason,
+        isTeamWorks: llm.intent === "usage",
+      });
+    }
+    // LLM 동의 → 키워드 결과 유지
+    return res.json({
+      ...kw,
+      llmConfirmed: true,
+      isTeamWorks: kw.intent === "usage",
+    });
+  } catch (err) {
+    // LLM 실패/timeout → 키워드 결과로 fallback
+    return res.json({
+      ...kw,
+      llmError: String(err.message || err),
+      isTeamWorks: kw.intent === "usage",
+    });
+  }
 });
 
 // 일정 등록 자연어 → 인자 파싱.
