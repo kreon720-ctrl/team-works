@@ -691,7 +691,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 }
                 send({
                   type: 'token',
-                  text: `일정 등록 인자를 이해하지 못했어요. 좀 더 구체적으로 말씀해 주시겠어요?\n(예: "내일 오후 3시 1시간 동안 주간 회의 등록해줘")`,
+                  text: `좀 더 구체적으로 말씀해 주시겠어요?\n(예: "내일 오후 3시 주간 회의 등록해줘")`,
                 });
                 break;
               }
@@ -791,7 +791,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const parsed = await parseScheduleArgs(question);
         if (!parsed.ok) {
           return NextResponse.json({
-            answer: `일정 등록 인자를 이해하지 못했어요. 좀 더 구체적으로 말씀해 주시겠어요?`,
+            answer: `좀 더 구체적으로 말씀해 주시겠어요?\n(예: "내일 오후 3시 주간 회의 등록해줘")`,
             source: 'schedule',
             classification: cls,
             ...ragMeta,
