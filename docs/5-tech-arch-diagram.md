@@ -9,42 +9,46 @@
 | 1.2 | 2026-04-09 | 디렉토리 구조 개편 반영: 다이어그램 4, 5 경로를 frontend/ · backend/ 기준으로 갱신 |
 | 1.3 | 2026-04-20 | 앱명 Team CalTalk → TEAM WORKS 반영. 신규 기능(포스트잇/공지사항/업무보고 권한/프로젝트 관리) 전체 반영: 다이어그램 4(프론트엔드 컴포넌트·스토어·훅), 다이어그램 5(백엔드 Routes·Queries) 전면 갱신. 다이어그램 6(권한 흐름) 신규 추가 |
 | 1.4 | 2026-04-28 | 다이어그램 7(AI 비서 흐름 — RAG·Agent·MCP·Ollama, gemma4:26b) 신규 추가 |
+| 1.5 | 2026-04-29 | docs/4 v1.9 동기화 — Vercel 가정 폐기 → Docker Compose 단일 호스트 운영. 다이어그램 1 재작성(컨테이너 토폴로지). 다이어그램 4 갱신(ai-assistant/board 컴포넌트, useBoard/useProjectMessages 훅, boardApi/aiAssistantApi, types/board·ai, lib/sse). 다이어그램 5 갱신(board·files·project messages/notices 라우트, boardQueries, lib/files StorageAdapter, lib/ai 4-way 분기). 다이어그램 7 파일 경로 갱신(`backend/lib/ai/`). pg Pool max 5→10 |
 
 ---
 
-## 다이어그램 1 — 전체 시스템 아키텍처
+## 다이어그램 1 — 전체 시스템 아키텍처 (Docker Compose 단일 호스트)
 
 ```mermaid
 graph TB
-    Browser["브라우저\nReact 19 + TypeScript\nZustand / TanStack Query"]
+    Browser["브라우저\nReact 19 + TypeScript\nZustand 5 / TanStack Query 5"]
 
-    subgraph Vercel["Vercel (Serverless)"]
-        Next["Next.js API Routes\nJWT 검증 미들웨어\n역할·팀 권한 검증"]
+    subgraph Compose["Docker Compose 네트워크 (단일 호스트)"]
+        Nginx["nginx (운영)\n:80 / :443\nLet's Encrypt"]
+        Frontend["frontend 컨테이너\nNext.js 16 (Turbopack)\n:3000\nBFF: /api/ai-assistant/*"]
+        Backend["backend 컨테이너\nNext.js 16 API Routes\n:3001\nJWT · 팀권한 · StorageAdapter"]
+        Postgres[("postgres-db\nPostgreSQL 18\nvolume: postgres_data")]
+        Ollama[("ollama\n:11434\ngemma4:26b · nomic-embed-text\nvolume: ./ollama")]
+        RAG["rag 컨테이너\n:8787\n/classify · /retrieve\n/parse-schedule-*\nvolume: ./rag/vectorstore"]
+        SearxNG["searxng\n:8080\n메타검색 (general intent)"]
+        OpenWebUI["open-webui\n:8081\nOpenAI 호환 게이트웨이"]
+        Files[("호스트 ./files\n→ backend:/app/files\n자료실 첨부파일")]
     end
 
-    DB["PostgreSQL\n(Vercel Postgres / Neon)"]
+    Browser -- "HTTPS · Authorization: Bearer" --> Nginx
+    Nginx --> Frontend
+    Nginx --> Backend
+    Frontend -- "Server-side fetch\n(BFF for SSE)" --> Backend
+    Backend -- "SQL (pg Pool max:10)" --> Postgres
+    Backend -- "AI 호출\n(lib/ai/*)" --> Ollama
+    Backend -- "/retrieve\n/parse-schedule-*" --> RAG
+    Backend -- "검색 결과" --> SearxNG
+    Backend -- "OpenAI 호환" --> OpenWebUI
+    Backend -- "save · download · delete" --> Files
+    RAG -- "/api/embed · /api/chat" --> Ollama
+    OpenWebUI -- "/api/chat (stream)" --> Ollama
 
-    subgraph Local["AI 보조 (로컬 호스트 / 옵션)"]
-        RAG["RAG 서버 :8787\n(rag/)"]
-        Agent["Agent 서버 :8788\n(agent/, MCP)"]
-        Ollama[("Ollama :11434\ngemma4:26b\nnomic-embed-text")]
-    end
-
-    Browser -- "HTTPS REST API\n(Authorization: Bearer)" --> Next
-    Next -- "SQL (pg Pool)" --> DB
-    DB -- "결과 반환" --> Next
-    Next -- "JSON 응답" --> Browser
-
-    Browser -. "폴링 (refetchInterval 3초)\n채팅 메시지 갱신" .-> Next
-
-    Browser -. "AI 비서 (안내/실행)" .-> RAG
-    Browser -. "AI 비서 (실행)" .-> Agent
-    RAG -. "/api/embed, /api/chat" .-> Ollama
-    Agent -. "/api/chat (JSON schema)" .-> Ollama
-    Agent -. "팀·일정 도구 호출" .-> Next
+    Browser -. "폴링 refetchInterval 3초\n채팅·공지 갱신" .-> Backend
+    Browser -. "SSE 스트리밍\nAI 버틀러" .-> Frontend
 ```
 
-> AI 보조 영역은 별도 호스트의 옵션 컴포넌트. 자세한 흐름은 **다이어그램 7** 참고.
+> 모든 서비스 간 통신은 docker-compose 네트워크 명(`postgres-db`, `ollama`, `rag`, `searxng`, `open-webui`)으로 라우팅. 자세한 운영 절차는 `docs/19-deploy-guide.md` 참고. AI 흐름 상세는 **다이어그램 7**.
 
 ---
 
@@ -95,36 +99,47 @@ graph TB
     subgraph Pages["화면 (frontend/app/)"]
         Auth["(auth)\nlogin / signup"]
         Main["(main)\nteams/[teamId] / explore / me/tasks"]
-        TeamPage["teams/[teamId]/_components\nCalendarSection · PostitSection\nTeamPageHeader · MobileLayout"]
+        TeamPage["teams/[teamId]/_components\nCalendarSection · PostitSection\nTeamPageHeader · MobileLayout(teamName)"]
+        BFF["app/api/ai-assistant/\nchat/route.ts (SSE)\nexecute/route.ts"]
     end
 
     subgraph Components["컴포넌트 (frontend/components/)"]
         Schedule["schedule\nCalendarView · ScheduleForm\nPostItCard · PostItColorPalette\nScheduleTooltip"]
-        Chat["chat\nChatPanel · ChatMessageList\nChatInput · NoticeBanner\nWorkPermissionModal · useChatPanel"]
+        Chat["chat\nChatPanel(채팅/자료실 sub-tab)\nChatMessageList · ChatInput\nNoticeBanner(projectId 격리)\nWorkPermissionModal · useChatPanel"]
+        AIAsst["ai-assistant\nAIAssistantPanel\nAIAssistantMessageList\nConfirmCard(pending-action)\nAwaitingInputForm"]
+        Board["board (자료실)\nBoardPanel\nPostEditor\nPostDetail"]
         Project["project\nProjectGanttView · GanttChart\nGanttBar · SubBar\nProjectCreateModal\nProjectScheduleModal\nSubScheduleCreateModal"]
         Team["team\nTeamList · TeamExploreList\nJoinRequestActions"]
         Common["common\nButton · Modal · Input\nResizableSplit · ErrorBoundary"]
     end
 
     subgraph State["상태 관리"]
-        Zustand["Zustand (frontend/store/)\nauthStore · teamStore\nnoticeStore · projectStore\nprojectScheduleStore · subScheduleStore"]
-        TQ["TanStack Query (frontend/hooks/query/)\nuseSchedules · useMessages(폴링)\nuseTeams · useJoinRequests\nusePostits · useWorkPermissions\nuseMyTasks · useRemoveTeamMember\nuseUpdateProfile · useLeaderRole"]
+        Zustand["Zustand (frontend/store/)\nauthStore · teamStore\nnoticeStore (teamId, projectId? scopeKey)\nprojectStore\nprojectScheduleStore · subScheduleStore"]
+        TQ["TanStack Query (frontend/hooks/query/)\nuseSchedules\nuseMessages(팀 일자별, 폴링)\nuseProjectMessages(프로젝트별)\nuseBoard(['board', teamId, projectId??'__team__'])\nuseTeams · useJoinRequests\nusePostits · useWorkPermissions\nuseMyTasks · useRemoveTeamMember\nuseUpdateProfile · useLeaderRole"]
     end
 
     subgraph Lib["라이브러리 (frontend/lib/)"]
         ApiClient["apiClient.ts\nfetch 래퍼 + Authorization 헤더"]
         Interceptor["authInterceptor.ts\n401 시 자동 토큰 갱신"]
         TokenMgr["tokenManager.ts\nAccess/Refresh 인메모리 관리"]
-        DomainApi["api/\nnoticeApi · projectApi"]
+        DomainApi["api/\nnoticeApi(projectId 옵션)\nprojectApi · boardApi(multipart)\naiAssistantApi(SSE)"]
+        SSE["sse/streamReader.ts\nSSE 라인 파서\n(token · awaiting-input ·\n pending-action · done)"]
+    end
+
+    subgraph Types["타입 (frontend/types/)"]
+        TT["auth · team · schedule\nchat (NORMAL · WORK_PERFORMANCE)\npostit · project\nboard · ai (AssistantStreamEvent)"]
     end
 
     Pages --> Components
+    BFF -- "SSE 프록시" --> DomainApi
     Components --> Zustand
     Components --> TQ
     TQ --> ApiClient
     ApiClient --> Interceptor
     Interceptor --> TokenMgr
     DomainApi --> ApiClient
+    DomainApi --> SSE
+    Components --> Types
 ```
 
 ---
@@ -138,10 +153,14 @@ graph TB
         TeamR["/teams\nCRUD · join-requests · public\nmembers(강퇴)"]
         SchedR["/teams/teamId/schedules\nCRUD"]
         PostitR["/teams/teamId/postits\nCRUD"]
-        ChatR["/teams/teamId/messages\nGET · POST"]
-        NoticeR["/teams/teamId/notices\nGET · POST · DELETE"]
+        ChatR["/teams/teamId/messages\n(팀 일자별)\nGET · POST"]
+        NoticeR["/teams/teamId/notices\n(팀 일자별)\nGET · POST · DELETE"]
+        BoardR["/teams/teamId/board\n?projectId= 분기\nGET · POST(multipart)\nPATCH(작성자) · DELETE(작성자)"]
+        FileR["/files/[fileId]\nLocal: stream · S3: 302\n팀 멤버십 검증"]
         WorkPermR["/teams/teamId/work-permissions\nGET · PATCH"]
         ProjectR["/teams/teamId/projects\nCRUD"]
+        PMsgR["/projects/projectId/messages\n(프로젝트별 격리)"]
+        PNotR["/projects/projectId/notices\n(프로젝트별 격리)"]
         PSR["/projects/projectId/schedules\nCRUD"]
         SubR["/schedules/scheduleId/sub-schedules\nCRUD"]
         TasksR["/me/tasks\nGET"]
@@ -156,15 +175,36 @@ graph TB
         UQ["userQueries"]
         TMQ["teamQueries · joinRequestQueries"]
         SQ["scheduleQueries"]
-        CQ["chatQueries\n(KST 날짜 그룹핑)"]
+        CQ["chatQueries\n(KST + projectId? 격리)"]
         PsQ["postitQueries"]
-        NQ["noticeQueries"]
+        NQ["noticeQueries\n(projectId? 격리)"]
+        BQ["boardQueries\nposts + attachments"]
         WPQ["permissionQueries"]
         PrQ["projectQueries\nprojectScheduleQueries\nsubScheduleQueries"]
     end
 
-    Pool["pg Pool\n글로벌 싱글턴\n(backend/lib/db/pool.ts, max: 5)"]
-    DB["PostgreSQL\n(database/schema.sql)"]
+    subgraph Files["lib/files (StorageAdapter)"]
+        Storage["storage.ts\nStorageAdapter 인터페이스\ncreateStorageAdapter()\n(STORAGE_BACKEND env)"]
+        Local["localStorage.ts\nhost ./files mount\nUUID 파일명"]
+        S3["s3Storage.ts\n운영 전환 시 구현\n(presigned URL)"]
+        Validate["validate.ts\nMIME 화이트리스트\nmagic-bytes\n10MB cap"]
+    end
+
+    subgraph AI["lib/ai (AI 버틀러)"]
+        Intent["intentClassifier.ts\nusage / general\nschedule_query/_create\nblocked"]
+        OllamaC["ollamaClient.ts\ngemma4:26b\nnum_ctx 32K · think:false"]
+        RAGC["ragClient.ts → :8787"]
+        SearC["searxngClient.ts → :8080"]
+        AIPg["pgClient.ts\nREAD-ONLY 가드\nscheduleQueries.ts"]
+        SSEW["sseStream.ts\ntoken · awaiting-input\npending-action · done"]
+    end
+
+    Pool["pg Pool\n글로벌 싱글턴\n(backend/lib/db/pool.ts, max: 10)"]
+    DB["PostgreSQL 18\n(postgres-db 컨테이너)"]
+    HostFiles[("호스트 ./files\n(volume mount)")]
+    OllamaSvc[("ollama 컨테이너\n:11434")]
+    RAGSvc[("rag 컨테이너 :8787")]
+    SearXSvc[("searxng 컨테이너 :8080")]
 
     Routes --> WithAuth --> WithRole
     WithRole --> Queries
@@ -174,12 +214,34 @@ graph TB
     PostitR --> PsQ
     ChatR --> CQ
     NoticeR --> NQ
+    BoardR --> BQ
+    BoardR --> Files
+    FileR --> BQ
+    FileR --> Files
     WorkPermR --> WPQ
     ProjectR --> PrQ
+    PMsgR --> CQ
+    PNotR --> NQ
     PSR --> PrQ
     SubR --> PrQ
     TasksR --> TMQ
     Queries --> Pool --> DB
+
+    Storage --> Local
+    Storage --> S3
+    Local --> HostFiles
+    Files --> Validate
+
+    Routes -. "frontend BFF /api/ai-assistant/* 가\n호출" .-> AI
+    Intent --> OllamaC
+    Intent --> RAGC
+    Intent --> SearC
+    Intent --> AIPg
+    AIPg --> Pool
+    OllamaC --> OllamaSvc
+    RAGC --> RAGSvc
+    SearC --> SearXSvc
+    AI --> SSEW
 ```
 
 ---
@@ -247,15 +309,20 @@ flowchart LR
 - **단일 진입점** — 모드 토글 없이 사용자 자연어를 RAG `/classify` 가 4-way 로 분류 (`usage` / `general` / `schedule_query` / `schedule_create` / `blocked`). 자세한 설계는 `docs/16-mcp-server-plan.md`.
 - **사용법(`usage`)** — `ollama/*.md` 공식 문서를 RAG 로 검색해 답변. 인증 불필요.
 - **일반 질문(`general`)** — frontend 가 SearxNG 직접 호출해 결과를 system prompt 에 inline 주입, Open WebUI 모델이 답변 생성 (web_search 비활성).
-- **일정 조회·등록(`schedule_query`/`schedule_create`)** — `frontend/lib/mcp/scheduleQueries.ts` 가 백엔드의 기존 `/api/teams/:teamId/schedules` API 호출 (Bearer 토큰 필수, 미들웨어가 권한 검증). 등록은 `pending-action` SSE 이벤트로 confirm 카드, 정보 부족 시 `awaiting-input` 으로 다중 턴.
+- **일정 조회·등록(`schedule_query`/`schedule_create`)** — `backend/lib/ai/scheduleQueries.ts` 가 자연어를 일정 조회/등록 SQL 로 매핑하고, `backend/lib/ai/pgClient.ts` 의 READ-ONLY 가드를 거쳐 실행. frontend BFF(`frontend/app/api/ai-assistant/chat/route.ts`)는 SSE 스트림 프록시 역할만 수행 (Bearer 토큰 필수, withAuth/withTeamRole 미들웨어가 권한 검증). 등록은 `pending-action` SSE 이벤트로 confirm 카드 → 사용자 승인 시 `/api/ai-assistant/execute` 가 실제 INSERT, 정보 부족 시 `awaiting-input` 으로 다중 턴.
 - **거절(`blocked`)** — 일정 수정/삭제·프로젝트·채팅 요청은 정중한 안내 (찰떡이는 일정 조회·등록만).
 - **호출 옵션** — `rag/ollamaClient.js` 의 `DEFAULT_CHAT_OPTIONS = { num_ctx: 32768, num_predict: 1024 }` + `think: false` (gemma4:26b thinking-mode 비활성).
 - **인덱스 산출물** — `rag/data/chunks.json` 은 `rag/index.js` 가 1회 생성. `ollama/*.md` 가 변경되면 재인덱싱 후 RAG 서버 재기동 필요(`docs/13-RAG-pipeline-guide.md §6.3·§6.4`).
 
 ---
 
-## Vercel 제약 요약
+## 배포 환경 — Docker Compose 단일 호스트
 
-- WebSocket / SSE 미지원 — 채팅은 TanStack Query `refetchInterval: 3000` 폴링으로 대체
-- Serverless Function 실행 시간 기본 10초 제한 — 복잡한 집계 쿼리 금지, 인덱스 필수
-- 로컬 파일 쓰기 불가, DB 연결은 pg Pool 글로벌 싱글턴(max: 5)으로 과부하 방지
+`docker-compose.yml` 단일 파일로 모든 서비스 컨테이너화 — **postgres-db / backend / frontend / nginx / ollama / rag / searxng / open-webui**. Vercel 가정은 폐기됨 (docs/4 v1.9 갱신).
+
+- **채팅 갱신** — TanStack Query `refetchInterval: 3000` 폴링. AI 버틀러는 SSE 스트리밍 (long-lived 연결 가능)
+- **요청 시간 제약** — 없음. nginx `proxy_read_timeout 600s` 로 AI 추론 long-tail 흡수
+- **파일 시스템 쓰기** — 자료실 첨부파일은 호스트 `./files:/app/files` mount. 운영 클라우드 전환 시 `STORAGE_BACKEND=s3` 토글만으로 swap (`docs/18-board-guide.md` §6, 호출처 코드 0건 변경)
+- **DB 연결** — pg Pool 글로벌 싱글턴(max: 10). 컨테이너 네트워크 안에서 `postgres-db:5432` 직결. 멀티 backend 인스턴스 시 PgBouncer 권장
+- **AI 인프라** — Ollama 모델 캐시는 `./ollama:/root/.ollama` 호스트 mount 로 영속화. RAG vectorstore 는 `./rag/vectorstore` 에 저장. 첫 부팅 시 `ollama pull gemma4:26b` + `ollama pull nomic-embed-text` 자동 실행
+- **운영 절차 / GPU 사양 / 백업 정책** — `docs/19-deploy-guide.md` 참고

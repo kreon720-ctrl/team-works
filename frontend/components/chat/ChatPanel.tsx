@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useMessages } from '@/hooks/query/useMessages';
+import { useProjectMessages } from '@/hooks/query/useProjectMessages';
 import { useTeamDetail } from '@/hooks/query/useTeams';
 import { useWorkPermissions } from '@/hooks/query/useWorkPermissions';
 import { useNoticeStore } from '@/store/noticeStore';
@@ -10,20 +11,30 @@ import { ChatInput } from './ChatInput';
 import { WorkPermissionModal } from './WorkPermissionModal';
 import { NoticeBanner } from './NoticeBanner';
 import { useChatPanel } from './useChatPanel';
+import { BoardPanel } from '@/components/board/BoardPanel';
 import type { TeamMember } from '@/types/team';
 
 interface ChatPanelProps {
   teamId: string;
+  // 팀 일자별 채팅이면 date, 프로젝트 전용 채팅이면 projectId.
   date?: string;
+  projectId?: string;
   isLeader?: boolean;
 }
 
-export function ChatPanel({ teamId, date, isLeader = false }: ChatPanelProps) {
-  const { data, isLoading, isError } = useMessages(teamId, date);
+export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPanelProps) {
+  // sub-tab — 채팅(기본) / 자료실. 채팅방마다 독립 — 컨텍스트 전환 시 'chat' 으로 리셋되도록 key 외부에서 줌.
+  const [subTab, setSubTab] = useState<'chat' | 'board'>('chat');
+
+  // 두 hook 모두 호출(Hooks 규칙) — projectId 유무로 어느 쪽 결과를 쓸지만 분기.
+  const teamQuery = useMessages(teamId, projectId ? undefined : date);
+  const projectQuery = useProjectMessages(teamId, projectId ?? '');
+  const { data, isLoading, isError } = projectId ? projectQuery : teamQuery;
+
   const { data: teamDetail } = useTeamDetail(isLeader ? teamId : '');
   const { data: permData } = useWorkPermissions(teamId);
   const noticeStore = useNoticeStore();
-  const notices = noticeStore.getTeamNotices(teamId);
+  const notices = noticeStore.getTeamNotices(teamId, projectId);
 
   const members: TeamMember[] = teamDetail?.members ?? [];
   const serverPermittedIds: string[] = permData?.permittedUserIds ?? [];
@@ -39,7 +50,7 @@ export function ChatPanel({ teamId, date, isLeader = false }: ChatPanelProps) {
     handleCloseModal,
     handleSend,
     handleDeleteNotice,
-  } = useChatPanel({ teamId, date, members, serverPermittedIds });
+  } = useChatPanel({ teamId, projectId, date, members, serverPermittedIds });
 
   const messages = data?.messages || [];
 
@@ -69,12 +80,66 @@ export function ChatPanel({ teamId, date, isLeader = false }: ChatPanelProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* 고정 공지사항 배너 */}
-      <NoticeBanner
-        notices={notices}
-        canDelete={canDeleteNotice}
-        onDelete={handleDeleteNotice}
-      />
+      {/* sub-tab — 채팅 / 자료실 */}
+      <div className="flex border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
+        <button
+          type="button"
+          onClick={() => setSubTab('chat')}
+          className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors duration-150 ${
+            subTab === 'chat'
+              ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
+              : 'text-gray-500 border-transparent hover:text-gray-700 dark:text-dark-text-muted dark:hover:text-dark-text'
+          }`}
+        >
+          채팅
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab('board')}
+          className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors duration-150 ${
+            subTab === 'board'
+              ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
+              : 'text-gray-500 border-transparent hover:text-gray-700 dark:text-dark-text-muted dark:hover:text-dark-text'
+          }`}
+        >
+          자료실
+        </button>
+      </div>
+
+      {/*
+        ChatBody 는 JSX 태그(<ChatBody />) 가 아닌 일반 함수 호출({ChatBody()}) 로 렌더.
+        부모 함수 내부에 정의된 컴포넌트는 매 렌더마다 새 함수 참조가 되어
+        React 가 별개 컴포넌트로 인식 → unmount/mount 반복 → 입력창 포커스 손실.
+      */}
+      {subTab === 'board' ? (
+        <BoardPanel teamId={teamId} projectId={projectId} />
+      ) : (
+        ChatBody()
+      )}
+
+      {/* 업무보고 보기 권한부여 팝업 */}
+      {showModal && (
+        <WorkPermissionModal
+          members={members}
+          draftIds={draftIds}
+          isSaving={setPermissions.isPending}
+          onToggle={toggleDraft}
+          onClose={handleCloseModal}
+        />
+      )}
+    </div>
+  );
+
+  // 채팅 본체 — sub-tab 'chat' 활성 시 렌더. NoticeBanner / 메시지 목록 / 입력창 / 폴링 표시.
+  function ChatBody() {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* 고정 공지사항 배너 */}
+        <NoticeBanner
+          notices={notices}
+          canDelete={canDeleteNotice}
+          onDelete={handleDeleteNotice}
+        />
 
       {/* 메시지 목록 */}
       <div className="flex-1 overflow-y-auto px-4 py-2">
@@ -111,23 +176,13 @@ export function ChatPanel({ teamId, date, isLeader = false }: ChatPanelProps) {
         maxContentLength={2000}
       />
 
-      {/* Polling indicator */}
-      <div className="px-4 py-2 bg-gray-50 dark:bg-dark-base border-t border-gray-200 dark:border-dark-border">
-        <p className="text-xs text-gray-400 dark:text-dark-text-disabled text-center">
-          * 3초마다 자동 갱신
-        </p>
+        {/* Polling indicator */}
+        <div className="px-4 py-2 bg-gray-50 dark:bg-dark-base border-t border-gray-200 dark:border-dark-border">
+          <p className="text-xs text-gray-400 dark:text-dark-text-disabled text-center">
+            * 3초마다 자동 갱신
+          </p>
+        </div>
       </div>
-
-      {/* 업무보고 보기 권한부여 팝업 */}
-      {showModal && (
-        <WorkPermissionModal
-          members={members}
-          draftIds={draftIds}
-          isSaving={setPermissions.isPending}
-          onToggle={toggleDraft}
-          onClose={handleCloseModal}
-        />
-      )}
-    </div>
-  );
+    );
+  }
 }

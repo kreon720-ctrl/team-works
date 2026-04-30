@@ -65,3 +65,8 @@ coverage/
 
 # Playwright MCP logs
 .playwright-mcp/
+
+# 자료실 첨부파일 — 운영 환경에선 클라우드 스토리지로 이전 예정.
+# board_attachments 테이블의 stored_name 으로 식별, 디스크 파일은 git 추적 제외.
+files/
+!files/.gitkeep

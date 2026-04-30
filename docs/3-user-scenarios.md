@@ -10,6 +10,7 @@
 | 1.3 | 2026-04-18 | 앱명 Team CalTalk → TEAM WORKS 반영. SCHEDULE_REQUEST → WORK_PERFORMANCE 변경 |
 | 1.4 | 2026-04-20 | 포스트잇(SC-10), 업무보고 조회 권한(SC-11), 프로젝트 관리(SC-12~SC-14), 공지사항(SC-15), 권한 기반 가시성 통합 검증(SC-16) 추가. 테스트 페르소나 5명 이상으로 확장. SC-03·SC-05·SC-06 일정 권한 오류 수정(LEADER 전용→생성자 본인) |
 | 1.5 | 2026-04-28 | 백엔드 구현 일치화: SC-17(팀 정보 수정·삭제), SC-18(팀원 강제 탈퇴), SC-19(내 프로필 수정) 추가. 부록 API 엔드포인트 요약 갱신 |
+| 1.6 | 2026-04-29 | docs/1 v2.0·docs/2 v1.6 동기화: SC-20(프로젝트 채팅), SC-21(프로젝트 공지), SC-22(자료실 + 첨부파일), SC-23~27(AI 버틀러 5종) 추가. SC-01에 토큰 갱신 분기, SC-02C에 `/api/me/tasks` 명시. 테스트 팀에 프로젝트 정보 추가, 시나리오 목록 26→27개로 확장 |
 
 ---
 
@@ -32,6 +33,13 @@
 | PF | 한소율 | MEMBER | 미허용 | 모바일 |
 
 > 팀 설정: 업무보고 열람 권한 허용 목록 = [이서연, 최유나]. 나머지 MEMBER(박지호·정도현·한소율)는 업무보고 열람 불가.
+
+**팀 내 프로젝트** (SC-20~22 컨텍스트 격리 검증용):
+
+| 프로젝트 ID | 이름 | 작성자 | 시나리오 |
+|---|---|---|---|
+| PROJ-A | 신규 대시보드 개발 | PA | SC-20 채팅 격리, SC-21 공지 격리, SC-22 자료실 격리 |
+| PROJ-B | 온보딩 흐름 개선 | PB | 다른 프로젝트 비교용 |
 
 ### 시나리오 목록
 
@@ -58,6 +66,14 @@
 | SC-17 | 팀 정보 수정·삭제 (LEADER 전용) | PA / PB | UC-14 |
 | SC-18 | 팀원 강제 탈퇴 (LEADER 전용, 본인 제외) | PA / PB / PF | UC-15 |
 | SC-19 | 내 프로필(이름) 수정 | PA~PF 공통 | UC-16 |
+| SC-20 | 프로젝트 전용 채팅 메시지 송수신 + 컨텍스트 격리 | PA / PB / PC | UC-17 |
+| SC-21 | 프로젝트 전용 공지사항 작성·삭제 + 격리 | PA / PB | UC-18 |
+| SC-22 | 자료실 글 작성·수정·삭제 + 첨부파일 다운로드 | PA / PB / PC | UC-19, UC-20 |
+| SC-23 | AI 버틀러 — 사용법 질문 (RAG 답변) | PA~PF 공통 | UC-21 |
+| SC-24 | AI 버틀러 — 일반 질문 (웹 검색 답변) | PA~PF 공통 | UC-22 |
+| SC-25 | AI 버틀러 — 일정 조회 (자연어 → 코드 포맷) | PA~PF 공통 | UC-23 |
+| SC-26 | AI 버틀러 — 일정 등록 (confirm + 다중 턴) | PA~PF 공통 | UC-24 |
+| SC-27 | AI 버틀러 — 거절 안내 (지원 외 의도) | PA~PF 공통 | UC-25 |
 
 ---
 
@@ -85,13 +101,24 @@
 | 1 | `/login` 페이지에 접속한다 | 로그인 폼(이메일, 비밀번호) 렌더링 | — |
 | 2 | 이메일과 비밀번호를 입력하고 [로그인] 버튼을 클릭한다 | 클라이언트 측 입력 유효성 검증 수행 | — |
 | 3 | — | `POST /api/auth/login` 요청 전송 (body: email, password) | `POST /api/auth/login` |
-| 4 | — | 서버가 이메일 조회 후 bcrypt 비밀번호 비교. 일치 시 Access Token + Refresh Token 발급 | — |
+| 4 | — | 서버가 이메일 조회 후 bcrypt 비밀번호 비교. 일치 시 Access Token(15분) + Refresh Token(7일) 발급 | — |
 | 5 | — | 응답 200 OK. 토큰 저장 | — |
 | 6 | — | `/` (팀 목록 화면)으로 자동 리다이렉트 | — |
+
+### 단계별 흐름 — Access Token 갱신 (자동, 백그라운드)
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | (15분 사용 후) 임의의 API 호출 | Access 만료 → 401 응답 받음 | — |
+| 2 | (자동) | 클라이언트 인터셉터가 `POST /api/auth/refresh` 요청 (body: refreshToken) | `POST /api/auth/refresh` |
+| 3 | — | 서버가 Refresh 검증 후 새 Access 발급 (200 OK) | — |
+| 4 | — | 원래 요청을 새 Access 로 재시도 | — |
+| 5 | (Refresh 도 만료) | 401 → 클라이언트가 토큰 모두 폐기 + `/login` 리다이렉트 | — |
 
 ### 결과
 - 인증 토큰이 클라이언트에 저장되며, 이후 모든 API 요청에 Authorization 헤더로 포함된다
 - 사용자는 팀 목록 화면(S-03)에서 서비스를 시작할 수 있다
+- Access 만료(15분) 시 자동 갱신되어 사용자 체감 끊김 없음. Refresh 만료(7일) 시 재로그인
 
 ### 예외 처리
 
@@ -768,6 +795,282 @@
 
 ---
 
+## SC-20 프로젝트 전용 채팅 메시지 송수신 + 컨텍스트 격리
+
+- **페르소나**: PA (LEADER) / PB / PC (MEMBER)
+- **목표**: 프로젝트 갠트뷰에서 우측 채팅 영역이 자동으로 그 프로젝트 채팅으로 전환되며, 일자별 채팅·다른 프로젝트 채팅과 메시지가 격리됨을 확인한다
+- **전제조건**: 팀에 PROJ-A·PROJ-B 두 프로젝트 존재. 모두 로그인 상태
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | PA가 좌측 캘린더의 [프로젝트 관리] 클릭 → PROJ-A 선택 | 좌측 갠트차트 노출. 우측 탭 라벨이 "팀채팅" → "**[신규 대시보드 개발] 채팅**" 으로 자동 변경 | — |
+| 2 | PA가 메시지 "API 스펙 5/15 확정" 입력 후 전송 | `POST /api/teams/[teamId]/projects/PROJ-A/messages` (body: content) | `POST /api/teams/[teamId]/projects/[projectId]/messages` |
+| 3 | — | 201 Created, `chat_messages.project_id = PROJ-A` 로 INSERT | — |
+| 4 | PB가 같은 PROJ-A 채팅방 진입 (3초 폴링) | `GET /api/teams/[teamId]/projects/PROJ-A/messages` | `GET /api/teams/[teamId]/projects/[projectId]/messages` |
+| 5 | — | PA의 메시지 표시 ✓ | — |
+| 6 | PC가 좌측 view 를 [월간]으로 전환 | 우측 탭 라벨이 "팀채팅" 으로 자동 복귀. 일자별 채팅 메시지만 표시 | — |
+| 7 | PC가 일자별 채팅 조회 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` 호출 — `WHERE project_id IS NULL` 필터로 SC-20 의 PROJ-A 메시지는 **안 보임** ✓ | `GET /api/teams/[teamId]/messages` |
+| 8 | PB가 PROJ-B 로 전환 | 빈 채팅방 (PROJ-B 메시지만, PROJ-A 와 격리) ✓ | — |
+
+### 결과
+- 같은 팀 안에 일자별 채팅·PROJ-A 채팅·PROJ-B 채팅 셋이 격리되어 보관됨
+- 좌측 view 가 project 일 때만 해당 프로젝트 채팅이 활성, 그 외엔 일자별 채팅
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| 다른 팀의 projectId 로 메시지 전송 시도 | 404 Not Found — "프로젝트를 찾을 수 없습니다." |
+| 팀에 속하지 않은 사용자가 프로젝트 채팅 조회 | 403 Forbidden (`withTeamRole` 미들웨어) |
+
+---
+
+## SC-21 프로젝트 전용 공지사항 작성·삭제 + 격리
+
+- **페르소나**: PA (LEADER) / PB (MEMBER, 본인 작성)
+- **목표**: 프로젝트별 공지사항이 그 프로젝트 채팅방에서만 노출되며, 작성자 또는 팀장만 삭제 가능함을 확인한다
+- **전제조건**: PROJ-A 활성 채팅방
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | PB가 PROJ-A 채팅방에서 공지 "5/15 API 스펙 확정 회의" 작성 | `POST /api/teams/[teamId]/projects/PROJ-A/notices` (body: content) | `POST /api/teams/[teamId]/projects/[projectId]/notices` |
+| 2 | — | 201 Created, `notices.project_id = PROJ-A`, 채팅 상단 NoticeBanner 에 고정 표시 | — |
+| 3 | PA가 PROJ-B 로 전환 | PB의 PROJ-A 공지가 **안 보임** ✓ (격리) | — |
+| 4 | PA가 일자별 채팅으로 복귀 | PROJ-A 공지가 **안 보임** ✓ (project_id IS NULL 필터) | — |
+| 5 | PB가 본인 공지의 [✕] 클릭 | `DELETE /api/teams/[teamId]/notices/[noticeId]` 호출 | `DELETE /api/teams/[teamId]/notices/[noticeId]` |
+| 6 | — | 200 OK, 배너에서 사라짐 | — |
+
+### 결과
+- 프로젝트별 공지가 격리되어 다른 채팅방에 노출되지 않음
+- 작성자 본인 또는 팀장만 삭제 가능 (BR-10)
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| PC(작성자도 팀장도 아닌 MEMBER)가 PB의 공지 삭제 시도 | 403 Forbidden — "작성자 또는 팀장만 삭제 가능" |
+
+---
+
+## SC-22 자료실 글 작성·수정·삭제 + 첨부파일 다운로드
+
+- **페르소나**: PA (LEADER, 글 작성·삭제) / PB (다른 사용자, 다운로드만 가능) / PC (회귀 검증)
+- **목표**: 채팅방 sub-탭 "자료실" 에서 글 + 첨부파일을 등록하고, 작성자 본인만 수정·삭제 가능하며, 같은 팀 멤버는 첨부 다운로드 가능함을 확인한다
+- **전제조건**: 우측 채팅 영역의 "채팅 / 자료실" sub-탭 활성
+
+### 단계별 흐름 — 글 작성 + 첨부
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | PA가 우측 [자료실] sub-탭 클릭 → [+ 글쓰기] | PostEditor 렌더 (제목·본문·첨부 input) | — |
+| 2 | 제목 "Q2 OKR 초안", 본문 입력, `okr-q2.pdf` 파일(2MB) 선택 | 클라이언트 size 검증 (≤10MB 통과) | — |
+| 3 | [등록] 클릭 | `POST /api/teams/[teamId]/board` (multipart: title, content, file) | `POST /api/teams/[teamId]/board` |
+| 4 | — | backend `validateUpload()`: MIME 화이트리스트 통과 + magic bytes(`%PDF`) 일치 ✓ | — |
+| 5 | — | `LocalStorageAdapter.save()` → UUID 파일명으로 `files/<uuid>.pdf` 저장 | — |
+| 6 | — | 트랜잭션: BoardPost INSERT + BoardAttachment INSERT (`stored_name`, `size_bytes`) | — |
+| 7 | — | 201 Created, 자료실 목록에 글 추가 (📎 1) | — |
+
+### 단계별 흐름 — 다운로드 (다른 사용자)
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | PB가 PA의 글 클릭 → 첨부파일 [okr-q2.pdf] 클릭 | `GET /api/files/[fileId]` 요청 | `GET /api/files/[fileId]` |
+| 2 | — | backend: attachment → post → team_id 조인. PB가 같은 팀 멤버 검증 ✓ | — |
+| 3 | — | `Content-Disposition: attachment; filename*=UTF-8''okr-q2.pdf` + `X-Content-Type-Options: nosniff` 헤더로 stream 응답 | — |
+| 4 | — | 브라우저가 inline 렌더 안 하고 다운로드 처리 | — |
+
+### 단계별 흐름 — 작성자만 수정·삭제
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | PB가 PA의 글 상세 보기 | [수정]·[삭제] 버튼 **미노출** (작성자 본인 아님) | — |
+| 2 | PA가 본인 글 상세 → [수정] | PostEditor (기존 값 pre-fill) | — |
+| 3 | PA가 새 파일 `okr-q2-v2.pdf` 첨부 후 저장 | `PATCH /api/teams/[teamId]/board/[postId]` (multipart) | — |
+| 4 | — | 기존 첨부 unlink + 신규 저장 + DB row 갱신 | — |
+| 5 | PA가 [삭제] | `DELETE /api/teams/[teamId]/board/[postId]` | — |
+| 6 | — | BoardPost 행 + CASCADE 로 BoardAttachment 행 삭제 + 디스크 파일 unlink | — |
+
+### 결과
+- BoardPost·BoardAttachment row 와 디스크 파일이 일관되게 관리
+- 같은 팀 멤버 누구나 다운로드 가능, 다른 팀 멤버는 403
+- 작성자 본인만 수정·삭제 (BR-13)
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| 11MB 파일 업로드 시도 | 413 Payload Too Large — "파일 크기는 최대 10MB" |
+| 확장자만 `.png` 인 실행파일(magic bytes 미스매치) | 415 Unsupported Media Type — "파일 헤더가 인식되지 않습니다" |
+| SVG 파일 업로드 | 415 — 화이트리스트 외 |
+| PB가 PA 글 PATCH/DELETE 시도 | 403 Forbidden — "본인이 작성한 글만 수정/삭제 가능" |
+| 다른 팀 사용자가 `/api/files/[fileId]` 호출 | 403 Forbidden (`withTeamRole`) |
+| DB row 는 있지만 디스크 객체 미존재 | 410 Gone — "디스크에서 파일을 찾을 수 없습니다" |
+
+---
+
+## SC-23 AI 버틀러 — 사용법 질문 (RAG 답변)
+
+- **페르소나**: PA~PF 공통
+- **목표**: AI 버틀러 탭에서 자연어 사용법 질문이 RAG 로 라우팅되어 공식 문서 기반 답변을 받는다
+- **전제조건**: RAG 서버(`:8787`) + Ollama gemma4:26b 가용
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | 우측 [AI 버틀러] 탭 클릭 | AIAssistantPanel 렌더, 환영 메시지 + 예시 질문 4개 | — |
+| 2 | "포스트잇 색깔 종류 알려줘" 입력 후 전송 | `POST /api/ai-assistant/chat` (body: question, teamId, stream:true) — JWT 헤더 포함 | `POST /api/ai-assistant/chat` |
+| 3 | — | RAG `/classify` → `intent: usage, matched: "포스트잇"` | — |
+| 4 | — | SSE `meta` 이벤트 (source: "rag") 즉시 송출 → "Thinking..." 표시 | — |
+| 5 | — | RAG `/chat` stream:true → Ollama → `sources` 5건(score) + `token` 점진 송출 | — |
+| 6 | — | 답변 카드에 "📚 TEAM WORKS 공식 문서 5건 참조" 출처 뱃지 표시 | — |
+
+### 결과
+- 첫 토큰 ~3~10초 안에 도착, 사용자 체감 즉시 응답 시작
+- "포스트잇은 amber/blue/emerald/indigo/rose 5색…" 같은 정확한 답변
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| RAG 답변이 거절형(예: "안내되어 있지 않습니다") | `fallback: rag-refused` → Open WebUI 일반 답변으로 전환 |
+| RAG 서버 다운 | 502 Bad Gateway — "AI 서버에 연결할 수 없습니다" |
+
+---
+
+## SC-24 AI 버틀러 — 일반 질문 (웹 검색 답변)
+
+- **페르소나**: PA~PF 공통
+- **목표**: 사용법·일정 외 일반 질문이 SearxNG + Open WebUI 로 라우팅된다
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | "오늘 뉴스 검색해줘" 입력 | `intent: general, matched: "뉴스"` 분류 | — |
+| 2 | — | SSE `meta` (source: "web") + SearxNG 5건 검색 (~2초) | — |
+| 3 | — | SSE `sources` 이벤트로 5건 URL 즉시 송출 (사용자 화면에 출처 먼저 표시) | — |
+| 4 | — | 검색 결과를 system prompt 에 inline 주입 후 Open WebUI gemma4:26b stream | — |
+| 5 | — | SSE `progress` ("🔎 검색 결과를 분석 중…") + `token` 점진 송출 | — |
+| 6 | — | 답변 카드에 "🌐 웹 검색 5건 참조" 뱃지 + 클릭 가능한 출처 링크 | — |
+
+### 결과
+- 검색 결과가 답변보다 먼저 표시되어 사용자가 신뢰성 즉시 판단 가능
+- 답변은 30~120초 (모델 생성 시간) — SSE 로 점진 표시
+
+---
+
+## SC-25 AI 버틀러 — 일정 조회 (자연어 → 코드 포맷)
+
+- **페르소나**: PA~PF 공통 (자기 팀 활성 컨텍스트)
+- **목표**: 자연어 일정 조회가 LLM 답변 본문 생성 없이 즉시 응답된다
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | "오늘 일정 알려줘" 입력 | `intent: schedule_query` 분류 | — |
+| 2 | — | RAG `/parse-schedule-query` 호출 → `{view:"day", date:"2026-04-29", keyword:""}` (LLM 1회) | — |
+| 3 | — | `getSchedules({teamId, jwt, view, date})` → backend `GET /api/teams/:teamId/schedules?view=day&date=2026-04-29` | `GET /api/teams/[teamId]/schedules` |
+| 4 | — | backend `withAuth`+`withTeamRole` 검증 후 SQL 실행, 일정 N건 반환 | — |
+| 5 | — | `formatSchedules()` 가 "기획팀 팀의 2026-04-29 일정 N건: • 4. 29. 10:00~12:00 디자인 리뷰…" 한국어 포맷 (코드, LLM 0회) | — |
+| 6 | — | SSE `token` 1회로 즉시 송출 ✓ | — |
+
+### 단계별 흐름 — 키워드 매치 + month 자동 확장
+
+| # | 사용자 행동 | 시스템 반응 |
+|---|------------|-------------|
+| 1 | "디자인 리뷰 일정 언제야?" 입력 | parser → `{view:"day", date:오늘, keyword:"디자인 리뷰"}` |
+| 2 | — | day 범위 매치 0건 → 자동으로 month 범위로 fallback 재조회 |
+| 3 | — | "기획팀 팀의 2026-04 '디자인 리뷰' 일정 1건: • 4. 29. 10:00 ~ 12:00 디자인 리뷰" 답변 |
+
+### 결과
+- 일정 조회는 LLM 답변 생성 없이 즉시 응답 (UX 측면에서 가장 빠른 경로)
+- keyword 가 좁은 범위에서 매치 안 되면 자동으로 더 넓은 범위로 확장
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| JWT 만료 | 401 → frontend 가 "로그인이 만료됐어요" 안내 |
+| teamId 미선택(활성 팀 없음) | 400 — "활성 팀이 없습니다. 팀을 먼저 선택해 주세요" |
+
+---
+
+## SC-26 AI 버틀러 — 일정 등록 (confirm + 다중 턴)
+
+- **페르소나**: PA~PF 공통
+- **목표**: 자연어 일정 등록이 사용자 명시 승인 후에만 INSERT 되며, 정보 부족 시 다중 턴 후속 질문으로 채워진다
+
+### 단계별 흐름 — 정보 충분
+
+| # | 사용자 행동 | 시스템 반응 | API |
+|---|------------|-------------|-----|
+| 1 | "내일 오후 3시 주간회의 등록해줘" 입력 | `intent: schedule_create` | — |
+| 2 | — | `/parse-schedule-args` → `{ok:true, args:{title:"주간회의", startAt:"2026-04-30T06:00:00.000Z", endAt:"...07:00:00.000Z"}}` (KST→UTC 변환) | — |
+| 3 | — | SSE `pending-action` 이벤트로 confirm 카드 데이터 송출 | — |
+| 4 | — | UI 에 "다음 내용으로 일정 등록할까요? • 제목: 주간회의 • 시작: 2026.4.30. PM 3:00 …" + [✓ 승인] [✗ 취소] 버튼 | — |
+| 5 | 사용자 [✓ 승인] 클릭 | `POST /api/ai-assistant/execute` (tool: createSchedule, args + teamId) | `POST /api/ai-assistant/execute` |
+| 6 | — | TOOL_WHITELIST 검증 → backend `POST /api/teams/:teamId/schedules` (created_by = JWT userId 강제) | — |
+| 7 | — | DB INSERT + React Query `invalidate(['schedules', teamId])` → 좌측 캘린더 자동 갱신 | — |
+
+### 단계별 흐름 — 정보 부족 (다중 턴)
+
+| # | 사용자 행동 | 시스템 반응 |
+|---|------------|-------------|
+| 1 | "내일 회의 등록해줘" (시간 미명시) | parser → `{ok:false, needs:"time", hint:"몇 시에 잡을까요?"}` |
+| 2 | — | SSE `token` (hint) + `awaiting-input` 이벤트. 메시지에 `awaitingInput: { previousQuestion: "내일 회의 등록해줘" }` 부착 |
+| 3 | UI: "몇 시에 잡을까요?" 표시 | — |
+| 4 | 사용자 "오후 3시" 입력 | `sendQuestion` 이 직전 awaitingInput 감지 → `effectiveQuestion = "내일 회의 등록해줘\n그리고 오후 3시"` 로 합쳐 재요청 |
+| 5 | — | parser → `{ok:true, args:{...}}` → confirm 카드 등장 (위 흐름 5~7 진행) |
+
+### 결과
+- 사용자 승인 전엔 DB 변경 0
+- 정보가 부족해도 자연스러운 후속 질문으로 채울 수 있음 (turn 누적)
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| 사용자 [✗ 취소] | execute 호출 안 됨, "실행을 취소했어요" 시스템 메시지 |
+| AI 가 args 의 created_by 를 다른 userId 로 위조 시도 | execute route 가 무시. backend 가 JWT userId 로 강제 |
+| AI 가 다른 도구(예: deleteSchedule) 호출 시도 | TOOL_WHITELIST 외 → 400 "지원하지 않는 도구" |
+
+---
+
+## SC-27 AI 버틀러 — 거절 안내 (지원 외 의도)
+
+- **페르소나**: PA~PF 공통
+- **목표**: 일정 수정·삭제 / 프로젝트·채팅·공지·포스트잇·자료실 등 다른 도메인 요청은 정중히 거절된다
+
+### 단계별 흐름
+
+| # | 사용자 행동 | 시스템 반응 |
+|---|------------|-------------|
+| 1 | "어제 회의 삭제해줘" 입력 | `intent: blocked, subreason: schedule_modify` 분류 |
+| 2 | — | SSE `meta` (source: "blocked") + `token` 1회 |
+| 3 | — | "찰떡이는 **일정 조회·등록** 만 도와드릴 수 있어요. 일정 수정·삭제는 캘린더에서 직접 처리해 주세요. 🙏" |
+| 4 | "프로젝트 일정 추가해줘" 입력 | `intent: blocked, subreason: other_domain, matched: "프로젝트"` |
+| 5 | — | "프로젝트·채팅·공지·포스트잇 같은 작업은 화면에서 직접 처리해 주세요" 안내 |
+| 6 | "프로젝트 등록하는 법 알려줘" 입력 (사용법 시그널 + 거절 키워드 동시 매치) | `intent: usage` (USAGE_KEYWORDS "하는 법" 우선 매칭) |
+| 7 | — | RAG 답변 — blocked 가 아닌 사용법 답변 ✓ |
+
+### 결과
+- 일정 수정·삭제·다른 도메인 요청은 즉시 거절 (LLM 호출 0, ms 단위 응답)
+- 사용법 질문(예: "프로젝트 등록하는 법") 은 USAGE_KEYWORDS 우선으로 RAG 답변 받음
+
+### 예외 처리
+
+| 케이스 | 시스템 반응 |
+|--------|-------------|
+| 키워드 매치 모호 (`unknown`) | RAG `/chat` 시도 후 거절형이면 Open WebUI fallback (안전망) |
+
+---
+
 ## 부록: API 엔드포인트 요약 (업데이트)
 
 | 시나리오 | 메서드 | 엔드포인트 | 설명 |
@@ -809,8 +1112,24 @@
 | SC-14 | POST | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules` | 세부 일정 생성 |
 | SC-14 | PATCH | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]` | 세부 일정 수정 |
 | SC-14 | DELETE | `/api/teams/[teamId]/projects/[projectId]/schedules/[scheduleId]/sub-schedules/[subId]` | 세부 일정 삭제 |
-| SC-15 | GET | `/api/teams/[teamId]/notices` | 공지사항 목록 조회 |
-| SC-15 | POST | `/api/teams/[teamId]/notices` | 공지사항 작성 |
-| SC-15 | DELETE | `/api/teams/[teamId]/notices/[noticeId]` | 공지사항 삭제 |
+| SC-15 | GET | `/api/teams/[teamId]/notices` | 팀 일자별 공지 목록 조회 (`project_id IS NULL`) |
+| SC-15 | POST | `/api/teams/[teamId]/notices` | 팀 일자별 공지 작성 |
+| SC-15, SC-21 | DELETE | `/api/teams/[teamId]/notices/[noticeId]` | 공지 삭제 (팀/프로젝트 공지 공용) |
+| SC-20 | GET | `/api/teams/[teamId]/projects/[projectId]/messages` | 프로젝트 전용 채팅 조회 |
+| SC-20 | POST | `/api/teams/[teamId]/projects/[projectId]/messages` | 프로젝트 전용 채팅 전송 |
+| SC-21 | GET | `/api/teams/[teamId]/projects/[projectId]/notices` | 프로젝트 전용 공지 조회 |
+| SC-21 | POST | `/api/teams/[teamId]/projects/[projectId]/notices` | 프로젝트 전용 공지 작성 |
+| SC-22 | GET | `/api/teams/[teamId]/board?projectId=` | 자료실 글 목록 (projectId 있으면 프로젝트, 없으면 팀) |
+| SC-22 | POST | `/api/teams/[teamId]/board` | 자료실 글 작성 (multipart, 첨부 1개 옵션) |
+| SC-22 | GET | `/api/teams/[teamId]/board/[postId]` | 자료실 글 상세 |
+| SC-22 | PATCH | `/api/teams/[teamId]/board/[postId]` | 자료실 글 수정 (작성자만, multipart) |
+| SC-22 | DELETE | `/api/teams/[teamId]/board/[postId]` | 자료실 글 삭제 (작성자만) |
+| SC-22 | GET | `/api/files/[fileId]` | 첨부파일 다운로드 (Local stream / S3 redirect 자동 분기) |
+| SC-23~27 | POST | `/api/ai-assistant/chat` | AI 어시스턴트 4-way 분기 SSE (frontend route) |
+| SC-26 | POST | `/api/ai-assistant/execute` | confirm 카드 ✓ 후 도구 실행 (createSchedule 화이트리스트) |
+| SC-23, SC-25, SC-27 | POST | (RAG `:8787`) `/classify` | 의도 분류기 — 키워드 매치 |
+| SC-25 | POST | (RAG `:8787`) `/parse-schedule-query` | 자연어 → view+date+keyword |
+| SC-26 | POST | (RAG `:8787`) `/parse-schedule-args` | 자연어 → 일정 등록 인자 (또는 후속 질문) |
+| SC-23 | POST | (RAG `:8787`) `/chat` | RAG 답변 stream (think:false) |
 
 ---

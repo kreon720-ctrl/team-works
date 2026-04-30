@@ -12,6 +12,9 @@
 | 1.5 | 2026-04-18 | Team에 description/isPublic 추가, BR-02/BR-04 실제 구현 반영, 앱명 통일 |
 | 1.6 | 2026-04-20 | Postit, WorkPerformancePermission, Project, ProjectSchedule, SubSchedule, Notice 엔티티 추가. 관련 역할/권한, 비즈니스 규칙, 유스케이스, CRUD 매핑 갱신 |
 | 1.7 | 2026-04-28 | 백엔드 구현 일치화: 팀 정보 수정/삭제, 팀원 강제 탈퇴, 내 프로필 수정 도메인화. BR-11·BR-12 추가, UC-14·UC-15·UC-16 추가, 역할/권한 표 및 CRUD 매핑 갱신 |
+| 1.8 | 2026-04-29 | 채팅방 컨텍스트 격리 + 자료실 도입: ChatMessage·Notice 에 `projectId` 추가(NULL=팀 일자별, NOT NULL=프로젝트 전용). BoardPost·BoardAttachment 엔티티 신규. V. 자료실 핵심 기능 추가. BR-13(자료실 권한)·BR-14(첨부파일 검증)·BR-15(채팅방 컨텍스트 격리) 추가, UC-17~20 추가, 역할/권한·CRUD 매핑 갱신. 운영 환경 — Vercel 가정 폐기, Docker Compose 단일 호스트 배포 명시 |
+| 1.9 | 2026-04-29 | AI 버틀러 "찰떡" 도메인 반영: VI. AI 버틀러 핵심 기능(4-way 자동 의도 분류 — 사용법/RAG · 일반/Open WebUI · 일정 조회·등록 · 거절 안내, 다중 턴 일정 등록) 추가. BR-16~20(의도 분류·confirm 카드·자유 SQL 금지·거절 정책·DB 접근 제약) 추가, UC-21~25 추가, 역할/권한·CRUD 매핑 갱신. 비기능에 AI 모델·SSE 스트리밍·AI 인프라 명시, 관련 문서 docs/13·14·15·16 링크 |
+| 2.0 | 2026-04-29 | 코드 ↔ 문서 일치성 점검 결과 반영: UC-01 수락 조건에 토큰 갱신(`/api/auth/refresh`) 분기 추가, UC-02C 수락 조건에 `GET /api/me/tasks` 명시, UC-20 표제에 endpoint 명시. §9 비기능에 JWT 만료 정책(Access 15분/Refresh 7일), frontend 핵심 라이브러리(TanStack Query·Zustand·Lucide React), Swagger UI(API 문서) 항목 추가 |
 
 ---
 
@@ -51,6 +54,28 @@
 - **업무보고**: 팀장에게 올리는 보고 메시지예요. 내 평가나 민감한 내용이 담길 수 있으니까, 기본은 팀장만 볼 수 있어요. 팀장이 "이건 다 같이 봐도 돼요"라고 허락한 사람만 추가로 볼 수 있습니다. 동료가 내 보고를 맘대로 훔쳐볼 수 없는 안전한 구조예요.
 - **공지사항**: "내일 오전 10시 전체 회의!" 같은 중요한 알림, 채팅 맨 위에 딱 고정돼요. 팀원 누구나 올릴 수 있고, 지우는 건 올린 본인이나 팀장만 가능합니다.
 
+**프로젝트 전용 채팅방**: 팀 전체가 보는 일자별 채팅과 별도로, 프로젝트마다 독립된 채팅방이 있어요. "신규 대시보드 개발" 프로젝트를 열면 그 프로젝트만의 채팅·공지가 따로 정리됩니다. 다른 프로젝트나 일자별 채팅엔 안 섞여요. 메시지·공지·자료실 모두 프로젝트 단위로 격리됩니다.
+
+#### V. 자료실 — "회의 자료, 보고서, 파일 공유 한 곳에서"
+채팅에 파일 올리면 며칠만 지나도 스크롤로 못 찾잖아요. 자료실은 채팅방마다 sub-탭으로 붙어 있어서, **글 제목 + 본문 + 첨부파일** 형태로 깔끔하게 정리할 수 있어요. 일자별 채팅방엔 팀 공통 자료실, 프로젝트 채팅방엔 그 프로젝트만의 자료실이 따로 있습니다.
+
+- **글 작성**: 팀원 누구나 가능. 제목·내용·첨부파일(이미지·PDF·docx 등 최대 10MB)을 한 번에 등록.
+- **수정·삭제**: 글 작성자 본인만. 다른 사람 글은 못 건드려요.
+- **첨부파일**: 1단계는 글당 1개 (다중 첨부는 후속 확장). 다운로드는 같은 팀 멤버만 가능.
+- **격리**: 채팅·공지와 동일하게 `(팀, 프로젝트)` 조합 별로 분리. 프로젝트 자료실 글이 일자별 자료실에 섞이지 않습니다.
+- **운영 전환**: 첨부파일은 1단계 로컬 디스크 저장, 운영 환경에선 클라우드 스토리지(S3 등)로 무중단 마이그레이션 가능 (호출처 코드 변경 0건).
+
+#### VI. AI 버틀러 "찰떡" — "이거 어떻게 해요? 부터 일정 등록까지, 한 입력창에서"
+"이 기능 어떻게 쓰는 거지?" 매뉴얼 찾아 헤매고, "오늘 회의 일정 알려줘" 캘린더 들춰보고, "내일 오후 3시 회의 등록" 버튼 여기저기 눌러본 적 있죠. 찰떡은 우측 채팅 영역의 sub-탭 하나에서 **모든 자연어 요청** 을 받아 의도를 자동으로 알아듣고 적절한 답을 줘요.
+
+- **사용법 질문 (`usage`)** — "포스트잇 색깔 종류 알려줘", "프로젝트 등록하는 법" — TEAM WORKS 공식 문서를 RAG(Retrieval-Augmented Generation) 로 검색해 정확한 답변. 답변 카드에 "📚 공식 문서 N건 참조" 출처 뱃지 표시.
+- **일반 질문 (`general`)** — "오늘 뉴스 검색해줘", "오늘 서울 날씨" — SearxNG 메타검색(Google/Bing/Naver/DuckDuckGo) 결과 5건을 모델 컨텍스트에 넣어 Open WebUI(gemma4:26b) 가 답변. "🌐 웹 검색 N건 참조" 뱃지.
+- **일정 조회 (`schedule_query`)** — "오늘 일정 알려줘", "이번 주 회의", "디자인 리뷰 언제야?" — 자연어를 view+date+keyword 로 변환 후 백엔드 일정 API 직접 조회. 코드가 한국어로 포맷 (LLM 답변 본문 생성 0회 → 즉시).
+- **일정 등록 (`schedule_create`)** — "내일 오후 3시 주간회의 등록해줘" — 자연어를 인자(title/startAt/endAt) 로 파싱 → **confirm 카드** 로 사용자에게 보여주고 ✓ 클릭해야 INSERT. 정보 부족 시 "몇 시에 잡을까요?" 같은 후속 질문으로 **다중 턴 대화**.
+- **거절 안내 (`blocked`)** — "어제 회의 삭제해줘", "프로젝트 등록해줘" 같이 일정 조회·등록 외 요청은 정중히 거절. "찰떡이는 일정 조회·등록만 도와드릴 수 있어요. 직접 처리해 주세요" 안내.
+
+답변은 SSE 스트리밍으로 첫 토큰부터 점진 표시(빈 카드 시간 최소화). 입력하기 전에 모드를 고를 필요가 없어 "내가 지금 무얼 묻는지" 신경 쓸 일 없습니다.
+
 ### 1-2. 핵심 장점
 
 #### "여러 앱 켜놓고 왔다갔다 하기, 이제 끝"
@@ -83,18 +108,40 @@
 ## 3. 핵심 도메인 (Bounded Context)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        TEAM WORKS                           │
-│                                                             │
-│  ┌─────────────┐   ┌──────────────┐    ┌──────────────┐    │
-│  │    Auth     │   │   Calendar   │    │     Chat     │    │
-│  │  (인증)     │──▶│   (일정)     │◀──▶│   (채팅)     │    │
-│  └─────────────┘   └──────┬───────┘    └──────┬───────┘    │
-│         │                 │ [ScheduleCreated]  │            │
-│         │                 └────────────────────┘            │
-│         └────────────────────────────────────────────────▶  │
-│                        Team (팀 관리)                        │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                              TEAM WORKS                                │
+│                                                                        │
+│  ┌─────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐             │
+│  │  Auth   │   │ Calendar │   │ Project  │   │  Board   │             │
+│  │ (인증)  │──▶│  (일정)  │   │ (간트)   │   │ (자료실) │             │
+│  └────┬────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘             │
+│       │             │              │              │                    │
+│       │             │   ┌──────────┴──────────────┘                    │
+│       │             │   │  ChatMessage / Notice / BoardPost            │
+│       │             │   │  ── 모두 (teamId, projectId) 격리 키 공유    │
+│       │             │   ▼                                              │
+│       │             │  ┌──────────┐                                    │
+│       │             │  │   Chat   │                                    │
+│       │             │  │  (채팅)  │                                    │
+│       │             │  └────┬─────┘                                    │
+│       │             │       │                                          │
+│       └─────────────┴───────┴────────────────────▶  Team (팀 관리)    │
+│                                                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │ AI Assistant "찰떡"  ── 단일 입력창 + 4-way 자동 의도 분류      │  │
+│  │   ├ usage           → RAG (ollama/*.md 인덱스) → Ollama 답변    │  │
+│  │   ├ general         → SearxNG + Open WebUI gemma4:26b 답변      │  │
+│  │   ├ schedule_query  → backend Schedule API 직접 조회 (코드 포맷)│  │
+│  │   ├ schedule_create → confirm 카드 + 다중 턴 → Schedule INSERT  │  │
+│  │   └ blocked         → 정중한 거절 안내                          │  │
+│  │                                                                  │  │
+│  │  AI 모델은 자연어 → JSON 변환만. SQL 자유 생성 금지.            │  │
+│  │  DB 접근은 backend 미들웨어(withAuth/withTeamRole) 통과.        │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+│  운영 — Docker Compose 단일 호스트. 첨부파일 storage 는 토글 가능     │
+│       (LocalStorageAdapter ↔ S3StorageAdapter, 호출처 변경 0)         │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -157,12 +204,17 @@
 |------|------|------|
 | id | UUID | PK, not null |
 | teamId | UUID | FK → Team.id, not null |
+| projectId | UUID | FK → Project.id, nullable — NULL=팀 일자별 채팅, NOT NULL=프로젝트 전용 채팅 |
 | type | Enum | `NORMAL` \| `WORK_PERFORMANCE`, default: NORMAL |
 | senderId | UUID | FK → User.id, not null |
 | content | String | not null, 최대 2000자 |
 | sentAt | DateTime | not null |
 
-> **날짜별 조회:** `sentAt` 기준 서버 시간(UTC+9 KST)의 날짜로 그룹핑.
+> **컨텍스트 격리:** `projectId IS NULL` 인 메시지는 팀 일자별 채팅(sentAt 기준 KST 날짜로 그룹핑), `projectId = ?` 인 메시지는 해당 프로젝트 전용 채팅으로만 노출. 두 컨텍스트 간 메시지가 섞이지 않음.
+>
+> **날짜별 조회 (팀 채팅):** `sentAt` 기준 서버 시간(UTC+9 KST)의 날짜로 그룹핑.
+>
+> **프로젝트 채팅 조회:** 같은 `projectId` 의 모든 메시지를 sentAt ASC 로 최대 200건 반환.
 
 ### 4.7 Postit (포스트잇)
 | 속성 | 타입 | 제약 |
@@ -236,11 +288,49 @@
 |------|------|------|
 | id | UUID | PK, not null |
 | teamId | UUID | FK → Team.id, not null |
+| projectId | UUID | FK → Project.id, nullable — NULL=팀 일자별 공지, NOT NULL=프로젝트 전용 공지 |
 | senderId | UUID | FK → User.id, not null |
 | content | String | not null, 최대 2000자 |
 | createdAt | DateTime | not null |
 
 > **규칙:** 작성자 또는 팀장(LEADER)만 삭제 가능.
+>
+> **컨텍스트 격리:** ChatMessage 와 동일하게 `(teamId, projectId)` 별 격리. 프로젝트 공지는 그 프로젝트 채팅방에서만 표시.
+
+### 4.13 BoardPost (자료실 글)
+| 속성 | 타입 | 제약 |
+|------|------|------|
+| id | UUID | PK, not null |
+| teamId | UUID | FK → Team.id, not null |
+| projectId | UUID | FK → Project.id, nullable — NULL=팀 일자별 자료실, NOT NULL=프로젝트 전용 자료실 |
+| authorId | UUID | FK → User.id, not null — 작성자, 수정·삭제 권한 키 |
+| title | String | not null, 1~200자 |
+| content | String | not null, 최대 20000자 |
+| createdAt | DateTime | not null |
+| updatedAt | DateTime | not null |
+
+> **규칙:** 작성은 팀 구성원 모두 가능. 수정·삭제는 작성자 본인만(`UPDATE/DELETE WHERE author_id = ?` 강제).
+>
+> **컨텍스트 격리:** ChatMessage·Notice 와 동일하게 `(teamId, projectId)` 별 격리.
+
+### 4.14 BoardAttachment (자료실 첨부파일)
+| 속성 | 타입 | 제약 |
+|------|------|------|
+| id | UUID | PK, not null |
+| postId | UUID | FK → BoardPost.id, not null, ON DELETE CASCADE |
+| originalName | String | not null, 최대 255자 — 사용자에게 보여줄 파일명 |
+| storedName | String | not null, 최대 64자 — UUID + 확장자, 디스크/객체스토리지 식별자 |
+| mimeType | String | not null, 최대 100자 — 화이트리스트 통과 후 저장 |
+| sizeBytes | BigInt | not null, 0 < size ≤ 10485760 (10MB) |
+| uploadedAt | DateTime | not null |
+
+> **규칙:** 1단계는 글당 1개 첨부 (DB 모델은 1:N 이라 후속 다중 확장 가능).
+>
+> **저장 위치:** `StorageAdapter` 인터페이스 뒤에 `LocalStorageAdapter`(1단계, 호스트 `./files` mount) 또는 `S3StorageAdapter`(운영 전환). `storedName` 자체가 backend 무관한 식별자라 cloud 마이그레이션 시 객체 key 로 그대로 사용.
+>
+> **검증:** `validateUpload()` — MIME 화이트리스트(jpg/png/gif/webp/pdf/docx/xlsx/pptx/txt/md/zip), magic-bytes 헤더 1차 검증(SVG·실행파일 차단), 크기 cap 10MB.
+>
+> **다운로드:** `GET /api/files/:id` — 호출자가 첨부의 team_id 멤버여야 허용. 응답에 `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` 강제로 인라인 렌더 차단.
 
 ---
 
@@ -259,15 +349,21 @@
 | 팀 일정 조회 | O | O | BR-01 |
 | 팀 일정 생성 | O | O | BR-02 |
 | 팀 일정 수정/삭제 | 생성자 본인만 | 생성자 본인만 | BR-02 |
-| 채팅 송수신 | O | O | BR-01 |
+| 채팅 송수신 (팀 일자별) | O | O | BR-01, BR-15 |
+| 채팅 송수신 (프로젝트 전용) | O | O | BR-01, BR-15 |
 | 업무보고 전송 | O | O | BR-04 |
 | 포스트잇 생성/수정/삭제 | 생성자 본인만 | 생성자 본인만 | BR-08 |
 | 프로젝트 생성 | O | O | BR-09 |
 | 프로젝트 수정/삭제 | 생성자 본인만 | 생성자 본인만 | BR-09 |
 | 프로젝트 일정 생성/수정/삭제 | 생성자 본인만 | 생성자 본인만 | BR-09 |
 | 세부 일정 생성/수정/삭제 | 생성자 본인만 | 생성자 본인만 | BR-09 |
-| 공지사항 작성 | O | O | BR-10 |
+| 공지사항 작성 (팀/프로젝트 모두) | O | O | BR-10, BR-15 |
 | 공지사항 삭제 | O (팀장 가능) | 작성자 본인만 | BR-10 |
+| 자료실 글 작성 (팀/프로젝트 모두) | O | O | BR-13 |
+| 자료실 글 수정·삭제 | 작성자 본인만 | 작성자 본인만 | BR-13 |
+| 자료실 첨부파일 다운로드 | O (같은 팀) | O (같은 팀) | BR-14 |
+| AI 어시스턴트 사용 (사용법·일반 질문) | O | O | BR-01, BR-16 |
+| AI 어시스턴트로 일정 조회·등록 | O (자기 팀) | O (자기 팀) | BR-01, BR-16~20 |
 | 업무보고 조회 권한 관리 | O | X | BR-04 |
 
 ---
@@ -288,6 +384,14 @@
 | BR-10 | 공지사항 작성은 팀 구성원(LEADER/MEMBER) 모두 가능. 삭제는 작성자 본인 또는 팀장(LEADER)만 가능 |
 | BR-11 | 팀 정보 수정·삭제는 팀장(LEADER)만 가능. 팀 삭제 시 종속 데이터(TeamMember, TeamJoinRequest, Schedule, ChatMessage, Notice, Postit, Project, ProjectSchedule, SubSchedule, WorkPerformancePermission)는 CASCADE로 함께 정리 |
 | BR-12 | 팀원 강제 탈퇴는 팀장(LEADER)만 가능. 팀장 본인은 강제 탈퇴 대상이 될 수 없음(요청 시 400 반환) |
+| BR-13 | 자료실 글 작성은 팀 구성원(LEADER/MEMBER) 모두 가능. 수정·삭제는 작성자 본인만 가능 (`UPDATE/DELETE WHERE author_id = ?` 강제, 미일치 시 403) |
+| BR-14 | 자료실 첨부파일은 ① 크기 ≤ 10MB ② MIME 화이트리스트(jpg/png/gif/webp/pdf/docx/xlsx/pptx/txt/md/zip) 통과 ③ magic-bytes 헤더 검증 통과해야 저장. 다운로드 응답엔 `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` 강제. SVG·실행파일·HTML 등은 거부 |
+| BR-15 | ChatMessage·Notice·BoardPost 는 `(teamId, projectId)` 조합으로 격리. `projectId IS NULL` → 팀 일자별 컨텍스트, `projectId 채워짐` → 프로젝트 전용 컨텍스트. 두 컨텍스트 데이터가 서로 노출되지 않음 |
+| BR-16 | AI 어시스턴트(찰떡) 는 사용자 자연어를 4-way(`usage` / `general` / `schedule_query` / `schedule_create` / `blocked`) 로 자동 분류해 적절한 경로로 답변. 사용자가 모드를 직접 선택하지 않음 (단일 입력창) |
+| BR-17 | AI 가 `schedule_create` 의도를 처리할 때 backend `/api/teams/:teamId/schedules` POST 를 호출. `created_by` 는 JWT 의 userId 로 강제 설정(가장 불가). `team_id` 는 frontend session 의 활성 팀에서 주입, AI 응답에서 받지 않음 |
+| BR-18 | `schedule_create` 는 사용자 명시 승인(confirm 카드) 후에만 INSERT. 인자(시간/제목 등) 부족 시 후속 질문(`awaiting-input`) 으로 다중 턴 진행. 사용자가 카드 ✓ 클릭 전엔 DB 변경 0 |
+| BR-19 | AI 어시스턴트는 일정 조회·등록 외의 데이터 변경(일정 수정/삭제, 프로젝트·채팅·공지·포스트잇·자료실 등 모든 도메인) 은 거절 안내. "찰떡이는 일정 조회·등록만 도와드릴 수 있어요" 형태로 정중히 안내하고 화면에서 직접 처리하도록 유도 |
+| BR-20 | AI 모델은 DB 에 직접 접근하지 않음 — 자연어 → JSON 변환까지만 수행. SQL 은 backend 의 검증된 SQL 템플릿이 작성, `withAuth`/`withTeamRole` 미들웨어가 권한 격리. 자유 SQL 생성 금지 |
 
 ---
 
@@ -313,16 +417,31 @@
 | UC-14 | 팀 정보 수정·삭제 | 팀장 | BR-01, BR-11 |
 | UC-15 | 팀원 강제 탈퇴 | 팀장 | BR-01, BR-12 |
 | UC-16 | 내 프로필(이름) 수정 | 로그인 사용자 | BR-01 |
+| UC-17 | 프로젝트 전용 채팅 메시지 송수신 | 팀장, 팀원 | BR-01, BR-15 |
+| UC-18 | 프로젝트 전용 공지사항 작성·삭제 | 팀장, 팀원 | BR-01, BR-10, BR-15 |
+| UC-19 | 자료실 글 작성·수정·삭제 (첨부파일 포함) | 팀장, 팀원 | BR-01, BR-13, BR-14, BR-15 |
+| UC-20 | 자료실 첨부파일 다운로드 (`GET /api/files/:fileId`) | 팀장, 팀원 | BR-01, BR-14 |
+| UC-21 | AI 어시스턴트로 사용법 질문 (RAG 답변) | 로그인 사용자 | BR-01, BR-16 |
+| UC-22 | AI 어시스턴트로 일반 질문 (웹 검색 답변) | 로그인 사용자 | BR-01, BR-16 |
+| UC-23 | AI 어시스턴트로 일정 조회 | 팀장, 팀원 | BR-01, BR-16, BR-20 |
+| UC-24 | AI 어시스턴트로 일정 등록 (confirm + 다중 턴) | 팀장, 팀원 | BR-01, BR-16, BR-17, BR-18, BR-20 |
+| UC-25 | AI 어시스턴트의 거절 안내 (지원 외 의도) | 로그인 사용자 | BR-01, BR-19 |
 
 ### 수락 조건 (Acceptance Criteria)
 
-**UC-01 회원가입 / 로그인**
+**UC-01 회원가입 / 로그인 / 토큰 갱신**
 - Given: 미가입 사용자가 유효한 이메일·비밀번호 입력
-- When: 회원가입 요청
-- Then: 계정 생성, 로그인 토큰 발급
+- When: `POST /api/auth/signup` 회원가입 요청
+- Then: 201 Created, 계정 생성(bcrypt 해싱 후 저장), Access Token + Refresh Token 발급
 - Given: 가입된 사용자가 올바른 자격증명 입력
-- When: 로그인 요청
-- Then: 인증 토큰 발급, 앱 진입 가능
+- When: `POST /api/auth/login` 로그인 요청
+- Then: 200 OK, Access Token(15분) + Refresh Token(7일) 발급, 앱 진입 가능
+- Given: Access Token 만료 + 유효한 Refresh Token 보유
+- When: `POST /api/auth/refresh` 토큰 갱신 요청
+- Then: 200 OK, 새 Access Token 발급 (Refresh Token 은 그대로 또는 rotation 정책에 따라 갱신)
+- Given: Refresh Token 도 만료 또는 무효
+- When: 갱신 요청
+- Then: 401 Unauthorized, 클라이언트는 재로그인으로 유도
 
 **UC-02 팀 생성**
 - Given: 로그인한 사용자가 유효한 팀 이름(1~100자) 입력
@@ -343,7 +462,10 @@
 - When: 가입 신청 요청
 - Then: 409 Conflict
 
-**UC-02C 가입 신청 승인/거절**
+**UC-02C 가입 신청 승인/거절 (나의 할 일)**
+- Given: LEADER 권한의 인증된 사용자
+- When: `GET /api/me/tasks` 호출 (로그인 사용자가 LEADER 인 모든 팀의 PENDING 가입 신청 집계)
+- Then: 200 OK, 팀별 PENDING 신청 목록 + 총 대기 건수(`totalPendingCount`) 반환. 팀장 헤더의 빨간 배지에 표시
 - Given: LEADER 권한의 인증된 사용자
 - When: PENDING 상태의 가입 신청에 대해 승인(APPROVE) 요청
 - Then: TeamJoinRequest.status → APPROVED, TeamMember(MEMBER) 원자적 등록
@@ -351,8 +473,8 @@
 - When: PENDING 상태의 가입 신청에 대해 거절(REJECT) 요청
 - Then: TeamJoinRequest.status → REJECTED, 팀 합류 미발생
 - Given: MEMBER 권한의 사용자
-- When: 승인/거절 시도
-- Then: 403 Forbidden
+- When: 승인/거절 또는 `/api/me/tasks` 시도
+- Then: 403 Forbidden (또는 빈 목록 반환)
 
 **UC-03 월·주·일 단위 팀 일정 조회**
 - Given: 팀 구성원(LEADER/MEMBER)이 view(month/week/day)와 date 파라미터를 전달
@@ -502,6 +624,102 @@
 - When: 프로필 수정 요청
 - Then: 400 Bad Request
 
+**UC-17 프로젝트 전용 채팅 메시지 송수신**
+- Given: 팀 구성원이 자기 팀의 특정 projectId 컨텍스트에서 content(최대 2000자) 입력
+- When: POST /api/teams/:teamId/projects/:projectId/messages 전송
+- Then: 201 Created, 해당 프로젝트 채팅방에만 메시지 노출. 같은 팀의 일자별 채팅 / 다른 프로젝트 채팅엔 안 보임
+- Given: 다른 팀의 projectId 또는 팀에 속하지 않은 사용자
+- When: 메시지 전송·조회 시도
+- Then: 403 Forbidden / 404 Not Found
+
+**UC-18 프로젝트 전용 공지사항 작성·삭제**
+- Given: 팀 구성원이 projectId 컨텍스트에서 공지 content 입력
+- When: POST /api/teams/:teamId/projects/:projectId/notices
+- Then: 201 Created, 해당 프로젝트 채팅방의 공지로만 노출
+- Given: 작성자 본인 또는 팀장(LEADER)
+- When: DELETE /api/teams/:teamId/notices/:noticeId
+- Then: 200 OK
+- Given: 작성자도 팀장도 아닌 사용자
+- When: 삭제 시도
+- Then: 403 Forbidden
+
+**UC-19 자료실 글 작성·수정·삭제**
+- Given: 팀 구성원이 multipart/form-data 로 title(1~200자), content(≤20000자), file(선택, ≤10MB, 허용 MIME) 전달
+- When: POST /api/teams/:teamId/board (projectId optional)
+- Then: 201 Created, BoardPost INSERT + 첨부 있을 시 검증 통과 후 저장 + BoardAttachment INSERT
+- Given: title 빈 값 또는 200자 초과
+- When: 작성 요청
+- Then: 400 Bad Request
+- Given: file 이 11MB 또는 화이트리스트 외 MIME 또는 magic-bytes 미스매치
+- When: 작성 요청
+- Then: 413(크기) 또는 415(형식) Bad Request
+- Given: 글 작성자 본인
+- When: PATCH /api/teams/:teamId/board/:postId (file 동봉 시 기존 첨부 unlink + 신규 저장)
+- Then: 200 OK
+- Given: 작성자가 아닌 사용자
+- When: PATCH·DELETE 시도
+- Then: 403 Forbidden
+- Given: 작성자 본인이 글 삭제
+- When: DELETE /api/teams/:teamId/board/:postId
+- Then: 200 OK, BoardPost row 삭제 + CASCADE 로 BoardAttachment row 삭제 + 디스크 파일 unlink
+
+**UC-20 자료실 첨부파일 다운로드**
+- Given: 같은 팀 멤버가 GET /api/files/:fileId 요청
+- When: backend 가 attachment → post → team_id 조인 후 사용자 멤버십(`withTeamRole`) 검증
+- Then: 200 OK, `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` 헤더로 stream 응답 (Local) 또는 302 redirect (S3 presigned URL)
+- Given: 다른 팀의 사용자
+- When: 다운로드 시도
+- Then: 403 Forbidden
+- Given: DB 에는 row 가 있지만 storage 어댑터가 객체를 못 찾음
+- When: 다운로드 시도
+- Then: 410 Gone
+
+**UC-21 AI 어시스턴트로 사용법 질문**
+- Given: 로그인 사용자가 우측 "AI 버틀러" 탭에서 사용법 질문(예: "포스트잇 색깔 종류") 전송
+- When: backend `/classify` 가 `intent: usage` 로 분류 → RAG `/chat` stream 모드 호출
+- Then: SSE 로 첫 토큰 ~3~10초 안에 도착, 답변 카드에 "📚 공식 문서 N건 참조" 출처 뱃지 표시
+- Given: 키워드 매치 실패하는 모호한 사용법 질문
+- When: RAG 답변이 거절형이면
+- Then: Open WebUI fallback (`fallback: rag-refused`) 으로 일반 답변 시도
+
+**UC-22 AI 어시스턴트로 일반 질문**
+- Given: 로그인 사용자가 일반 질문(예: "오늘 뉴스") 전송
+- When: backend 가 `intent: general` 분류 → SearxNG 검색(5건) → 결과를 system prompt 에 inline 주입 → Open WebUI gemma4:26b 답변 stream
+- Then: SSE 로 sources(URL 5건) 즉시 송출 + 답변 토큰 점진 표시. "🌐 웹 검색 N건 참조" 뱃지
+
+**UC-23 AI 어시스턴트로 일정 조회**
+- Given: 팀 구성원이 자연어 일정 조회 질문(예: "오늘 일정 알려줘", "디자인 리뷰 언제야?") 전송
+- When: backend 가 `intent: schedule_query` 분류 → `/parse-schedule-query` 가 `{view, date, keyword}` 추출 → backend Schedule API GET 호출
+- Then: 같은 팀의 일정만 반환(`withTeamRole` 검증), 코드가 한국어로 포맷("기획팀 팀의 2026-04-29 일정 N건: ...") 후 즉시 송출. LLM 답변 본문 생성 0회
+- Given: keyword 가 있고 좁은 범위(day) 매치 0건
+- When: 자동으로 month 범위로 fallback 재조회
+- Then: 더 넓은 범위에서 keyword 매치 일정만 반환
+- Given: 다른 팀의 일정 조회 시도(teamId 위조)
+- When: backend 미들웨어 검증
+- Then: 403 Forbidden
+
+**UC-24 AI 어시스턴트로 일정 등록 (다중 턴)**
+- Given: 팀 구성원이 완전한 자연어 등록 요청(예: "내일 오후 3시 주간회의 등록해줘") 전송
+- When: backend 가 `intent: schedule_create` 분류 → `/parse-schedule-args` 가 `{title, startAt, endAt}` 추출 → SSE `pending-action` 이벤트로 confirm 카드 송출
+- Then: 사용자가 카드 ✓ 클릭 → `/api/ai-assistant/execute` 호출 → backend Schedule POST(`created_by` = JWT userId 강제) → INSERT + 좌측 캘린더 자동 갱신
+- Given: 정보 부족 요청(예: "내일 회의 등록해줘" — 시간 미명시)
+- When: parser 가 `{ok:false, needs:"time", hint:"몇 시에 잡을까요?"}` 반환
+- Then: SSE token 으로 hint 표시 + `awaiting-input` 이벤트. 다음 user 입력("오후 3시") 시 frontend 가 직전 미완 question 과 결합 재요청 → confirm 카드 등장
+- Given: 사용자가 confirm 카드 ✗ (취소) 클릭
+- When: execute 호출 안 됨
+- Then: DB 변경 0, "실행을 취소했어요" 시스템 메시지
+
+**UC-25 AI 어시스턴트의 거절 안내 (지원 외 의도)**
+- Given: 사용자가 일정 수정/삭제 요청(예: "어제 회의 삭제해줘")
+- When: backend `/classify` 가 `intent: blocked, subreason: schedule_modify` 분류
+- Then: "찰떡이는 **일정 조회·등록** 만 도와드릴 수 있어요. 일정 수정·삭제는 캘린더에서 직접 처리해 주세요. 🙏" 한 줄 답변
+- Given: 프로젝트·채팅·공지·포스트잇·자료실 관련 등록/수정/삭제 요청(예: "프로젝트 일정 추가해줘")
+- When: `intent: blocked, subreason: other_domain` 분류
+- Then: "프로젝트·채팅·공지·포스트잇 같은 작업은 화면에서 직접 처리해 주세요" 안내
+- Given: 사용법 시그널("등록하는 법", "어떻게") 이 함께 있는 경우(예: "프로젝트 등록하는 법 알려줘")
+- When: USAGE_KEYWORDS 우선 매칭 → `intent: usage`
+- Then: blocked 가 아닌 RAG 사용법 답변
+
 ---
 
 ## 8. 엔티티 CRUD 매핑
@@ -512,14 +730,16 @@
 | Team | UC-02 | UC-02B, UC-03, UC-07 | UC-14 | UC-14 |
 | TeamMember | UC-02, UC-02C | UC-03 | - | UC-15 |
 | TeamJoinRequest | UC-02B | UC-02C | UC-02C | - |
-| Schedule | UC-04 | UC-03, UC-07 | UC-04 | UC-04 |
-| ChatMessage | UC-05, UC-06 | UC-05, UC-07 | - | - |
+| Schedule | UC-04, UC-24 | UC-03, UC-07, UC-23 | UC-04 | UC-04 |
+| ChatMessage | UC-05, UC-06, UC-17 | UC-05, UC-07, UC-17 | - | - |
 | Postit | UC-08 | UC-08 | UC-08 | UC-08 |
 | WorkPerformancePermission | UC-13 | UC-13 | UC-13 | - |
 | Project | UC-09 | UC-09 | UC-09 | UC-09 |
 | ProjectSchedule | UC-10 | UC-10 | UC-10 | UC-10 |
 | SubSchedule | UC-11 | UC-11 | UC-11 | UC-11 |
-| Notice | UC-12 | UC-12 | - | UC-12 |
+| Notice | UC-12, UC-18 | UC-12, UC-18 | - | UC-12, UC-18 |
+| BoardPost | UC-19 | UC-19 | UC-19 | UC-19 |
+| BoardAttachment | UC-19 | UC-20 | - | UC-19 (CASCADE) |
 
 ---
 
@@ -528,10 +748,22 @@
 | 항목 | 기준 |
 |------|------|
 | 채팅 메시지 응답 시간 | 500ms 이하 |
+| 채팅 폴링 주기 | 3초 (TanStack Query `refetchInterval`) |
+| 자료실 첨부파일 크기 | 단일 파일 ≤ 10MB. 글당 첨부 1개(1단계) |
+| 자료실 storage backend | env `STORAGE_BACKEND` 토글 — `local`(1단계, 호스트 mount) / `s3`(운영 전환). 호출처 코드 변경 0건으로 swap |
 | 동시 접속 팀원 | 팀당 최소 50명 지원 |
-| 인증 토큰 방식 | JWT (Access + Refresh Token) |
-| 비밀번호 저장 | bcrypt 해싱 필수 |
+| 인증 토큰 방식 | JWT — Access Token + Refresh Token (`Bearer` 헤더) |
+| JWT 만료 정책 | Access 15분 (`JWT_ACCESS_EXPIRES_IN`) / Refresh 7일 (`JWT_REFRESH_EXPIRES_IN`). 만료 시 `POST /api/auth/refresh` 로 Access 갱신 |
+| 비밀번호 저장 | bcrypt 해싱 필수 (`bcryptjs`) |
 | 타임존 | 서버 기준 KST (UTC+9) |
+| 배포 환경 | Docker Compose 단일 호스트 (postgres / backend / frontend / nginx / open-webui / searxng). Vercel 가정 폐기 |
+| AI 모델 | Ollama gemma4:26b (num_ctx 32K, think:false), nomic-embed-text 임베딩 |
+| AI 인프라 | RAG 서버(:8787) + Open WebUI(:8081) + SearxNG(:8080) — 모두 컨테이너. RAG 인덱스는 `ollama/*.md` 공식 문서 chunk + 임베딩 + BM25 통계 |
+| AI 답변 SSE 스트리밍 | 첫 토큰 ~3~10초 목표. 일정 조회는 코드 포맷이라 즉시 응답 |
+| AI DB 접근 제약 | AI 자유 SQL 금지. backend SQL 템플릿 + `withAuth`/`withTeamRole` 미들웨어 통과만 허용 (자세한 흐름·안전장치는 `docs/17-ai-db-guide.md`) |
+| Frontend 핵심 라이브러리 | React 19 + Next.js 16 (Turbopack), TanStack Query 5(서버 상태·폴링·optimistic update), Zustand 5(클라이언트 전역 상태), Lucide React(아이콘), Tailwind CSS(스타일) |
+| Backend 핵심 라이브러리 | Next.js 16 API Routes(App Router), pg 8(node-postgres), bcryptjs(해싱), jsonwebtoken(JWT), swagger-ui-react(API 문서 페이지) |
+| API 문서 | `swagger-ui-react` 기반 운영 — backend 가 OpenAPI 스펙 호스팅 (자세한 명세는 `docs/7-api-spec.md`) |
 
 ---
 
@@ -542,3 +774,10 @@
 | ERD | docs/6-erd.md |
 | API 명세 | docs/7-api-spec.md |
 | 사용자 시나리오 | docs/3-user-scenarios.md |
+| 시스템 아키텍처 | docs/5-tech-arch-diagram.md |
+| RAG 파이프라인 | docs/13-RAG-pipeline-guide.md |
+| Open WebUI + SearxNG 통합 | docs/14-Open-WebUI-plan.md |
+| Docker 컨테이너 인프라 | docs/15-docker-container-gen.md |
+| AI 4-way 의도 분류 + MCP 통합 결정 | docs/16-mcp-server-plan.md |
+| AI 모델의 DB 접근 흐름 | docs/17-ai-db-guide.md |
+| 자료실(게시판) 가이드 | docs/18-board-guide.md |

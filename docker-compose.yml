@@ -19,12 +19,17 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+      # 자료실 첨부파일 — 운영 전환 시 STORAGE_BACKEND=s3 토글 + 본 mount 제거.
+      - ./files:/app/files
     env_file:
       - ./backend/.env.local
     environment:
       DATABASE_URL: postgresql://teamworks-manager:Nts123%21%40%23@postgres-db:5432/teamworks
       FRONTEND_URL: http://localhost:8080
       NODE_ENV: development
+      # 자료실 storage 어댑터 — 1단계 local, 운영 전환 시 's3' 로 변경.
+      STORAGE_BACKEND: local
+      STORAGE_LOCAL_DIR: /app/files
     command: sh -c "npm install && npm run dev"
     networks:
       - teamworks-net

@@ -82,9 +82,12 @@ CREATE TABLE IF NOT EXISTS postits (
 );
 
 -- 7. chat_messages
+-- project_id: NULL → 팀 일자별 채팅 (sent_at 기준 그룹), NOT NULL → 프로젝트 전용 채팅.
+-- 같은 테이블에 두 종류를 보관해 동일 코드·인덱스 패턴 재사용.
 CREATE TABLE IF NOT EXISTS chat_messages (
     id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id   UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    project_id UUID       NULL REFERENCES projects(id) ON DELETE CASCADE,
     sender_id UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     type      VARCHAR(30)  NOT NULL DEFAULT 'NORMAL',
     content   TEXT         NOT NULL,
@@ -142,6 +145,9 @@ CREATE INDEX IF NOT EXISTS idx_postits_team_id_date
 -- chat_messages
 CREATE INDEX IF NOT EXISTS idx_chat_messages_team_id_sent_at
     ON chat_messages(team_id, sent_at DESC);
+-- 프로젝트 전용 채팅 조회 — project_id 가 NULL 인 행은 인덱스에서 제외.
+CREATE INDEX IF NOT EXISTS idx_chat_messages_project_id_sent_at
+    ON chat_messages(project_id, sent_at DESC) WHERE project_id IS NOT NULL;
 
 -- work_performance_permissions
 CREATE INDEX IF NOT EXISTS idx_wpp_team
@@ -223,9 +229,12 @@ CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_schedule_id ON sub_schedule
 CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_id ON sub_schedules(project_id);
 
 -- 12. notices
+-- project_id: NULL → 팀 일자별 채팅 공지, NOT NULL → 프로젝트 전용 공지.
+-- chat_messages 와 동일 격리 패턴.
 CREATE TABLE IF NOT EXISTS notices (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    project_id UUID        NULL REFERENCES projects(id) ON DELETE CASCADE,
     sender_id  UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     content    TEXT        NOT NULL,
     created_at TIMESTAMP   NOT NULL DEFAULT now(),
@@ -233,3 +242,40 @@ CREATE TABLE IF NOT EXISTS notices (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notices_team_id ON notices(team_id);
+-- 프로젝트 전용 공지 조회 — project_id 가 NULL 인 행 제외.
+CREATE INDEX IF NOT EXISTS idx_notices_project_id
+    ON notices(project_id) WHERE project_id IS NOT NULL;
+
+-- 13. board_posts — 자료실 게시글
+-- project_id NULL → 팀 일자별 채팅방의 자료실, NOT NULL → 프로젝트 채팅방의 자료실.
+CREATE TABLE IF NOT EXISTS board_posts (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    project_id  UUID         NULL REFERENCES projects(id) ON DELETE CASCADE,
+    author_id   UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    title       VARCHAR(200) NOT NULL,
+    content     TEXT         NOT NULL,
+    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_board_posts_title   CHECK (char_length(title) BETWEEN 1 AND 200),
+    CONSTRAINT chk_board_posts_content CHECK (char_length(content) <= 20000)
+);
+CREATE INDEX IF NOT EXISTS idx_board_posts_team_id_created_at
+    ON board_posts(team_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_board_posts_project_id_created_at
+    ON board_posts(project_id, created_at DESC) WHERE project_id IS NOT NULL;
+
+-- 14. board_attachments — 자료실 첨부파일 메타데이터.
+-- 실제 파일은 backend/lib/files/storage.ts 의 StorageAdapter 가 보관 (1단계: 호스트 files/ mount).
+-- stored_name 은 backend 무관한 식별자 — 운영 전환 시 그대로 클라우드 객체 key 로 사용.
+CREATE TABLE IF NOT EXISTS board_attachments (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id       UUID         NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+    original_name VARCHAR(255) NOT NULL,
+    stored_name   VARCHAR(64)  NOT NULL,
+    mime_type     VARCHAR(100) NOT NULL,
+    size_bytes    BIGINT       NOT NULL,
+    uploaded_at   TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_board_attachments_size CHECK (size_bytes > 0 AND size_bytes <= 10485760)
+);
+CREATE INDEX IF NOT EXISTS idx_board_attachments_post_id ON board_attachments(post_id);

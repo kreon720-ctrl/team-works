@@ -9,6 +9,7 @@
 | 1.2 | 2026-04-08 | users.password 컬럼명 → password_hash 로 수정 (schema.sql 실제 구현 반영). teams 인덱스 권장사항에 idx_teams_leader_id 추가 |
 | 1.3 | 2026-04-18 | 앱명 Team CalTalk → TEAM WORKS 반영. chat_messages.type 값 SCHEDULE_REQUEST → WORK_PERFORMANCE 변경 (실제 구현 반영). work_performance_permissions 테이블 추가 |
 | 1.4 | 2026-04-19 | postits, projects, project_schedules, sub_schedules, notices 테이블 추가 (DB 영구저장 구현 반영) |
+| 1.5 | 2026-04-29 | 자료실(board)·프로젝트 채팅/공지 격리 반영 — chat_messages·notices 에 project_id 컬럼 추가(NULL=팀 일자별, NOT NULL=프로젝트 격리), board_posts·board_attachments 테이블 신규, 관련 인덱스(partial WHERE project_id NOT NULL)·CHECK·FK ON DELETE 매트릭스 갱신, BR-08~11 추가(자료실 작성자 권한·첨부 검증·격리·다운로드 멤버십 검증). §3.2 누락 CHECK(chk_schedules_color, chk_chat_messages_type) 보강 |
 
 ---
 
@@ -76,6 +77,7 @@ erDiagram
     chat_messages {
         UUID id PK "not null"
         UUID team_id FK "not null → teams.id"
+        UUID project_id FK "nullable → projects.id (NULL=팀 일자별, NOT NULL=프로젝트 격리)"
         UUID sender_id FK "not null → users.id"
         VARCHAR type "not null, NORMAL | WORK_PERFORMANCE, default NORMAL"
         TEXT content "not null, max 2000"
@@ -143,9 +145,31 @@ erDiagram
     notices {
         UUID id PK "not null"
         UUID team_id FK "not null → teams.id"
+        UUID project_id FK "nullable → projects.id (NULL=팀 일자별, NOT NULL=프로젝트 격리)"
         UUID sender_id FK "not null → users.id"
         TEXT content "not null, max 2000"
         TIMESTAMP created_at "not null"
+    }
+
+    board_posts {
+        UUID id PK "not null"
+        UUID team_id FK "not null → teams.id"
+        UUID project_id FK "nullable → projects.id (NULL=팀 일자별 자료실, NOT NULL=프로젝트 자료실)"
+        UUID author_id FK "not null → users.id"
+        VARCHAR title "not null, 1~200"
+        TEXT content "not null, max 20000"
+        TIMESTAMP created_at "not null"
+        TIMESTAMP updated_at "not null"
+    }
+
+    board_attachments {
+        UUID id PK "not null"
+        UUID post_id FK "not null → board_posts.id"
+        VARCHAR original_name "not null, max 255 (사용자 표시용)"
+        VARCHAR stored_name "not null, max 64 (UUID+ext, 디스크/객체 key)"
+        VARCHAR mime_type "not null, max 100"
+        BIGINT size_bytes "not null, 1~10485760 (10MB cap)"
+        TIMESTAMP uploaded_at "not null"
     }
 
     users ||--o{ team_members : "소속"
@@ -158,6 +182,7 @@ erDiagram
     users ||--o{ postits : "생성"
     teams ||--o{ chat_messages : "소속"
     users ||--o{ chat_messages : "발신"
+    projects ||--o{ chat_messages : "프로젝트 채팅 (project_id)"
     teams ||--o{ work_performance_permissions : "권한설정"
     users ||--o{ work_performance_permissions : "조회허용"
     teams ||--o{ projects : "보유"
@@ -171,6 +196,11 @@ erDiagram
     users ||--o{ sub_schedules : "생성"
     teams ||--o{ notices : "보유"
     users ||--o{ notices : "발신"
+    projects ||--o{ notices : "프로젝트 공지 (project_id)"
+    teams ||--o{ board_posts : "보유"
+    users ||--o{ board_posts : "작성"
+    projects ||--o{ board_posts : "프로젝트 자료실 (project_id)"
+    board_posts ||--o{ board_attachments : "첨부"
 ```
 
 ---
@@ -296,12 +326,13 @@ erDiagram
 
 ### 2.7 chat_messages (채팅 메시지)
 
-팀 내 채팅 기록을 저장합니다. 메시지는 수정·삭제 불가입니다.
+팀 내 채팅 기록을 저장합니다. 메시지는 수정·삭제 불가입니다. `project_id` 로 팀 일자별 채팅(NULL)과 프로젝트 전용 채팅(NOT NULL)을 동일 테이블에서 격리합니다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |------|------|------|------|
 | id | UUID | PK, NOT NULL | 메시지 고유 식별자 |
 | team_id | UUID | FK → teams.id, NOT NULL | 소속 팀 |
+| project_id | UUID | FK → projects.id, NULL | NULL=팀 일자별 채팅(sent_at 기준 그룹), NOT NULL=프로젝트 전용 채팅 |
 | sender_id | UUID | FK → users.id, NOT NULL | 메시지 발신자 |
 | type | VARCHAR(30) | NOT NULL, DEFAULT 'NORMAL' | `NORMAL` \| `WORK_PERFORMANCE` |
 | content | TEXT | NOT NULL | 메시지 본문, 최대 2000자 |
@@ -310,6 +341,7 @@ erDiagram
 
 **인덱스**
 - `CREATE INDEX idx_chat_messages_team_id_sent_at ON chat_messages(team_id, sent_at DESC);`
+- `CREATE INDEX idx_chat_messages_project_id_sent_at ON chat_messages(project_id, sent_at DESC) WHERE project_id IS NOT NULL;` (partial — 프로젝트 채팅 전용)
 
 ---
 
@@ -412,18 +444,62 @@ erDiagram
 
 ### 2.12 notices (공지사항)
 
-팀 채팅 내 고정 공지사항입니다. 작성자 또는 팀장이 삭제할 수 있습니다.
+팀 채팅 내 고정 공지사항입니다. 작성자 또는 팀장이 삭제할 수 있습니다. `project_id` 로 팀 일자별 채팅의 공지(NULL)와 프로젝트 채팅의 공지(NOT NULL)를 격리합니다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |------|------|------|------|
 | id | UUID | PK, NOT NULL | 공지사항 고유 식별자 |
 | team_id | UUID | FK → teams.id, NOT NULL | 소속 팀 |
+| project_id | UUID | FK → projects.id, NULL | NULL=팀 일자별 공지, NOT NULL=프로젝트 전용 공지 |
 | sender_id | UUID | FK → users.id, NOT NULL | 작성한 사용자 |
 | content | TEXT | NOT NULL | 공지 내용, 최대 2000자 |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT now() | 작성 일시 (UTC 저장) |
 
 **인덱스**
 - `CREATE INDEX idx_notices_team_id ON notices(team_id);`
+- `CREATE INDEX idx_notices_project_id ON notices(project_id) WHERE project_id IS NOT NULL;` (partial — 프로젝트 공지 전용)
+
+---
+
+### 2.13 board_posts (자료실 게시글)
+
+채팅방(팀 일자별 / 프로젝트별) 의 자료실 게시글입니다. `project_id NULL`=팀 일자별 자료실, `NOT NULL`=프로젝트 자료실. 수정·삭제는 작성자만 가능(LEADER 특권 없음).
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | UUID | PK, NOT NULL | 게시글 고유 식별자 |
+| team_id | UUID | FK → teams.id, NOT NULL | 소속 팀 |
+| project_id | UUID | FK → projects.id, NULL | NULL=팀 일자별 자료실, NOT NULL=프로젝트 자료실 |
+| author_id | UUID | FK → users.id, NOT NULL | 작성자 |
+| title | VARCHAR(200) | NOT NULL | 제목, 1~200자 |
+| content | TEXT | NOT NULL | 본문, plain text + 줄바꿈 보존, 최대 20,000자 |
+| created_at | TIMESTAMP | NOT NULL, DEFAULT now() | 작성 일시 |
+| updated_at | TIMESTAMP | NOT NULL, DEFAULT now() | 수정 일시 |
+
+**인덱스**
+- `CREATE INDEX idx_board_posts_team_id_created_at ON board_posts(team_id, created_at DESC);`
+- `CREATE INDEX idx_board_posts_project_id_created_at ON board_posts(project_id, created_at DESC) WHERE project_id IS NOT NULL;` (partial)
+
+---
+
+### 2.14 board_attachments (자료실 첨부파일 메타데이터)
+
+`board_posts` 의 첨부파일 메타데이터입니다. 실제 파일 바이너리는 `backend/lib/files/storage.ts` 의 `StorageAdapter` 가 보관합니다 (1단계: 호스트 `./files:/app/files` mount, 운영 전환 시 S3). `stored_name` 은 backend 무관한 식별자(UUID + 확장자) — 클라우드 마이그레이션 시 그대로 객체 key 로 사용 가능합니다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | UUID | PK, NOT NULL | 첨부파일 고유 식별자 |
+| post_id | UUID | FK → board_posts.id, NOT NULL | 소속 게시글 |
+| original_name | VARCHAR(255) | NOT NULL | 사용자에게 표시할 원본 파일명 |
+| stored_name | VARCHAR(64) | NOT NULL | 디스크/객체 저장명 (UUID + 확장자) |
+| mime_type | VARCHAR(100) | NOT NULL | 검증된 MIME 타입 (magic-bytes 기반) |
+| size_bytes | BIGINT | NOT NULL | 파일 크기 (바이트), 1~10,485,760 (10MB cap) |
+| uploaded_at | TIMESTAMP | NOT NULL, DEFAULT now() | 업로드 일시 |
+
+**인덱스**
+- `CREATE INDEX idx_board_attachments_post_id ON board_attachments(post_id);`
+
+> **MIME 화이트리스트** — `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `application/pdf`, openxml 계열(docx/xlsx/pptx), `text/plain`, `text/markdown`, `application/zip`. SVG 는 XSS 위험으로 명시 제외. magic-bytes 헤더로 1차 검증 후 화이트리스트와 교차 확인.
 
 ---
 
@@ -442,6 +518,7 @@ erDiagram
 | 테이블 | 제약 조건 | 설명 |
 |--------|-----------|------|
 | schedules | end_at > start_at | 종료 시각은 시작 시각 이후 |
+| schedules | color IN ('indigo', 'blue', 'emerald', 'amber', 'rose') | 허용된 색상 값만 저장 |
 | team_members | role IN ('LEADER', 'MEMBER') | 허용된 역할 값만 저장 |
 | team_join_requests | status IN ('PENDING', 'APPROVED', 'REJECTED') | 허용된 상태 값만 저장 |
 | chat_messages | type IN ('NORMAL', 'WORK_PERFORMANCE') | 허용된 메시지 유형만 저장 |
@@ -456,6 +533,9 @@ erDiagram
 | sub_schedules | progress BETWEEN 0 AND 100 | 진행률 범위 |
 | sub_schedules | color IN ('indigo', 'blue', 'emerald', 'amber', 'rose') | 허용된 색상 값만 저장 |
 | notices | char_length(content) <= 2000 | 공지 최대 길이 |
+| board_posts | char_length(title) BETWEEN 1 AND 200 | 자료실 제목 길이 |
+| board_posts | char_length(content) <= 20000 | 자료실 본문 최대 길이 |
+| board_attachments | size_bytes > 0 AND size_bytes <= 10485760 | 첨부파일 10MB cap |
 
 ### 3.3 외래키 제약
 
@@ -471,6 +551,7 @@ erDiagram
 | postits | team_id | teams.id | CASCADE |
 | postits | created_by | users.id | RESTRICT |
 | chat_messages | team_id | teams.id | CASCADE |
+| chat_messages | project_id | projects.id | CASCADE |
 | chat_messages | sender_id | users.id | RESTRICT |
 | work_performance_permissions | team_id | teams.id | CASCADE |
 | work_performance_permissions | user_id | users.id | CASCADE |
@@ -484,7 +565,12 @@ erDiagram
 | sub_schedules | team_id | teams.id | CASCADE |
 | sub_schedules | created_by | users.id | RESTRICT |
 | notices | team_id | teams.id | CASCADE |
+| notices | project_id | projects.id | CASCADE |
 | notices | sender_id | users.id | RESTRICT |
+| board_posts | team_id | teams.id | CASCADE |
+| board_posts | project_id | projects.id | CASCADE |
+| board_posts | author_id | users.id | RESTRICT |
+| board_attachments | post_id | board_posts.id | CASCADE |
 
 ### 3.4 비즈니스 규칙 기반 제약 (애플리케이션 레이어)
 
@@ -497,6 +583,10 @@ erDiagram
 | BR-05 | 동일 팀에 PENDING 신청이 이미 존재하거나 이미 구성원인 경우 가입 신청 불가 | JOIN REQUEST API 중복 검증 로직 |
 | BR-06 | 프로젝트·프로젝트일정·세부일정 수정·삭제는 생성자만 가능 | API Route 권한 검증 |
 | BR-07 | 공지사항 삭제는 작성자 또는 팀장만 가능 | notices DELETE API 권한 검증 |
+| BR-08 | 자료실 글 수정·삭제는 작성자만 가능 (LEADER 특권 없음) | board PATCH/DELETE API 권한 검증 (`author_id === userId`) |
+| BR-09 | 첨부파일 업로드는 MIME 화이트리스트 + magic-bytes 헤더 검증 + 10MB cap. SVG·실행파일 거부 | backend multipart 핸들러 + `lib/files/validate.ts` |
+| BR-10 | 채팅·공지·자료실은 `(team_id, project_id NULL)` / `(team_id, project_id NOT NULL)` 으로 격리. 동일 컨텍스트 외 조회·작성 불가 | chatQueries / noticeQueries / boardQueries WHERE 조건 필수 |
+| BR-11 | 첨부파일 다운로드는 attachment → post → team_id 조인 후 호출자 팀 멤버십 검증. `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` 강제 | `/api/files/[fileId]` 핸들러 |
 
 ---
 
@@ -507,4 +597,8 @@ erDiagram
 | 도메인 정의서 | docs/1-domain-definition.md |
 | PRD | docs/2-prd.md |
 | 유저 시나리오 | docs/3-user-scenarios.md |
+| 프로젝트 구조 | docs/4-project-structure.md |
+| 기술 아키텍처 | docs/5-tech-arch-diagram.md |
 | API 명세 | docs/7-api-spec.md |
+| 자료실 가이드 | docs/18-board-guide.md |
+| 운영 배포 가이드 | docs/19-deploy-guide.md |

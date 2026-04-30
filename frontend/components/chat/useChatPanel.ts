@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSendMessage } from '@/hooks/query/useMessages';
+import { useSendProjectMessage } from '@/hooks/query/useProjectMessages';
 import { useSetWorkPermissions } from '@/hooks/query/useWorkPermissions';
 import { useAuthStore } from '@/store/authStore';
 import { useNoticeStore } from '@/store/noticeStore';
@@ -10,6 +11,8 @@ import type { ChatMessageMode } from './ChatInput';
 
 interface UseChatPanelOptions {
   teamId: string;
+  // projectId 가 주어지면 프로젝트 전용 채팅, 아니면 팀 일자별 채팅(date 사용).
+  projectId?: string;
   date: string | undefined;
   members: TeamMember[];
   serverPermittedIds: string[];
@@ -17,11 +20,15 @@ interface UseChatPanelOptions {
 
 export function useChatPanel({
   teamId,
+  projectId,
   date,
   members,
   serverPermittedIds,
 }: UseChatPanelOptions) {
-  const sendMessage = useSendMessage(teamId, date);
+  // 항상 두 mutation 모두 호출(Hooks 규칙) — 실제로는 projectId 유무 따라 한 쪽만 사용.
+  const sendTeamMessage = useSendMessage(teamId, date);
+  const sendProjectMessage = useSendProjectMessage(teamId, projectId ?? '');
+  const sendMessage = projectId ? sendProjectMessage : sendTeamMessage;
   const setPermissions = useSetWorkPermissions(teamId);
   const currentUser = useAuthStore((s) => s.currentUser);
   const noticeStore = useNoticeStore();
@@ -30,8 +37,8 @@ export function useChatPanel({
   const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    noticeStore.loadTeamNotices(teamId);
-  }, [teamId]);
+    noticeStore.loadTeamNotices(teamId, projectId);
+  }, [teamId, projectId]);
 
   const handleOpenModal = () => {
     if (serverPermittedIds.length > 0) {
@@ -58,7 +65,7 @@ export function useChatPanel({
 
   const handleSend = (content: string, mode: ChatMessageMode) => {
     if (mode === 'NOTICE') {
-      noticeStore.addNotice(teamId, content);
+      noticeStore.addNotice(teamId, content, projectId);
       return;
     }
     sendMessage.mutate({
@@ -68,7 +75,7 @@ export function useChatPanel({
   };
 
   const handleDeleteNotice = (noticeId: string) => {
-    noticeStore.deleteNotice(teamId, noticeId);
+    noticeStore.deleteNotice(teamId, noticeId, projectId);
   };
 
   return {

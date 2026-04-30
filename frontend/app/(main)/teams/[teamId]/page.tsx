@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
+import { useProjectStore } from '@/store/projectStore';
 import { useTeamDetail } from '@/hooks/query/useTeams';
 import { useSchedules } from '@/hooks/query/useSchedules';
 import { usePostits } from '@/hooks/query/usePostits';
@@ -43,6 +44,12 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
   const [activeTab, setActiveTab] = useState<'calendar' | 'chat' | 'ai-assistant'>('calendar');
   // 데스크탑 우측 패널의 탭 — 팀채팅 / AI 버틀러
   const [rightTab, setRightTab] = useState<'chat' | 'ai-assistant'>('chat');
+
+  // 프로젝트 갠트 뷰일 때 활성 프로젝트의 채팅을 우측에 표시.
+  const projectsForTeam = useProjectStore((s) => s.projects[teamId]);
+  const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
+  const activeProject = (projectsForTeam ?? []).find((p) => p.id === selectedProjectId) ?? null;
+  const isProjectChatMode = calendarView === 'project' && !!activeProject;
 
   const { data: schedulesData } = useSchedules(teamId, {
     view: calendarView,
@@ -218,7 +225,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
                     <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
                     <circle cx="15" cy="12" r="0.6" fill="currentColor" stroke="none" />
                   </svg>
-                  팀채팅
+                  {isProjectChatMode ? `${activeProject!.name} 채팅` : '팀채팅'}
                 </button>
                 <button
                   type="button"
@@ -243,21 +250,41 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
               {rightTab === 'chat' ? (
                 <div className="flex flex-col flex-1 min-h-0">
                   <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
-                    <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">
-                      {new Date(selectedDate).toLocaleDateString('ko-KR', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        weekday: 'short',
-                      })}{' '}
-                      채팅
-                    </h2>
+                    {isProjectChatMode ? (
+                      <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted truncate">
+                        <span className="text-emerald-600 dark:text-emerald-400">📌</span>{' '}
+                        {activeProject!.name}{' '}
+                        <span className="text-xs text-gray-400 dark:text-dark-text-disabled">
+                          ({activeProject!.startDate} ~ {activeProject!.endDate})
+                        </span>
+                      </h2>
+                    ) : (
+                      <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">
+                        {new Date(selectedDate).toLocaleDateString('ko-KR', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          weekday: 'short',
+                        })}{' '}
+                        채팅
+                      </h2>
+                    )}
                   </div>
-                  <ChatPanel
-                    teamId={teamId}
-                    date={selectedDate}
-                    isLeader={isLeader}
-                  />
+                  {isProjectChatMode ? (
+                    <ChatPanel
+                      key={`project-${activeProject!.id}`}
+                      teamId={teamId}
+                      projectId={activeProject!.id}
+                      isLeader={isLeader}
+                    />
+                  ) : (
+                    <ChatPanel
+                      key={`team-${selectedDate}`}
+                      teamId={teamId}
+                      date={selectedDate}
+                      isLeader={isLeader}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="flex-1 min-h-0">

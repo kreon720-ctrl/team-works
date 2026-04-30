@@ -7,6 +7,7 @@ export type MessageType = 'NORMAL' | 'WORK_PERFORMANCE'
 export interface ChatMessage {
   id: string
   team_id: string
+  project_id: string | null
   sender_id: string
   sender_name: string
   type: MessageType
@@ -17,6 +18,8 @@ export interface ChatMessage {
 
 export interface CreateChatMessageParams {
   teamId: string
+  // 프로젝트 전용 채팅인 경우 projectId 지정. 미지정/null 이면 팀 일자별 채팅.
+  projectId?: string | null
   senderId: string
   type?: MessageType
   content: string
@@ -26,13 +29,13 @@ export interface CreateChatMessageParams {
 export async function createChatMessage(
   params: CreateChatMessageParams
 ): Promise<ChatMessage> {
-  const { teamId, senderId, type = 'NORMAL', content, sentAt } = params
+  const { teamId, projectId = null, senderId, type = 'NORMAL', content, sentAt } = params
   try {
     const result = await pool.query<ChatMessage>(
-      `INSERT INTO chat_messages (team_id, sender_id, type, content, sent_at)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, team_id, sender_id, type, content, sent_at, created_at`,
-      [teamId, senderId, type, content, sentAt ?? new Date()]
+      `INSERT INTO chat_messages (team_id, project_id, sender_id, type, content, sent_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, team_id, project_id, sender_id, type, content, sent_at, created_at`,
+      [teamId, projectId, senderId, type, content, sentAt ?? new Date()]
     )
     const row = result.rows[0]
     // sender_name is not available from INSERT RETURNING — fetch via JOIN
@@ -65,11 +68,12 @@ export async function getMessagesByDate(
 
   try {
     const result = await pool.query<ChatMessage>(
-      `SELECT cm.id, cm.team_id, cm.sender_id, u.name AS sender_name,
+      `SELECT cm.id, cm.team_id, cm.project_id, cm.sender_id, u.name AS sender_name,
               cm.type, cm.content, cm.sent_at, cm.created_at
        FROM chat_messages cm
        JOIN users u ON u.id = cm.sender_id
        WHERE cm.team_id = $1
+         AND cm.project_id IS NULL
          AND cm.sent_at >= $2
          AND cm.sent_at < $3
          ${typeFilter}
@@ -79,6 +83,39 @@ export async function getMessagesByDate(
     return result.rows
   } catch (err) {
     throw new Error(`getMessagesByDate 실패: ${(err as Error).message}`)
+  }
+}
+
+// 프로젝트 전용 채팅 — sent_at ASC 로 최대 max 건 (default 200) 반환.
+// 팀 일자별 채팅과 동일하게 WORK_PERFORMANCE 권한 필터 적용.
+export async function getMessagesByProject(
+  teamId: string,
+  projectId: string,
+  requesterId: string,
+  requesterRole: 'LEADER' | 'MEMBER',
+  max = 200
+): Promise<ChatMessage[]> {
+  const typeFilter =
+    requesterRole === 'LEADER' ||
+    (await hasWorkPermission(teamId, requesterId))
+      ? ''
+      : `AND cm.type != 'WORK_PERFORMANCE'`
+
+  try {
+    const result = await pool.query<ChatMessage>(
+      `SELECT cm.id, cm.team_id, cm.project_id, cm.sender_id, u.name AS sender_name,
+              cm.type, cm.content, cm.sent_at, cm.created_at
+       FROM chat_messages cm
+       JOIN users u ON u.id = cm.sender_id
+       WHERE cm.team_id = $1 AND cm.project_id = $2
+         ${typeFilter}
+       ORDER BY cm.sent_at ASC
+       LIMIT $3`,
+      [teamId, projectId, max]
+    )
+    return result.rows
+  } catch (err) {
+    throw new Error(`getMessagesByProject 실패: ${(err as Error).message}`)
   }
 }
 
@@ -100,22 +137,22 @@ export async function getMessagesByTeam(
   try {
     const result = before
       ? await pool.query<ChatMessage>(
-          `SELECT cm.id, cm.team_id, cm.sender_id, u.name AS sender_name,
+          `SELECT cm.id, cm.team_id, cm.project_id, cm.sender_id, u.name AS sender_name,
                   cm.type, cm.content, cm.sent_at, cm.created_at
            FROM chat_messages cm
            JOIN users u ON u.id = cm.sender_id
-           WHERE cm.team_id = $1 AND cm.sent_at < $2
+           WHERE cm.team_id = $1 AND cm.project_id IS NULL AND cm.sent_at < $2
              ${typeFilter}
            ORDER BY cm.sent_at DESC
            LIMIT $3`,
           [teamId, before, limit]
         )
       : await pool.query<ChatMessage>(
-          `SELECT cm.id, cm.team_id, cm.sender_id, u.name AS sender_name,
+          `SELECT cm.id, cm.team_id, cm.project_id, cm.sender_id, u.name AS sender_name,
                   cm.type, cm.content, cm.sent_at, cm.created_at
            FROM chat_messages cm
            JOIN users u ON u.id = cm.sender_id
-           WHERE cm.team_id = $1
+           WHERE cm.team_id = $1 AND cm.project_id IS NULL
              ${typeFilter}
            ORDER BY cm.sent_at DESC
            LIMIT $2`,

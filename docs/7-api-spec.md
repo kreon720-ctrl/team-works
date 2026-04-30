@@ -10,6 +10,8 @@
 | 1.3 | 2026-04-18 | 앱명 Team CalTalk → TEAM WORKS 반영. 메시지 type WORK_PERFORMANCE → WORK_PERFORMANCE 변경 (실제 구현 반영). 섹션 7(업무보고 조회 권한) 추가: GET/PATCH /api/teams/:teamId/work-permissions |
 | 1.4 | 2026-04-18 | 팀 응답에 description/isPublic 추가, 일정 응답에 color/creatorName 추가, 메시지 조회 쿼리파라미터 명확화, 일정 생성/수정/삭제 권한 실제 구현 반영, 포스트잇/인증/아키텍처 섹션 추가 |
 | 1.5 | 2026-04-28 | 백엔드 구현 일치화: GET /api/auth/me, PATCH /api/me, PATCH/DELETE /api/teams/:teamId, DELETE /api/teams/:teamId/members/:userId, Notices/Postits/Projects/ProjectSchedules/SubSchedules 섹션 추가. 섹션 번호 재정렬 |
+| 1.6 | 2026-04-29 | 신규: 프로젝트 채팅(§12), 프로젝트 공지(§13), 자료실 Board(§14), 파일 다운로드(§15). Messages/Notices 응답에 `projectId` 필드 추가 반영. AI 버틀러 SSE 참고 섹션(§16) 추가. 엔드포인트 요약 테이블 갱신. |
+| 1.7 | 2026-04-30 | docs/1 v2.0 · docs/2 v1.6 동기화: §1 인증에 Refresh Token 7일 만료 + 갱신 실패 시 401 정책 명시. backend route 점검 — 프로젝트 일정/서브 일정 단건 GET 은 backend 미구현(PATCH·DELETE만)임을 §10 에 명시. swagger.json v1.7.1 동기 (없는 GET 2건 제거) |
 
 ---
 
@@ -29,8 +31,9 @@
 Authorization: Bearer <accessToken>
 ```
 
-- Access Token 유효 기간: 15분
-- 만료 시 `POST /api/auth/refresh`로 재발급 필요
+- Access Token 유효 기간: **15분** (`JWT_ACCESS_EXPIRES_IN`)
+- Refresh Token 유효 기간: **7일** (`JWT_REFRESH_EXPIRES_IN`) — `POST /api/auth/login` 응답으로 함께 발급
+- Access 만료 시 `POST /api/auth/refresh` 로 재발급. Refresh 도 만료/무효이면 `401 Unauthorized` → 클라이언트는 재로그인으로 유도
 
 ### 공통 에러 응답 형식
 
@@ -1367,13 +1370,16 @@ Authorization: Bearer <accessToken>
 
 - Query Parameters:
 
-| 파라미터 | 타입 | 필수 | 설명 |
-|----------|------|------|------|
-| date | string | O | KST 기준 날짜 (YYYY-MM-DD). 해당 날짜의 00:00:00 KST ~ 23:59:59 KST 범위 내 메시지 반환 |
+| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+|----------|------|------|--------|------|
+| date | string | X | 현재 KST 날짜 | KST 기준 날짜 (YYYY-MM-DD). 지정 시 해당 날짜 범위 메시지 반환 |
+| limit | integer | X | 50 | `date` 미지정 시 반환할 최대 메시지 수 |
+| before | string | X | - | `date` 미지정 시 이 시각(ISO 8601) 이전 메시지만 반환하는 커서 |
 
 - 요청 예시:
   ```
   GET /api/teams/b1c2d3e4-f5a6-7890-bcde-fa1234567890/messages?date=2026-04-07
+  GET /api/teams/b1c2d3e4-f5a6-7890-bcde-fa1234567890/messages?limit=50&before=2026-04-07T10:00:00.000Z
   ```
 
 **Response**
@@ -1391,7 +1397,8 @@ Authorization: Bearer <accessToken>
       "senderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "senderName": "홍길동",
       "content": "오늘 미팅 시간 변경합니다. 오후 3시로 조정해주세요.",
-      "sentAt": "2026-04-07T01:30:00.000Z"
+      "sentAt": "2026-04-07T01:30:00.000Z",
+      "createdAt": "2026-04-07T01:30:00.000Z"
     },
     {
       "id": "b8c9d0e1-f2a3-4567-bcde-fa8901234567",
@@ -1400,7 +1407,8 @@ Authorization: Bearer <accessToken>
       "senderId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
       "senderName": "김철수",
       "content": "팀장님, 4월 10일 일정을 오후로 변경 부탁드립니다.",
-      "sentAt": "2026-04-07T02:15:00.000Z"
+      "sentAt": "2026-04-07T02:15:00.000Z",
+      "createdAt": "2026-04-07T02:15:00.000Z"
     }
   ]
 }
@@ -1408,7 +1416,7 @@ Authorization: Bearer <accessToken>
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| date | string | 조회 기준 날짜 (KST, YYYY-MM-DD) |
+| date | string | 조회 기준 날짜 (KST, YYYY-MM-DD). date 미제공 시 현재 KST 날짜 |
 | messages | array | 해당 날짜의 메시지 배열, `sentAt` 오름차순 정렬 |
 | messages[].id | string | 메시지 UUID |
 | messages[].teamId | string | 소속 팀 UUID |
@@ -1417,12 +1425,12 @@ Authorization: Bearer <accessToken>
 | messages[].senderName | string | 발신자 표시 이름 |
 | messages[].content | string | 메시지 본문 |
 | messages[].sentAt | string | 전송 일시 (UTC ISO 8601) |
+| messages[].createdAt | string | 레코드 생성 일시 (UTC ISO 8601) |
 
 - 실패:
 
 | 상태 코드 | 에러 메시지 | 원인 |
 |-----------|-------------|------|
-| 400 | "date 파라미터는 필수입니다." | date 누락 |
 | 400 | "date 파라미터는 YYYY-MM-DD 형식이어야 합니다." | date 형식 오류 |
 | 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
 | 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
@@ -1487,7 +1495,8 @@ Authorization: Bearer <accessToken>
   "senderId": "d4e5f6a7-b8c9-0123-defa-bc3456789012",
   "senderName": "김철수",
   "content": "팀장님, 4월 10일 일정을 오후로 변경 부탁드립니다.",
-  "sentAt": "2026-04-07T02:15:00.000Z"
+  "sentAt": "2026-04-07T02:15:00.000Z",
+  "createdAt": "2026-04-07T02:15:00.000Z"
 }
 ```
 
@@ -1548,6 +1557,8 @@ Authorization: Bearer <accessToken>
   ]
 }
 ```
+
+> 팀 일자별 endpoint이므로 응답에 `projectId` 필드는 포함되지 않습니다. 프로젝트 공지는 §13을 사용하세요.
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -2237,6 +2248,8 @@ Project
 
 ---
 
+> **단건 GET 은 미구현** — 클라이언트는 목록(`GET .../schedules`) 응답을 캐시(TanStack Query)에서 사용. 필요 시 추후 추가.
+
 ### PATCH /api/teams/:teamId/projects/:projectId/schedules/:scheduleId
 
 **설명**: 프로젝트 일정을 수정합니다. 생성자만 가능. 전달된 필드만 갱신.
@@ -2367,6 +2380,8 @@ Project
 - 실패: 상위 일정의 색상/날짜 검증 룰과 동일. `404`는 `프로젝트 일정을 찾을 수 없습니다.` / `해당 팀에 접근 권한이 없습니다.`(상위 일정의 teamId 불일치).
 
 ---
+
+> **단건 GET 은 미구현** — 상위 일정 단건 GET 과 동일 사유. 클라이언트는 목록 캐시를 사용.
 
 ### PATCH /api/teams/:teamId/projects/:projectId/schedules/:scheduleId/sub-schedules/:subId
 
@@ -2523,7 +2538,640 @@ Project
 
 ---
 
-## 12. 엔드포인트 요약
+## 12. 프로젝트 채팅 (Project Messages)
+
+프로젝트 전용 채팅 메시지 endpoint입니다. `chat_messages.project_id` 컬럼이 NOT NULL인 행만 조회/저장합니다.
+
+---
+
+### GET /api/teams/:teamId/projects/:projectId/messages
+
+**설명**: 프로젝트 전용 채팅 메시지를 조회합니다. `sentAt` 오름차순, 최대 200건 반환. WORK_PERFORMANCE 타입은 LEADER 또는 업무보고 권한 보유자만 조회 가능합니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (해당 팀 소속 구성원)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| projectId | string (UUID) | 조회할 프로젝트 UUID |
+
+- Query Parameters: 없음
+- Body: 없음
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{
+  "projectId": "e1f2a3b4-c5d6-7890-efab-cd1234567890",
+  "messages": [
+    {
+      "id": "a7b8c9d0-e1f2-3456-abcd-ef7890123456",
+      "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+      "projectId": "e1f2a3b4-c5d6-7890-efab-cd1234567890",
+      "type": "NORMAL",
+      "senderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "senderName": "홍길동",
+      "content": "프로젝트 진행 상황 공유합니다.",
+      "sentAt": "2026-04-07T01:30:00.000Z",
+      "createdAt": "2026-04-07T01:30:00.000Z"
+    }
+  ]
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| projectId | string | 조회한 프로젝트 UUID |
+| messages | array | 메시지 배열, `sentAt` 오름차순 정렬, 최대 200건 |
+| messages[].id | string | 메시지 UUID |
+| messages[].teamId | string | 소속 팀 UUID |
+| messages[].projectId | string | 소속 프로젝트 UUID |
+| messages[].type | string | 메시지 유형: `NORMAL` 또는 `WORK_PERFORMANCE` |
+| messages[].senderId | string | 발신자 사용자 UUID |
+| messages[].senderName | string | 발신자 표시 이름 |
+| messages[].content | string | 메시지 본문 |
+| messages[].sentAt | string | 전송 일시 (UTC ISO 8601) |
+| messages[].createdAt | string | 레코드 생성 일시 (UTC ISO 8601) |
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "프로젝트를 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 projectId |
+
+---
+
+### POST /api/teams/:teamId/projects/:projectId/messages
+
+**설명**: 프로젝트 전용 채팅 메시지를 전송합니다. `project_id`는 경로에서 자동 설정됩니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (해당 팀 소속 구성원)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| projectId | string (UUID) | 메시지를 전송할 프로젝트 UUID |
+
+- Body:
+
+```json
+{
+  "type": "NORMAL",
+  "content": "프로젝트 진행 상황 공유합니다."
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| type | string | X | 메시지 유형: `NORMAL` 또는 `WORK_PERFORMANCE`. 미입력 시 기본값 `NORMAL` |
+| content | string | O | 메시지 본문, 최대 2000자 |
+
+**Response**
+
+- 성공: `201 Created`
+
+```json
+{
+  "id": "a7b8c9d0-e1f2-3456-abcd-ef7890123456",
+  "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+  "projectId": "e1f2a3b4-c5d6-7890-efab-cd1234567890",
+  "type": "NORMAL",
+  "senderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "senderName": "홍길동",
+  "content": "프로젝트 진행 상황 공유합니다.",
+  "sentAt": "2026-04-07T01:30:00.000Z",
+  "createdAt": "2026-04-07T01:30:00.000Z"
+}
+```
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 400 | "메시지 내용은 필수입니다." | content 누락 |
+| 400 | "메시지는 최대 2000자까지 입력 가능합니다." | content 길이 초과 |
+| 400 | "잘못된 메시지 타입입니다." | 허용되지 않는 type 값 |
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "프로젝트를 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 projectId |
+
+---
+
+## 13. 프로젝트 공지 (Project Notices)
+
+프로젝트 전용 공지 endpoint입니다. `notices.project_id` 컬럼이 NOT NULL인 행만 조회/저장합니다.
+
+> **참고**: 프로젝트 공지 삭제(`DELETE .../notices/:noticeId`) endpoint는 현재 백엔드에 구현되어 있지 않습니다.
+
+---
+
+### GET /api/teams/:teamId/projects/:projectId/notices
+
+**설명**: 프로젝트 전용 공지사항 목록을 조회합니다. `createdAt` 오름차순 정렬.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (해당 팀 소속 구성원)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| projectId | string (UUID) | 조회할 프로젝트 UUID |
+
+- Body: 없음
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{
+  "projectId": "e1f2a3b4-c5d6-7890-efab-cd1234567890",
+  "notices": [
+    {
+      "id": "c9d0e1f2-a3b4-5678-cdef-ab9012345678",
+      "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+      "projectId": "e1f2a3b4-c5d6-7890-efab-cd1234567890",
+      "senderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "senderName": "홍길동",
+      "content": "이번 주 금요일까지 개발 완료해주세요.",
+      "createdAt": "2026-04-20T01:00:00.000Z"
+    }
+  ]
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| projectId | string | 조회한 프로젝트 UUID |
+| notices | array | 공지사항 배열 (`createdAt` 오름차순) |
+| notices[].id | string | 공지 UUID |
+| notices[].teamId | string | 소속 팀 UUID |
+| notices[].projectId | string | 소속 프로젝트 UUID |
+| notices[].senderId | string | 작성자 사용자 UUID |
+| notices[].senderName | string | 작성자 표시 이름 |
+| notices[].content | string | 공지 본문 |
+| notices[].createdAt | string | 작성 일시 (UTC ISO 8601) |
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "프로젝트를 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 projectId |
+
+---
+
+### POST /api/teams/:teamId/projects/:projectId/notices
+
+**설명**: 프로젝트 전용 공지사항을 등록합니다. 팀 구성원이면 누구나 작성할 수 있습니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| projectId | string (UUID) | 공지를 등록할 프로젝트 UUID |
+
+- Body:
+
+```json
+{
+  "content": "이번 주 금요일까지 개발 완료해주세요."
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| content | string | O | 공지 본문, 최대 2000자 |
+
+**Response**
+
+- 성공: `201 Created`
+
+```json
+{
+  "id": "c9d0e1f2-a3b4-5678-cdef-ab9012345678",
+  "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+  "projectId": "e1f2a3b4-c5d6-7890-efab-cd1234567890",
+  "senderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "senderName": "홍길동",
+  "content": "이번 주 금요일까지 개발 완료해주세요.",
+  "createdAt": "2026-04-20T01:00:00.000Z"
+}
+```
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 400 | "내용은 필수입니다." | content 누락 |
+| 400 | "내용은 최대 2000자까지 입력 가능합니다." | content 길이 초과 |
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "프로젝트를 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 projectId |
+
+---
+
+## 14. 자료실 (Board)
+
+팀 또는 프로젝트별 파일 첨부 게시판입니다. `projectId` 쿼리 파라미터로 프로젝트 자료실을 분리합니다.
+
+**BR-09 파일 검증 규칙**:
+- MIME 화이트리스트: `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (docx), `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (xlsx), `application/vnd.openxmlformats-officedocument.presentationml.presentation` (pptx), `text/plain`, `text/markdown`, `application/zip`
+- magic-bytes 헤더 검증 필수 (Content-Type 스푸핑 차단)
+- 최대 파일 크기: 10MB
+- SVG, 실행 파일 업로드 거부 (400 반환)
+
+---
+
+### GET /api/teams/:teamId/board
+
+**설명**: 자료실 글 목록을 조회합니다. `projectId` 지정 시 프로젝트 자료실, 미지정 시 팀 일자별 자료실을 반환합니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (해당 팀 소속 구성원)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+
+- Query Parameters:
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|----------|------|------|------|
+| projectId | string (UUID) | X | 프로젝트 UUID. 지정 시 해당 프로젝트 자료실 조회 |
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{
+  "projectId": null,
+  "posts": [
+    {
+      "id": "b3c4d5e6-f7a8-9012-bcde-fa3456789012",
+      "teamId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+      "projectId": null,
+      "authorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "authorName": "홍길동",
+      "title": "프로젝트 계획서",
+      "content": "프로젝트 초기 계획서를 첨부합니다.",
+      "createdAt": "2026-04-20T01:00:00.000Z",
+      "updatedAt": "2026-04-20T01:00:00.000Z",
+      "attachments": [
+        {
+          "id": "c4d5e6f7-a8b9-0123-cdef-ab4567890123",
+          "postId": "b3c4d5e6-f7a8-9012-bcde-fa3456789012",
+          "originalName": "project-plan.pdf",
+          "mimeType": "application/pdf",
+          "sizeBytes": 204800,
+          "uploadedAt": "2026-04-20T01:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| projectId | string \| null | 조회에 사용된 projectId (없으면 null) |
+| posts | array | 게시글 배열 |
+| posts[].id | string | 게시글 UUID |
+| posts[].teamId | string | 소속 팀 UUID |
+| posts[].projectId | string \| null | 소속 프로젝트 UUID (팀 일자별이면 null) |
+| posts[].authorId | string | 작성자 사용자 UUID |
+| posts[].authorName | string | 작성자 표시 이름 |
+| posts[].title | string | 게시글 제목 (1~200자) |
+| posts[].content | string | 게시글 본문 (최대 20000자) |
+| posts[].createdAt | string | 생성 일시 (UTC ISO 8601) |
+| posts[].updatedAt | string | 최종 수정 일시 (UTC ISO 8601) |
+| posts[].attachments | array | 첨부파일 메타데이터 배열 (없으면 빈 배열) |
+| posts[].attachments[].id | string | 첨부파일 UUID |
+| posts[].attachments[].postId | string | 소속 게시글 UUID |
+| posts[].attachments[].originalName | string | 원본 파일명 |
+| posts[].attachments[].mimeType | string | MIME 타입 |
+| posts[].attachments[].sizeBytes | number | 파일 크기 (바이트) |
+| posts[].attachments[].uploadedAt | string | 업로드 일시 (UTC ISO 8601) |
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "프로젝트를 찾을 수 없습니다." | projectId가 지정되었으나 존재하지 않음 |
+
+---
+
+### POST /api/teams/:teamId/board
+
+**설명**: 자료실에 새 게시글을 작성합니다. 선택적으로 단일 파일을 첨부할 수 있습니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (해당 팀 소속 구성원)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  Content-Type: multipart/form-data
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+
+- Body (multipart/form-data):
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| title | string | O | 게시글 제목 (1~200자) |
+| content | string | X | 게시글 본문 (최대 20000자) |
+| projectId | string (UUID) | X | 프로젝트 자료실로 저장 시 지정 |
+| file | File | X | 첨부파일 (단일, 최대 10MB, BR-09 화이트리스트) |
+
+- fetch 예시:
+
+```javascript
+const formData = new FormData()
+formData.append('title', '프로젝트 계획서')
+formData.append('content', '초기 계획서를 공유합니다.')
+formData.append('file', fileInput.files[0])
+
+fetch(`/api/teams/${teamId}/board`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${accessToken}` },
+  body: formData,
+})
+```
+
+**Response**
+
+- 성공: `201 Created` (응답 형식은 GET 목록의 `posts[]` 단건과 동일)
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 400 | "제목은 필수입니다." | title 누락 또는 공백만 입력 |
+| 400 | "제목은 최대 200자까지 입력 가능합니다." | title 길이 초과 |
+| 400 | "본문은 최대 20000자까지 입력 가능합니다." | content 길이 초과 |
+| 400 | "허용되지 않는 파일 형식입니다." | MIME 화이트리스트 미충족 또는 magic-bytes 불일치 (BR-09) |
+| 400 | "파일 크기는 최대 10MB입니다." | 파일 크기 초과 (BR-09) |
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "프로젝트를 찾을 수 없습니다." | projectId가 지정되었으나 존재하지 않음 |
+| 413 | "요청 본문이 너무 큽니다. 첨부파일은 최대 10MB." | Content-Length 초과 |
+
+---
+
+### GET /api/teams/:teamId/board/:postId
+
+**설명**: 자료실 게시글 상세를 조회합니다. 첨부파일 메타데이터를 포함합니다.
+**인증**: 필요
+**권한**: LEADER·MEMBER 모두 (해당 팀 소속 구성원)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| postId | string (UUID) | 조회할 게시글 UUID |
+
+**Response**
+
+- 성공: `200 OK` (GET 목록의 `posts[]` 단건과 동일한 형식)
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 404 | "글을 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 postId |
+
+---
+
+### PATCH /api/teams/:teamId/board/:postId
+
+**설명**: 자료실 게시글을 수정합니다. 작성자 본인만 수정할 수 있습니다. `file`이 포함되면 기존 첨부파일을 모두 제거하고 신규 파일로 교체합니다.
+**인증**: 필요
+**권한**: 작성자 본인만 (`authorId === 요청자 userId`)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  Content-Type: multipart/form-data
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| postId | string (UUID) | 수정할 게시글 UUID |
+
+- Body (multipart/form-data):
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| title | string | X | 새 제목 (1~200자). 전달 시 변경 |
+| content | string | X | 새 본문 (최대 20000자). 전달 시 변경 |
+| file | File | X | 첨부파일 교체. 전달 시 기존 첨부 unlink 후 신규 저장 |
+
+**Response**
+
+- 성공: `200 OK` (수정 후 최신 게시글 단건)
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 400 | "제목은 비울 수 없습니다." | title 필드 전달 시 빈 문자열 |
+| 400 | "제목은 최대 200자까지 입력 가능합니다." | title 길이 초과 |
+| 400 | "본문은 최대 20000자까지 입력 가능합니다." | content 길이 초과 |
+| 400 | "허용되지 않는 파일 형식입니다." | MIME 화이트리스트 미충족 또는 magic-bytes 불일치 (BR-09) |
+| 400 | "파일 크기는 최대 10MB입니다." | 파일 크기 초과 (BR-09) |
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 403 | "본인이 작성한 글만 수정할 수 있습니다." | 요청자가 작성자가 아님 |
+| 404 | "글을 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 postId |
+| 413 | "요청 본문이 너무 큽니다." | Content-Length 초과 |
+
+---
+
+### DELETE /api/teams/:teamId/board/:postId
+
+**설명**: 자료실 게시글을 삭제합니다. 작성자 본인만 삭제할 수 있으며, 첨부파일도 함께 unlink합니다.
+**인증**: 필요
+**권한**: 작성자 본인만 (`authorId === 요청자 userId`)
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| teamId | string (UUID) | 소속 팀 UUID |
+| postId | string (UUID) | 삭제할 게시글 UUID |
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{ "ok": true }
+```
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 팀의 구성원이 아님 |
+| 403 | "본인이 작성한 글만 삭제할 수 있습니다." | 요청자가 작성자가 아님 |
+| 404 | "글을 찾을 수 없습니다." | 존재하지 않거나 해당 팀 소속이 아닌 postId |
+
+---
+
+## 15. 파일 다운로드 (File Download)
+
+자료실 첨부파일 다운로드 endpoint입니다. 스토리지 어댑터에 따라 응답 방식이 자동 분기됩니다.
+
+---
+
+### GET /api/files/:fileId
+
+**설명**: 자료실 첨부파일을 다운로드합니다. 호출자가 해당 첨부파일의 팀 구성원이어야 접근할 수 있습니다.
+- **로컬 스토리지**: 파일 스트림 응답 + `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff`
+- **S3 스토리지**: 302 redirect to presigned URL (TTL 5분)
+**인증**: 필요
+**권한**: 해당 파일이 속한 팀의 구성원
+
+**Request**
+
+- Headers:
+  ```
+  Authorization: Bearer <accessToken>
+  ```
+- Path Parameters:
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| fileId | string (UUID) | 다운로드할 첨부파일 UUID |
+
+- Body: 없음
+
+**Response**
+
+- 성공 (로컬): `200 OK` — 파일 바이너리 스트림
+
+  ```
+  Content-Type: <파일 MIME 타입>
+  Content-Length: <파일 크기 바이트>
+  Content-Disposition: attachment; filename*=UTF-8''<인코딩된 파일명>
+  X-Content-Type-Options: nosniff
+  Cache-Control: private, max-age=300
+  ```
+
+- 성공 (S3): `302 Found` — Location 헤더에 presigned URL
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 400 | "잘못된 fileId 입니다." | UUID 형식이 아닌 fileId |
+| 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
+| 403 | "해당 팀에 접근 권한이 없습니다." | 요청자가 해당 파일 팀의 구성원이 아님 |
+| 404 | "파일을 찾을 수 없습니다." | 존재하지 않는 fileId |
+| 410 | "디스크에서 파일을 찾을 수 없습니다." | DB 메타데이터는 있으나 실제 파일 없음 |
+
+---
+
+## 16. AI 버틀러 SSE — Frontend BFF (참고)
+
+> 이 섹션은 **참고 목적**으로만 기술합니다. AI 버틀러는 Next.js Frontend BFF route(`frontend/app/api/ai-assistant/`)로 구현되어 있으며, 별도의 백엔드 라우트나 Swagger 정의가 없습니다.
+
+### POST /api/ai-assistant/chat (Frontend BFF)
+
+SSE(Server-Sent Events) 스트리밍으로 AI 응답을 반환합니다.
+
+**4-way 의도 분류**: `usage` (앱 사용법) / `general` (일반 질답) / `schedule_query` (일정 조회) / `schedule_create` (일정 등록) / `blocked` (비적절 요청)
+
+**SSE 이벤트 종류**:
+
+| 이벤트명 | 설명 |
+|----------|------|
+| `token` | AI 응답 토큰 스트림 |
+| `awaiting-input` | 다중 턴 — 추가 입력 필요 |
+| `pending-action` | 일정 등록 confirm 카드 데이터 |
+| `done` | 응답 완료 |
+| `error` | 오류 발생 |
+
+### POST /api/ai-assistant/execute (Frontend BFF)
+
+`pending-action` 이벤트의 confirm 카드 승인 후 일정 등록을 실행합니다.
+
+---
+
+## 17. 엔드포인트 요약
 
 | 메서드 | 경로 | 설명 | 인증 | 권한 |
 |--------|------|------|------|------|
@@ -2532,6 +3180,7 @@ Project
 | POST | /api/auth/refresh | Access Token 재발급 | 불필요 | 없음 |
 | GET | /api/auth/me | 내 정보 조회 (세션 복구) | 필요 | 인증 사용자 |
 | PATCH | /api/me | 내 프로필(이름) 수정 | 필요 | 본인 |
+| GET | /api/me/tasks | 나의 할 일 목록 (전체 팀 PENDING 신청) | 필요 | LEADER만 |
 | GET | /api/teams | 내 팀 목록 조회 | 필요 | LEADER·MEMBER |
 | POST | /api/teams | 팀 생성 | 필요 | LEADER·MEMBER |
 | GET | /api/teams/public | 공개 팀 목록 조회 (탐색) | 필요 | LEADER·MEMBER |
@@ -2542,16 +3191,15 @@ Project
 | POST | /api/teams/:teamId/join-requests | 팀 가입 신청 제출 | 필요 | LEADER·MEMBER |
 | GET | /api/teams/:teamId/join-requests | 팀 PENDING 가입 신청 목록 조회 | 필요 | LEADER만 |
 | PATCH | /api/teams/:teamId/join-requests/:requestId | 가입 신청 승인/거절 | 필요 | LEADER만 |
-| GET | /api/me/tasks | 나의 할 일 목록 (전체 팀 PENDING 신청) | 필요 | LEADER만 |
 | GET | /api/teams/:teamId/schedules | 팀 일정 목록 조회 (월/주/일) | 필요 | LEADER·MEMBER |
 | POST | /api/teams/:teamId/schedules | 팀 일정 생성 | 필요 | LEADER·MEMBER |
 | GET | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 상세 조회 | 필요 | LEADER·MEMBER |
 | PATCH | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 수정 | 필요 | 생성자 본인만 |
 | DELETE | /api/teams/:teamId/schedules/:scheduleId | 팀 일정 삭제 | 필요 | 생성자 본인만 |
-| GET | /api/teams/:teamId/messages | 채팅 메시지 조회 | 필요 | LEADER·MEMBER |
-| POST | /api/teams/:teamId/messages | 채팅 메시지 전송 | 필요 | LEADER·MEMBER |
-| GET | /api/teams/:teamId/notices | 공지사항 목록 조회 | 필요 | LEADER·MEMBER |
-| POST | /api/teams/:teamId/notices | 공지사항 등록 | 필요 | LEADER·MEMBER |
+| GET | /api/teams/:teamId/messages | 채팅 메시지 조회 (팀 일자별) | 필요 | LEADER·MEMBER |
+| POST | /api/teams/:teamId/messages | 채팅 메시지 전송 (팀 일자별) | 필요 | LEADER·MEMBER |
+| GET | /api/teams/:teamId/notices | 공지사항 목록 조회 (팀 일자별) | 필요 | LEADER·MEMBER |
+| POST | /api/teams/:teamId/notices | 공지사항 등록 (팀 일자별) | 필요 | LEADER·MEMBER |
 | DELETE | /api/teams/:teamId/notices/:noticeId | 공지사항 삭제 | 필요 | 작성자 또는 LEADER |
 | GET | /api/teams/:teamId/postits | 월별 포스트잇 목록 | 필요 | LEADER·MEMBER |
 | POST | /api/teams/:teamId/postits | 포스트잇 생성 | 필요 | LEADER·MEMBER |
@@ -2562,6 +3210,10 @@ Project
 | GET | /api/teams/:teamId/projects/:projectId | 프로젝트 상세 | 필요 | LEADER·MEMBER |
 | PATCH | /api/teams/:teamId/projects/:projectId | 프로젝트 수정 | 필요 | 생성자 본인만 |
 | DELETE | /api/teams/:teamId/projects/:projectId | 프로젝트 삭제 | 필요 | 생성자 본인만 |
+| GET | /api/teams/:teamId/projects/:projectId/messages | 프로젝트 채팅 조회 | 필요 | LEADER·MEMBER |
+| POST | /api/teams/:teamId/projects/:projectId/messages | 프로젝트 채팅 전송 | 필요 | LEADER·MEMBER |
+| GET | /api/teams/:teamId/projects/:projectId/notices | 프로젝트 공지 목록 | 필요 | LEADER·MEMBER |
+| POST | /api/teams/:teamId/projects/:projectId/notices | 프로젝트 공지 등록 | 필요 | LEADER·MEMBER |
 | GET | /api/teams/:teamId/projects/:projectId/schedules | 프로젝트 일정 목록 | 필요 | LEADER·MEMBER |
 | POST | /api/teams/:teamId/projects/:projectId/schedules | 프로젝트 일정 생성 | 필요 | LEADER·MEMBER |
 | PATCH | /api/teams/:teamId/projects/:projectId/schedules/:scheduleId | 프로젝트 일정 수정 | 필요 | 생성자 본인만 |
@@ -2570,12 +3222,18 @@ Project
 | POST | /api/teams/:teamId/projects/:projectId/schedules/:scheduleId/sub-schedules | 서브 일정 생성 | 필요 | LEADER·MEMBER |
 | PATCH | /api/teams/:teamId/projects/:projectId/schedules/:scheduleId/sub-schedules/:subId | 서브 일정 수정 | 필요 | 생성자 본인만 |
 | DELETE | /api/teams/:teamId/projects/:projectId/schedules/:scheduleId/sub-schedules/:subId | 서브 일정 삭제 | 필요 | 생성자 본인만 |
+| GET | /api/teams/:teamId/board | 자료실 글 목록 | 필요 | LEADER·MEMBER |
+| POST | /api/teams/:teamId/board | 자료실 글 작성 (multipart) | 필요 | LEADER·MEMBER |
+| GET | /api/teams/:teamId/board/:postId | 자료실 글 상세 | 필요 | LEADER·MEMBER |
+| PATCH | /api/teams/:teamId/board/:postId | 자료실 글 수정 (multipart) | 필요 | 작성자 본인만 |
+| DELETE | /api/teams/:teamId/board/:postId | 자료실 글 삭제 | 필요 | 작성자 본인만 |
+| GET | /api/files/:fileId | 첨부파일 다운로드 | 필요 | 해당 팀 구성원 |
 | GET | /api/teams/:teamId/work-permissions | 업무보고 조회 권한 목록 조회 | 필요 | LEADER·MEMBER |
 | PATCH | /api/teams/:teamId/work-permissions | 업무보고 조회 권한 일괄 설정 | 필요 | LEADER만 |
 
 ---
 
-## 13. 관련 문서
+## 18. 관련 문서
 
 | 문서 | 경로 |
 |------|------|
