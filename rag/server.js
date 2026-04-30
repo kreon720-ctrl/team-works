@@ -300,6 +300,23 @@ app.post("/parse-schedule-args", async (req, res) => {
     if (!args.title || !args.startAt || !args.endAt) {
       return res.json({ ok: false, needs: "time", hint: "시간을 좀 더 구체적으로 알려주세요. 예: '오후 3시'" });
     }
+    // 과거 시각 검증 — LLM 이 매핑 표를 무시하거나 사용자가 명시적 과거 날짜를 입력해도
+    // 무조건 미래 시각만 허용. silent past-date registration 방지.
+    // 1분 grace period — "방금 지난 시각" 정도는 허용 (시계 차이·입력 지연 보정).
+    const startAtMs = new Date(args.startAt).getTime();
+    if (Number.isNaN(startAtMs)) {
+      return res.json({ ok: false, needs: "date", hint: "날짜·시각을 다시 알려주세요." });
+    }
+    const nowMs = new Date(now).getTime();
+    if (startAtMs < nowMs - 60_000) {
+      const kstStart = new Date(startAtMs + 9 * 60 * 60 * 1000);
+      const kstStartStr = kstStart.toISOString().slice(0, 16).replace("T", " ");
+      return res.json({
+        ok: false,
+        needs: "date",
+        hint: `${kstStartStr} 은 이미 지난 시각이에요. 미래 날짜·시각으로 다시 알려주세요.`,
+      });
+    }
     return res.json({ ok: true, args });
   } catch (err) {
     return res.json({ ok: false, error: String(err.message || err) });
