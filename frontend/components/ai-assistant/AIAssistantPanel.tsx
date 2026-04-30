@@ -88,6 +88,8 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // SSE meta 의 model 필드 — 직전 답변에 쓰인 모델명. 푸터 표시용.
+  const [activeModel, setActiveModel] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -188,6 +190,9 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
                   m.id === msgId ? { ...m, answerSource: mapSource(evt.source) } : m
                 )
               );
+              if (typeof evt.model === 'string' && evt.model) {
+                setActiveModel(evt.model);
+              }
             } else if (evt.type === 'progress' && typeof evt.text === 'string') {
               setMessages((prev) =>
                 prev.map((m) =>
@@ -442,7 +447,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
           </button>
         </div>
         <p className="mt-1.5 text-[11px] text-gray-400 dark:text-dark-text-disabled text-center">
-          Answered by gemma4:26b · 사용법은 공식 문서, 일정은 팀 DB, 그 외엔 웹 검색으로 답해요.
+          Answered by {activeModel ?? 'AI'} · 사용법은 공식 문서, 일정은 팀 DB, 그 외엔 웹 검색으로 답해요.
         </p>
       </div>
     </div>

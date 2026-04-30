@@ -9,11 +9,9 @@ export const MODELFILE_PATH = path.join(OLLAMA_DIR, "Modelfile");
 export const CHUNKS_PATH = path.join(__dirname, "data", "chunks.json");
 
 export const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
-// 임베딩과 채팅은 역할이 달라 별도 모델 사용
-// - 임베딩: nomic-embed-text (768 dim, 빠름, 한국어 가능)
-// - 채팅: gemma4:26b (모델 capability 128K이지만 KV 캐시 절감 위해 호출 시 32K로 고정)
+// 임베딩 모델은 인덱스(chunks.json)와 차원이 일치해야 해서 env 기반 고정.
+// 채팅 모델은 modelResolver.resolveChatModel() 가 런타임에 /api/ps 로 자동 해석.
 export const EMBED_MODEL = process.env.EMBED_MODEL || "nomic-embed-text";
-export const CHAT_MODEL = process.env.CHAT_MODEL || "gemma4:26b";
 // 32K 컨텍스트 안에서 parent-document 전문 첨부가 가능한 안전 범위.
 export const TOP_K = Number(process.env.TOP_K || 5);
 export const SERVER_PORT = Number(process.env.PORT || 8787);

@@ -2,7 +2,8 @@ import express from "express";
 import { retrieve } from "./retriever.js";
 import { buildMessages } from "./promptBuilder.js";
 import { chat, chatStreamRaw } from "./ollamaClient.js";
-import { CHAT_MODEL, SERVER_PORT, TOP_K } from "./config.js";
+import { resolveChatModel } from "./modelResolver.js";
+import { SERVER_PORT, TOP_K } from "./config.js";
 
 // TEAM WORKS 도메인 키워드 — 매치되면 강한 사용법 시그널로 보고 즉시 RAG 라우팅.
 // 단, SCHEDULE_KEYWORDS 와 동시 매치되면 일정 의도가 우선.
@@ -103,8 +104,13 @@ function classifyIntent(question) {
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, model: CHAT_MODEL });
+app.get("/health", async (_req, res) => {
+  try {
+    const model = await resolveChatModel();
+    res.json({ ok: true, model });
+  } catch (err) {
+    res.status(503).json({ ok: false, error: err.message || String(err) });
+  }
 });
 
 // 키워드 기반 4-way 분류기.
@@ -159,7 +165,8 @@ app.post("/parse-schedule-args", async (req, res) => {
   const sysPrompt = `당신은 한국어 일정 등록 요청을 JSON 으로 변환합니다.\n현재 KST 날짜: ${kstDateStr} (${kstWeekday})\n현재 UTC 시각: ${now}\n사용자는 한국 시간대(KST=UTC+9)로 말한다고 가정.\n\n반드시 다음 둘 중 하나의 JSON 만 출력 (마크다운 금지):\n\n[A. 정보 충분 — 인자 반환]\n{"ok":true,"title":"...","startAt":"YYYY-MM-DDTHH:MM:SS.000Z","endAt":"YYYY-MM-DDTHH:MM:SS.000Z","description":""}\n\n[B. 정보 부족 — 후속 질문]\n{"ok":false,"needs":"time"|"date"|"title","hint":"한국어 한 문장 후속 질문"}\n\n날짜 추론 규칙 (오늘=${kstDateStr}(${kstWeekday}) 기준):\n- "오늘" → ${kstDateStr}\n- "내일" → 오늘 + 1일\n- "어제" → 오늘 - 1일\n- "X월 Y일" 연도 미명시 → 가장 가까운 미래\n\n요일 매핑 — 사용자가 "이번 주/다음 주/지난주 X요일" 이라고 말하면 **아래 표를 그대로 사용**. 추론·계산 금지.\n\n[이번 주 (일~토)]\n${weekMapping}\n\n[다음 주]\n${nextWeekMapping}\n\n[지난주]\n${lastWeekMapping}\n\n시간 변환 규칙 (매우 중요):\n- 사용자는 KST 로 말함. ISO 8601 UTC ('Z' 끝) 로 반환할 때 **KST 시각에서 9시간을 뺀** 값을 출력.\n- 예: 사용자 "내일 오후 3시" + 오늘=2026-04-30 → 내일=2026-05-01 KST 15:00 → "2026-05-01T06:00:00.000Z".\n- 예: 사용자 "오전 9시" → KST 09:00 → "T00:00:00.000Z".\n- 예: 사용자 "자정" → KST 00:00 → 전날 "T15:00:00.000Z".\n- KST 0~8시 시각은 UTC 로 전날이 됨. 주의해서 날짜도 보정.\n\nA(완성) vs B(부족) 결정 규칙:\n- 시작 시각이 명시되지 않거나 모호("오전?", "오후?", "회의 잡아줘")하면 → B, needs="time", hint="몇 시에 잡을까요?"\n- 날짜가 모호("회의 잡아줘", "다음에"...)하면 → B, needs="date", hint="언제로 잡을까요?"\n- 제목이 전혀 없으면 → B, needs="title", hint="회의 제목은 무엇으로 할까요?"\n- 위 모두 갖춰지면 → A. 종료 시각 미명시면 시작+1시간 가정 OK.\n- 제목은 사용자 표현 짧게(10자 내외). description 는 명시 안 하면 빈 문자열.\n\n절대 JSON 외 다른 문자 출력 금지.`;
 
   try {
-    const result = await chat(CHAT_MODEL, [
+    const model = await resolveChatModel();
+    const result = await chat(model, [
       { role: "system", content: sysPrompt },
       { role: "user", content: question },
     ], { temperature: 0.1, num_predict: 256 });
@@ -213,7 +220,8 @@ app.post("/parse-schedule-query", async (req, res) => {
   const sysPrompt = `당신은 한국어 일정 조회 요청을 JSON 으로 변환합니다.\n현재 KST 날짜: ${todayKst} (${kstWeekday})\n사용자가 한국 시간대로 말한다고 가정.\n\n반드시 다음 JSON 만 출력 (마크다운 금지):\n{"view":"day","date":"YYYY-MM-DD","keyword":""}\n\nview 결정 규칙:\n- 특정 하루 (예: "오늘", "내일", "어제", "4월 22일", "지난 화요일") → "day"\n- 특정 주간 (예: "이번 주", "다음 주", "지난주") → "week"\n- 특정 월 또는 모호 (예: "이번 달", "5월", "최근 일정", 시점 명시 없는 키워드 검색) → "month"\n\ndate 결정:\n- view=day 면 그 날짜 (YYYY-MM-DD).\n- view=week/month 면 해당 주/월 안의 임의 날짜 (예: 그 주 월요일, 그 달 1일).\n- 연도 미명시 시 가장 가까운 과거 또는 미래 중 자연스러운 쪽 (지나간 표현은 과거, 다가오는 표현은 미래).\n- 키워드 검색만 있고 시점 명시 없으면 date=오늘.\n\nkeyword 결정 규칙:\n- **금지 키워드 (절대 keyword 로 추출 금지)**: "일정", "회의", "미팅", "스케줄", "약속", "이벤트", "행사", "정리", "알려", "보여", "확인", "조회", "찾아", "있어", "있나", "어떤", "뭐", "무엇".\n- keyword 는 **사용자가 명시한 구체적 일정의 고유 제목·주제** 일 때만 추출 (예: "디자인 리뷰", "주간 정기 회의", "킥오프 미팅", "직원 점심").\n- 일반 동작어/명사만 있고 구체적 제목 단서가 없으면 **반드시 빈 문자열** 반환.\n- 의심스러우면 빈 문자열.\n\n예시:\n- "지난주 일정 정리해줘" → keyword=""\n- "오늘 회의 있어?" → keyword=""\n- "디자인 리뷰 일정 언제야?" → keyword="디자인 리뷰"\n- "킥오프 미팅 보여줘" → keyword="킥오프"\n\n절대 JSON 외 다른 문자 출력 금지.`;
 
   try {
-    const result = await chat(CHAT_MODEL, [
+    const model = await resolveChatModel();
+    const result = await chat(model, [
       { role: "system", content: sysPrompt },
       { role: "user", content: question },
     ], { temperature: 0.1, num_predict: 128 });
@@ -244,6 +252,7 @@ app.post("/chat", async (req, res) => {
     const k = Number.isFinite(topK) ? Math.max(1, Math.min(10, topK)) : TOP_K;
     const retrieved = await retrieve(question, k);
     const messages = await buildMessages(question, retrieved);
+    const model = await resolveChatModel();
     const sources = retrieved.map((r) => ({
       source_file: r.chunk.source_file,
       section_path: r.chunk.section_path,
@@ -261,7 +270,7 @@ app.post("/chat", async (req, res) => {
       // 출처는 시작 시점에 한 번에 전송 (사용자 UI 가 placeholder 로 미리 표시)
       res.write(`data: ${JSON.stringify({ type: "sources", sources })}\n\n`);
 
-      const upstream = await chatStreamRaw(CHAT_MODEL, messages, { temperature: 0.3 });
+      const upstream = await chatStreamRaw(model, messages, { temperature: 0.3 });
       const reader = upstream.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
@@ -293,7 +302,7 @@ app.post("/chat", async (req, res) => {
     }
 
     // === 기존 non-stream 모드 ===
-    const result = await chat(CHAT_MODEL, messages, { temperature: 0.3 });
+    const result = await chat(model, messages, { temperature: 0.3 });
     res.json({ answer: result.message?.content ?? "", sources });
   } catch (err) {
     console.error(err);

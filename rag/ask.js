@@ -2,12 +2,13 @@ import readline from "node:readline";
 import { retrieve } from "./retriever.js";
 import { buildMessages } from "./promptBuilder.js";
 import { chat } from "./ollamaClient.js";
-import { CHAT_MODEL } from "./config.js";
+import { resolveChatModel } from "./modelResolver.js";
 
 async function answer(question) {
   const retrieved = await retrieve(question);
   const messages = await buildMessages(question, retrieved);
-  const result = await chat(CHAT_MODEL, messages, { temperature: 0.3 });
+  const model = await resolveChatModel();
+  const result = await chat(model, messages, { temperature: 0.3 });
   return {
     text: result.message?.content ?? "",
     sources: retrieved.map((r) => ({
@@ -41,7 +42,13 @@ async function main() {
   }
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  console.log(`TEAM WORKS RAG 챗봇 (${CHAT_MODEL}). 종료: /exit\n`);
+  let modelLabel = "?";
+  try {
+    modelLabel = await resolveChatModel();
+  } catch {
+    modelLabel = "(미실행)";
+  }
+  console.log(`TEAM WORKS RAG 챗봇 (${modelLabel}). 종료: /exit\n`);
   const ask = () =>
     rl.question("질문> ", async (q) => {
       const t = q.trim();

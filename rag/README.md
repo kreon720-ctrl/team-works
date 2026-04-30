@@ -56,9 +56,10 @@ npm run server
 |------|--------|
 | `OLLAMA_HOST` | `http://127.0.0.1:11434` |
 | `EMBED_MODEL` | `nomic-embed-text` |
-| `CHAT_MODEL`  | `gemma2:9b` |
 | `TOP_K`       | `3` |
 | `PORT`        | `8787` |
+
+> 채팅 모델은 환경 변수가 아니라 런타임에 Ollama `/api/ps` 로 자동 해석합니다 (`modelResolver.js`). 운영자가 채팅 가능한 모델 1개를 띄워두면 그 모델로 동작하고, 없으면 "AI 모델에 연결할 수 없습니다." 오류를 반환합니다.
 
 ## 구성 요소
 

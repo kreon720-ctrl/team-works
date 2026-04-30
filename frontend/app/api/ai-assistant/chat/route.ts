@@ -80,6 +80,19 @@ function hostnameOf(url: string): string | undefined {
   }
 }
 
+// RAG 서버가 런타임에 해석한 채팅 모델명을 가져옴 (`/health` 가 modelResolver 결과 노출).
+// UI 푸터 표시용. 실패 시 undefined → UI 는 fallback 텍스트로 처리.
+async function fetchRagModel(): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${RAG_SERVER_URL}/health`);
+    if (!res.ok) return undefined;
+    const data = await res.json();
+    return typeof data?.model === 'string' ? data.model : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function callRagChat(question: string, topK?: number) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 540000);
@@ -587,6 +600,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const cls = await classify(question);
     const topK = Number.isFinite(body?.topK) ? body.topK : undefined;
     const isStream = body?.stream === true;
+    // RAG 서버가 런타임에 해석한 채팅 모델명 — UI 푸터 표시용. 미응답 시 undefined.
+    const ragModel = await fetchRagModel();
+    // 답변 출처에 따라 다른 모델이 쓰임. RAG/일정 경로는 Ollama 모델, 웹 경로는 Open WebUI 프리셋.
+    const ragMeta = ragModel ? { model: ragModel } : {};
+    const webMeta = { model: OPEN_WEBUI_MODEL };
 
     // schedule_* / blocked-other_domain(create 시) 는 로그인 + teamId 필수.
     const needsAuth =
@@ -615,7 +633,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           try {
             switch (cls.intent) {
               case 'usage': {
-                send({ type: 'meta', source: 'rag', classification: cls });
+                send({ type: 'meta', source: 'rag', classification: cls, ...ragMeta });
                 await streamRag(question, topK, send);
                 break;
               }
@@ -624,6 +642,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   type: 'meta',
                   source: 'web',
                   classification: { ...cls, fallback: 'general-keyword-direct' },
+                  ...webMeta,
                 });
                 await streamOpenWebUi(question, send);
                 const sources = await searxngQuery(question);
@@ -631,7 +650,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 break;
               }
               case 'schedule_query': {
-                send({ type: 'meta', source: 'schedule', classification: cls });
+                send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
                 const { schedules, range } = await runScheduleQuery({ question, teamId, jwt });
                 send({
                   type: 'sources',
@@ -645,7 +664,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 break;
               }
               case 'schedule_create': {
-                send({ type: 'meta', source: 'schedule', classification: cls });
+                send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
                 const parsed = await parseScheduleArgs(question);
                 if (parsed.ok) {
                   // confirm 카드 — page.tsx 가 pendingAction 으로 처리.
@@ -681,6 +700,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 send({ type: 'token', text: blockedMessage(cls.subreason) });
                 break;
               }
+              // 'unknown' 이하 default 분기는 RAG/웹 분기에 따라 다른 model 적용
               case 'unknown':
               default: {
                 // RAG 시도 후 거절형이면 Open WebUI fallback (기존 패턴 유지)
@@ -696,6 +716,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     type: 'meta',
                     source: 'rag',
                     classification: { ...cls, fallback: 'rag-answered' },
+                    ...ragMeta,
                   });
                   if (Array.isArray(ragData.sources)) {
                     send({ type: 'sources', sources: ragData.sources as WebSource[] });
@@ -706,6 +727,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     type: 'meta',
                     source: 'web',
                     classification: { ...cls, fallback: 'rag-refused' },
+                    ...webMeta,
                   });
                   await streamOpenWebUi(question, send);
                   const sources = await searxngQuery(question);
@@ -743,7 +765,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     switch (cls.intent) {
       case 'usage': {
         const data = await callRagChat(question, topK);
-        return NextResponse.json({ ...data, source: 'rag', classification: cls });
+        return NextResponse.json({ ...data, source: 'rag', classification: cls, ...ragMeta });
       }
       case 'general': {
         const ow = await callOpenWebUi(question);
@@ -752,6 +774,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           sources: ow.sources,
           source: 'web',
           classification: { ...cls, fallback: 'general-keyword-direct' },
+          ...webMeta,
         });
       }
       case 'schedule_query': {
@@ -761,6 +784,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           sources: schedules,
           source: 'schedule',
           classification: cls,
+          ...ragMeta,
         });
       }
       case 'schedule_create': {
@@ -770,6 +794,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             answer: `일정 등록 인자를 이해하지 못했어요. 좀 더 구체적으로 말씀해 주시겠어요?`,
             source: 'schedule',
             classification: cls,
+            ...ragMeta,
           });
         }
         return NextResponse.json({
@@ -782,6 +807,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           },
           source: 'schedule',
           classification: cls,
+          ...ragMeta,
         });
       }
       case 'blocked': {
@@ -805,6 +831,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             ...ragData,
             source: 'rag',
             classification: { ...cls, fallback: 'rag-answered' },
+            ...ragMeta,
           });
         }
         const ow = await callOpenWebUi(question);
@@ -813,6 +840,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           sources: ow.sources,
           source: 'web',
           classification: { ...cls, fallback: 'rag-refused' },
+          ...webMeta,
         });
       }
     }
