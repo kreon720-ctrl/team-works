@@ -507,7 +507,7 @@ function SourceBadge({
 
   if (source === 'schedule') {
     const label =
-      intent === 'schedule_create' ? '일정 등록중' : '일정 조회중';
+      intent === 'schedule_create' ? '일정 등록' : '일정 조회';
     return (
       <p className="text-[11px] text-emerald-700 dark:text-emerald-400 pl-1">
         📅 {label}
