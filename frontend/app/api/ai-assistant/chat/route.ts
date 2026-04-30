@@ -461,18 +461,50 @@ const AMBIGUOUS_BANDS = ['저녁', '새벽', '아침', '밤', '점심', '야식'
 
 const HAS_SPECIFIC_TIME = /\d+\s*시|\d+\s*[:：]\s*\d+/;
 
+// "(오전|오후)? X시 (이후|이전)" 명시적 시간 경계 패턴.
+// 예: "14시 이후", "오후 6시 이전", "오전 9시 이후"
+const TIME_BOUND_RE = /(오전|오후)?\s*(\d{1,2})\s*시\s*(이후|이전)/;
+
 type TimeBandResult =
   | { kind: 'objective'; band: TimeBand }
   | { kind: 'ambiguous'; keyword: string }
   | { kind: 'none' };
 
+// "(오전|오후)? X시" → KST 24h hour 변환.
+// 오후 1~11시 → +12 / 오후 12시 → 12 (정오) / 오전 12시 → 0 (자정)
+// 오전 1~11시 → 그대로 / 24h 표기 (오전·오후 없이) → 그대로
+function toKstHour24(ampm: string | undefined, hour: number): number {
+  if (ampm === '오후') return hour < 12 ? hour + 12 : 12;
+  if (ampm === '오전') return hour === 12 ? 0 : hour;
+  return hour;
+}
+
 // 사용자 질의에서 시간대 키워드 검출.
-// "오후 3시" 처럼 구체 시각이 같이 있으면 시간대 키워드는 보조 표현으로 간주 → none.
+// 우선순위:
+//  1) "X시 이후/이전" — 명시적 시간 경계 (가장 구체적)
+//  2) HAS_SPECIFIC_TIME — "오후 3시" 처럼 구체 시각 동반 → 시간대 무시 (none)
+//  3) OBJECTIVE_BANDS — 오전/오후
+//  4) AMBIGUOUS_BANDS — 저녁/새벽/점심 등
 function detectTimeBand(question: string): TimeBandResult {
+  // 1) 명시적 시간 경계 우선
+  const m = question.match(TIME_BOUND_RE);
+  if (m) {
+    const ampm = m[1] || undefined;
+    const hour = parseInt(m[2], 10);
+    const direction = m[3]; // '이후' | '이전'
+    const h = Math.max(0, Math.min(24, toKstHour24(ampm, hour)));
+    if (direction === '이후') {
+      return { kind: 'objective', band: { start: h, end: 24, label: `${h}시 이후` } };
+    }
+    return { kind: 'objective', band: { start: 0, end: h, label: `${h}시 이전` } };
+  }
+  // 2) 구체 시각만 (X시 단독, 이후/이전 없음) → 시간대 필터 적용 안 함
   if (HAS_SPECIFIC_TIME.test(question)) return { kind: 'none' };
+  // 3) 오전/오후
   for (const [kw, band] of Object.entries(OBJECTIVE_BANDS)) {
     if (question.includes(kw)) return { kind: 'objective', band };
   }
+  // 4) 모호 키워드
   for (const kw of AMBIGUOUS_BANDS) {
     if (question.includes(kw)) return { kind: 'ambiguous', keyword: kw };
   }
