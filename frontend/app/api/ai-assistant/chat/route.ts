@@ -111,7 +111,19 @@ async function callRagChat(question: string, topK?: number) {
 
 // 모델 프리셋의 system prompt 와 무관하게 매 호출마다 강제 적용하는 추가 시스템 프롬프트.
 // 검색 결과 본문 인용·출처 URL 명시를 강하게 요구해 sources 추출(URL 정규식)이 일관되게 동작하도록 함.
-const OPEN_WEBUI_SYSTEM_PROMPT = `당신은 TEAM WORKS 의 AI 비서 "찰떡"입니다. 사용자가 일반 질문(TEAM WORKS 사용법과 무관한 시사·날씨·코딩·지식 등)을 했고, 시스템이 웹 검색 결과를 컨텍스트로 제공했습니다.
+//
+// 매 호출마다 KST 오늘 날짜를 주입 — 모델이 자체 training cutoff 를 "오늘" 으로 가정해
+// "내일" / "어제" / "오늘" 을 잘못 해석하는 것 방지. 일정 관련 prompt (parse-schedule-*) 와 동일 패턴.
+function buildOpenWebUiSystemPrompt(): string {
+  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayKst = nowKst.toISOString().slice(0, 10);
+  const wd = ['일', '월', '화', '수', '목', '금', '토'][nowKst.getUTCDay()];
+  return `당신은 TEAM WORKS 의 AI 비서 "찰떡"입니다.
+
+현재 KST 날짜: ${todayKst} (${wd}요일)
+사용자가 "오늘", "내일", "어제", "이번 주", "다음 주" 같은 상대 날짜·시점 표현을 사용하면 반드시 위 KST 날짜 기준으로 해석. 절대 본인의 학습 컷오프 날짜로 추론 금지.
+
+사용자가 일반 질문(TEAM WORKS 사용법과 무관한 시사·날씨·코딩·지식 등)을 했고, 시스템이 웹 검색 결과를 컨텍스트로 제공했습니다.
 
 답변 규칙 (반드시 준수):
 1. 한국어로 친절하고 간결하게 답합니다.
@@ -122,6 +134,7 @@ const OPEN_WEBUI_SYSTEM_PROMPT = `당신은 TEAM WORKS 의 AI 비서 "찰떡"입
    - https://example.com/...
    - https://example.com/...
 5. 출처 URL 은 인라인 마크다운 링크가 아닌 위 목록 형태로 1~3개 명시. 본문에서 인용한 출처만 표기.`;
+}
 
 async function callOpenWebUi(question: string) {
   if (!OPEN_WEBUI_API_KEY) {
@@ -131,7 +144,7 @@ async function callOpenWebUi(question: string) {
   }
   // 1) SearxNG 직접 검색 (~2초). web_search 를 Open WebUI 에 맡기면 5분+ 직렬 대기.
   const hits = await searxngFetch(question, 5);
-  const systemContent = OPEN_WEBUI_SYSTEM_PROMPT + hitsToContextBlock(hits);
+  const systemContent = buildOpenWebUiSystemPrompt() + hitsToContextBlock(hits);
 
   // Node.js undici(fetch 구현) 의 기본 receive timeout 이 5분(300초)이라
   // Open WebUI + gemma4:26b 답변이 그 이상 걸리면 끊긴다. 9분으로 명시 확장.
@@ -314,7 +327,7 @@ async function streamOpenWebUi(question: string, send: SendFn) {
   // 2) 출처를 stream 시작 직후 미리 송출 (UI 가 토큰 도착 전에 출처 카드 렌더 가능)
   if (hits.length) send({ type: 'sources', sources: hitsToSources(hits) });
   // 3) 검색 결과를 system prompt 에 inline 주입
-  const systemContent = OPEN_WEBUI_SYSTEM_PROMPT + hitsToContextBlock(hits);
+  const systemContent = buildOpenWebUiSystemPrompt() + hitsToContextBlock(hits);
 
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 540000);
