@@ -31,6 +31,8 @@ interface Message {
   sources?: Source[];
   // 답변 출처 — 'rag'(TEAM WORKS 공식 문서) 또는 'web'(Open WebUI 웹검색)
   answerSource?: AnswerSource;
+  // 분류 의도 — schedule 뱃지에서 조회/등록 구분 표시용
+  intent?: string;
   pendingAction?: PendingAction;
   preview?: string;
   // Once the user confirms or cancels, we flip this so the card stops
@@ -185,9 +187,15 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
           try {
             const evt = JSON.parse(data);
             if (evt.type === 'meta') {
+              const intent =
+                evt.classification && typeof evt.classification.intent === 'string'
+                  ? evt.classification.intent
+                  : undefined;
               setMessages((prev) =>
                 prev.map((m) =>
-                  m.id === msgId ? { ...m, answerSource: mapSource(evt.source) } : m
+                  m.id === msgId
+                    ? { ...m, answerSource: mapSource(evt.source), intent }
+                    : m
                 )
               );
               if (typeof evt.model === 'string' && evt.model) {
@@ -455,7 +463,15 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
 }
 
 // 답변 카드 하단의 출처 뱃지 — RAG(공식 문서) vs Web(웹검색) 색상·아이콘 분리
-function SourceBadge({ source, sources }: { source: AnswerSource; sources: Source[] }) {
+function SourceBadge({
+  source,
+  sources,
+  intent,
+}: {
+  source: AnswerSource;
+  sources: Source[];
+  intent?: string;
+}) {
   if (source === 'rag') {
     if (sources.length === 0) {
       return (
@@ -490,9 +506,11 @@ function SourceBadge({ source, sources }: { source: AnswerSource; sources: Sourc
   }
 
   if (source === 'schedule') {
+    const label =
+      intent === 'schedule_create' ? '일정 등록중' : '일정 조회중';
     return (
       <p className="text-[11px] text-emerald-700 dark:text-emerald-400 pl-1">
-        📅 우리 팀 일정 {sources.length}건
+        📅 {label}
       </p>
     );
   }
@@ -612,6 +630,7 @@ function MessageBubble({
           <SourceBadge
             source={message.answerSource}
             sources={message.sources ?? []}
+            intent={message.intent}
           />
         )}
         {/* answerSource 가 없는 과거(혹은 agent 모드) 메시지에 대한 폴백 표시 */}
