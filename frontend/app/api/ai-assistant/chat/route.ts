@@ -465,6 +465,11 @@ const HAS_SPECIFIC_TIME = /\d+\s*시|\d+\s*[:：]\s*\d+/;
 // 예: "14시 이후", "오후 6시 이전", "오전 9시 이후"
 const TIME_BOUND_RE = /(오전|오후)?\s*(\d{1,2})\s*시\s*(이후|이전)/;
 
+// "(오전|오후)? X시" 정확 시간 패턴 — 분·콜론·간·반 등 부수 표기 없을 때만.
+// 예: "12시 일정", "오후 3시 회의 보여줘"
+// 매치 안 됨: "12시간" (간), "12시 30분" (분/숫자), "12:30" (콜론), "12시반" (반)
+const TIME_AT_HOUR_RE = /(오전|오후)?\s*(\d{1,2})\s*시(?!\s*\d|\s*[:：]|\s*분|간|반)/;
+
 type TimeBandResult =
   | { kind: 'objective'; band: TimeBand }
   | { kind: 'ambiguous'; keyword: string }
@@ -482,29 +487,38 @@ function toKstHour24(ampm: string | undefined, hour: number): number {
 // 사용자 질의에서 시간대 키워드 검출.
 // 우선순위:
 //  1) "X시 이후/이전" — 명시적 시간 경계 (가장 구체적)
-//  2) HAS_SPECIFIC_TIME — "오후 3시" 처럼 구체 시각 동반 → 시간대 무시 (none)
-//  3) OBJECTIVE_BANDS — 오전/오후
-//  4) AMBIGUOUS_BANDS — 저녁/새벽/점심 등
+//  2) "X시" 정확 시간 — 분/콜론/간/반 등 없는 단독 시 표기. [X, X+1) 한 시간대.
+//  3) HAS_SPECIFIC_TIME — "오후 3시 30분" / "12:30" 처럼 분 단위 동반 → 시간대 무시
+//  4) OBJECTIVE_BANDS — 오전/오후
+//  5) AMBIGUOUS_BANDS — 저녁/새벽/점심 등
 function detectTimeBand(question: string): TimeBandResult {
   // 1) 명시적 시간 경계 우선
-  const m = question.match(TIME_BOUND_RE);
-  if (m) {
-    const ampm = m[1] || undefined;
-    const hour = parseInt(m[2], 10);
-    const direction = m[3]; // '이후' | '이전'
+  const bm = question.match(TIME_BOUND_RE);
+  if (bm) {
+    const ampm = bm[1] || undefined;
+    const hour = parseInt(bm[2], 10);
+    const direction = bm[3]; // '이후' | '이전'
     const h = Math.max(0, Math.min(24, toKstHour24(ampm, hour)));
     if (direction === '이후') {
       return { kind: 'objective', band: { start: h, end: 24, label: `${h}시 이후` } };
     }
     return { kind: 'objective', band: { start: 0, end: h, label: `${h}시 이전` } };
   }
-  // 2) 구체 시각만 (X시 단독, 이후/이전 없음) → 시간대 필터 적용 안 함
+  // 2) "X시" 정확 시간 — [X, X+1) 한 시간대로 필터
+  const hm = question.match(TIME_AT_HOUR_RE);
+  if (hm) {
+    const ampm = hm[1] || undefined;
+    const hour = parseInt(hm[2], 10);
+    const h = Math.max(0, Math.min(23, toKstHour24(ampm, hour)));
+    return { kind: 'objective', band: { start: h, end: h + 1, label: `${h}시` } };
+  }
+  // 3) 분 단위 등 부수 표기 동반 시간 → 시간대 필터 적용 안 함
   if (HAS_SPECIFIC_TIME.test(question)) return { kind: 'none' };
-  // 3) 오전/오후
+  // 4) 오전/오후
   for (const [kw, band] of Object.entries(OBJECTIVE_BANDS)) {
     if (question.includes(kw)) return { kind: 'objective', band };
   }
-  // 4) 모호 키워드
+  // 5) 모호 키워드
   for (const kw of AMBIGUOUS_BANDS) {
     if (question.includes(kw)) return { kind: 'ambiguous', keyword: kw };
   }
