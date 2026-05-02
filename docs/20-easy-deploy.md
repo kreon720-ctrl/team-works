@@ -112,7 +112,7 @@
 
 WSL2 는 **윈도우 안에서 리눅스를 돌리는 기능**입니다. Docker 가 이걸 사용해요.
 
-1. 시작 메뉴 → `Windows PowerShell` 우클릭 → **관리자 권한으로 실행**.
+1. 시작 메뉴 → `Windows PowerShell` 우클릭 → <strong style="color:#FFB800">관리자 권한</strong>**으로 실행**.
 2. 다음 명령 입력:
    ```powershell
    wsl --install
