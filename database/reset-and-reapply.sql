@@ -1,18 +1,28 @@
 -- =============================================
--- TEAM WORKS — Database Reset & Re-apply Script
+-- TEAM WORKS — Database Reset & Re-apply Script (Core)
 --
--- 목적: 전체 테이블·인덱스를 깨끗하게 지우고 schema.sql 과 동일한
---       최종 상태로 재생성. 데이터는 모두 사라짐 — 운영 환경 주의.
+-- 목적: 전체 테이블·인덱스를 깨끗하게 지우고 핵심 11개 테이블을 재생성.
+--       데이터는 모두 사라짐 — 운영 환경 주의.
 --
--- 실행:
+-- ⚠️ 이 스크립트는 코어 테이블만 만듭니다. 다음 add-*.sql 도 순서대로
+--    실행해야 전체 기능이 동작합니다:
+--      1) database/reset-and-reapply.sql   (이 파일 — 코어 11 테이블)
+--      2) database/add-postits.sql         (포스트잇)
+--      3) database/add-board.sql           (자료실 board_posts + board_attachments)
+--
+-- 실행 (3개 모두):
 --   docker exec -i postgres-db psql -U teamworks-manager -d teamworks \
 --     < database/reset-and-reapply.sql
+--   docker exec -i postgres-db psql -U teamworks-manager -d teamworks \
+--     < database/add-postits.sql
+--   docker exec -i postgres-db psql -U teamworks-manager -d teamworks \
+--     < database/add-board.sql
 --
--- schema.sql 변경 시 이 파일도 동일하게 갱신 필요.
+-- 한 번에 적용하려면 schema.sql 사용 (최종 상태 단일 파일).
 -- =============================================
 
 -- =====================
--- 1. DROP — 의존성 역순으로
+-- 1. DROP — 의존성 역순으로 (add-*.sql 의 테이블도 함께 정리)
 -- =====================
 DROP TABLE IF EXISTS board_attachments         CASCADE;
 DROP TABLE IF EXISTS board_posts               CASCADE;
@@ -159,20 +169,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     CONSTRAINT chk_schedules_color           CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 
--- 9) postits — 날짜 메모
-CREATE TABLE IF NOT EXISTS postits (
-    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    created_by UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    date       DATE        NOT NULL,
-    color      VARCHAR(20) NOT NULL DEFAULT 'amber',
-    content    TEXT        NOT NULL DEFAULT '',
-    created_at TIMESTAMP   NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP   NOT NULL DEFAULT now(),
-    CONSTRAINT chk_postits_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
-);
-
--- 10) chat_messages — 일반/업무보고 채팅
+-- 9) chat_messages — 일반/업무보고 채팅
 -- project_id NULL → 팀 일자별 채팅 (sent_at 기준 그룹), NOT NULL → 프로젝트 전용 채팅.
 -- 같은 테이블에 두 종류를 보관해 동일 코드·인덱스 패턴 재사용.
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -188,7 +185,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     CONSTRAINT chk_chat_messages_content CHECK (char_length(content) <= 2000)
 );
 
--- 11) work_performance_permissions — 업무보고 열람 권한
+-- 10) work_performance_permissions — 업무보고 열람 권한
 CREATE TABLE IF NOT EXISTS work_performance_permissions (
     team_id    UUID        NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -196,7 +193,7 @@ CREATE TABLE IF NOT EXISTS work_performance_permissions (
     PRIMARY KEY (team_id, user_id)
 );
 
--- 12) notices — 공지사항
+-- 11) notices — 공지사항
 -- project_id NULL → 팀 일자별 채팅 공지, NOT NULL → 프로젝트 전용 공지.
 CREATE TABLE IF NOT EXISTS notices (
     id         UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -208,34 +205,9 @@ CREATE TABLE IF NOT EXISTS notices (
     CONSTRAINT chk_notices_content CHECK (char_length(content) <= 2000)
 );
 
--- 13) board_posts — 자료실 게시글
--- project_id NULL → 팀 일자별 채팅방의 자료실, NOT NULL → 프로젝트 채팅방의 자료실.
-CREATE TABLE IF NOT EXISTS board_posts (
-    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    team_id    UUID         NOT NULL REFERENCES teams(id)    ON DELETE CASCADE,
-    project_id UUID         NULL     REFERENCES projects(id) ON DELETE CASCADE,
-    author_id  UUID         NOT NULL REFERENCES users(id)    ON DELETE RESTRICT,
-    title      VARCHAR(200) NOT NULL,
-    content    TEXT         NOT NULL,
-    created_at TIMESTAMP    NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_board_posts_title   CHECK (char_length(title) BETWEEN 1 AND 200),
-    CONSTRAINT chk_board_posts_content CHECK (char_length(content) <= 20000)
-);
-
--- 14) board_attachments — 자료실 첨부파일 메타데이터
--- 실제 파일은 backend/lib/files/storage.ts 의 StorageAdapter 가 보관.
--- stored_name 은 backend 무관 식별자 — 운영 전환 시 그대로 클라우드 객체 key 로 사용.
-CREATE TABLE IF NOT EXISTS board_attachments (
-    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    post_id       UUID         NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
-    original_name VARCHAR(255) NOT NULL,
-    stored_name   VARCHAR(64)  NOT NULL,
-    mime_type     VARCHAR(100) NOT NULL,
-    size_bytes    BIGINT       NOT NULL,
-    uploaded_at   TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_board_attachments_size CHECK (size_bytes > 0 AND size_bytes <= 10485760)
-);
+-- ⚠️ postits 테이블은 database/add-postits.sql 에서 별도 생성.
+-- ⚠️ board_posts / board_attachments 테이블은 database/add-board.sql 에서 별도 생성.
+-- 본 스크립트 실행 후 두 파일도 순서대로 적용해야 전체 기능 동작.
 
 -- =====================
 -- 4. INDEXES
@@ -275,9 +247,6 @@ CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_id          ON sub_schedule
 CREATE INDEX IF NOT EXISTS idx_schedules_team_id_start_at ON schedules(team_id, start_at);
 CREATE INDEX IF NOT EXISTS idx_schedules_team_id_end_at   ON schedules(team_id, end_at);
 
--- postits
-CREATE INDEX IF NOT EXISTS idx_postits_team_id_date ON postits(team_id, date);
-
 -- chat_messages
 CREATE INDEX IF NOT EXISTS idx_chat_messages_team_id_sent_at
     ON chat_messages(team_id, sent_at DESC);
@@ -294,16 +263,10 @@ CREATE INDEX IF NOT EXISTS idx_notices_team_id ON notices(team_id);
 CREATE INDEX IF NOT EXISTS idx_notices_project_id
     ON notices(project_id) WHERE project_id IS NOT NULL;
 
--- board_posts
-CREATE INDEX IF NOT EXISTS idx_board_posts_team_id_created_at
-    ON board_posts(team_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_board_posts_project_id_created_at
-    ON board_posts(project_id, created_at DESC) WHERE project_id IS NOT NULL;
-
--- board_attachments
-CREATE INDEX IF NOT EXISTS idx_board_attachments_post_id ON board_attachments(post_id);
+-- ⚠️ postits / board_posts / board_attachments 인덱스는 각각의
+-- add-postits.sql · add-board.sql 에서 함께 생성됨.
 
 -- =====================
 -- Done
 -- =====================
-SELECT 'TEAM WORKS DB reset complete — 14 tables created.' AS result;
+SELECT 'TEAM WORKS DB core reset complete — 11 tables. add-postits.sql / add-board.sql 도 적용 필요.' AS result;
