@@ -10,23 +10,23 @@
 --   docker exec -i postgres-db psql -U teamworks-manager -d teamworks \
 --     < database/seed-dev.sql
 --
--- 모든 사용자 비밀번호: ABC123!@#  (bcrypt $2b$12$ ...)
+-- 모든 사용자 비밀번호: Abc123!@#  (bcrypt $2b$12$ ...)
 -- 메인 운영자: dev0@naver.com (기획팀 LEADER)
 -- =============================================
 
 -- =====================
 -- 1) USERS (8명)
 -- =====================
--- 비밀번호 ABC123!@# 의 bcrypt 해시 — 모든 계정 동일.
+-- 비밀번호 Abc123!@# 의 bcrypt 해시 — 모든 계정 동일.
 INSERT INTO users (id, email, name, password_hash, created_at) VALUES
-  ('d8402697-ebbc-4e69-a8d0-4dd8d73cc1f3', 'dev0@naver.com', '기획팀장', '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW() - INTERVAL '30 days'),
-  ('11111111-1111-1111-1111-111111111111', 'dev1@naver.com', '김민수',   '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW() - INTERVAL '28 days'),
-  ('22222222-2222-2222-2222-222222222222', 'dev2@naver.com', '이서연',   '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW() - INTERVAL '27 days'),
-  ('33333333-3333-3333-3333-333333333333', 'dev3@naver.com', '박지훈',   '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW() - INTERVAL '26 days'),
-  ('44444444-4444-4444-4444-444444444444', 'dev4@naver.com', '정수아',   '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW() - INTERVAL '25 days'),
-  (gen_random_uuid(),                       'demo1@naver.com', '최민지', '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW() - INTERVAL '2 days'),
-  (gen_random_uuid(),                       'demo2@naver.com', '강도윤', '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW() - INTERVAL '1 day'),
-  (gen_random_uuid(),                       'demo3@naver.com', '윤하늘', '$2b$12$Qb0C1SHfqDDNZ3PTT5E5S.5Tn1oo8lmxTLD99OnIAWNDmw0WwLZKa', NOW());
+  ('d8402697-ebbc-4e69-a8d0-4dd8d73cc1f3', 'dev0@naver.com', '기획팀장', '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW() - INTERVAL '30 days'),
+  ('11111111-1111-1111-1111-111111111111', 'dev1@naver.com', '김민수',   '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW() - INTERVAL '28 days'),
+  ('22222222-2222-2222-2222-222222222222', 'dev2@naver.com', '이서연',   '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW() - INTERVAL '27 days'),
+  ('33333333-3333-3333-3333-333333333333', 'dev3@naver.com', '박지훈',   '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW() - INTERVAL '26 days'),
+  ('44444444-4444-4444-4444-444444444444', 'dev4@naver.com', '정수아',   '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW() - INTERVAL '25 days'),
+  (gen_random_uuid(),                       'demo1@naver.com', '최민지', '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW() - INTERVAL '2 days'),
+  (gen_random_uuid(),                       'demo2@naver.com', '강도윤', '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW() - INTERVAL '1 day'),
+  (gen_random_uuid(),                       'demo3@naver.com', '윤하늘', '$2b$12$5ZaZLXdHoINb9quGe9ENfeG.aZl0ogr6VDt8ceQi1ZOjUErGmZU8S', NOW());
 
 -- =====================
 -- 2) TEAMS (4개)
