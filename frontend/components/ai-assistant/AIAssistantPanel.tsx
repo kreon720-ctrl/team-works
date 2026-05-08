@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { tokenManager } from '@/lib/tokenManager';
+import { getValidAccessToken } from '@/lib/authInterceptor';
 
 interface Source {
   // RAG 결과 (TEAM WORKS 공식 문서)
@@ -129,7 +129,8 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
         'content-type': 'application/json',
       };
       // 일정 조회·등록 의도는 서버에서 JWT 강제. 토큰이 있으면 항상 동봉해 backend 권한 검증을 거치게 함.
-      const token = tokenManager.getAccessToken();
+      // exp 30 초 이내면 미리 refresh — 15분 idle 후 첫 질문에서 backend 401 로 떨어지는 케이스 회피.
+      const token = await getValidAccessToken();
       if (token) headers['authorization'] = `Bearer ${token}`;
 
       // 모든 의도를 SSE 로 처리 — token / pending-action / blocked 모두 stream 안에서 분기.
@@ -305,7 +306,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
     );
     setIsLoading(true);
     try {
-      const token = tokenManager.getAccessToken();
+      const token = await getValidAccessToken();
       if (!token) throw new Error('로그인이 필요합니다.');
       const res = await fetch('/api/ai-assistant/execute', {
         method: 'POST',
