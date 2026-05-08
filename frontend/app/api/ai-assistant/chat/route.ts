@@ -595,6 +595,11 @@ function detectTimeBand(question: string): TimeBandResult {
     const ampm = bm[1] || undefined;
     const hour = parseInt(bm[2], 10);
     const direction = bm[3]; // '이후' | '이전'
+    // AM/PM 모호 가드 — bare 1~12 시 + 오전/오후 미명시면 → 후속 질문 (등록 경로와 동일 정책).
+    // 13시+ 24h 표기 (13~24) 와 0시 (자정 = 명확) 는 통과.
+    if (!ampm && hour >= 1 && hour <= 12) {
+      return { kind: 'ambiguous', keyword: `${hour}시 ${direction}` };
+    }
     const h = Math.max(0, Math.min(24, toKstHour24(ampm, hour)));
     if (direction === '이후') {
       return { kind: 'objective', band: { start: h, end: 24, label: `${h}시 이후` } };
@@ -606,6 +611,10 @@ function detectTimeBand(question: string): TimeBandResult {
   if (hm) {
     const ampm = hm[1] || undefined;
     const hour = parseInt(hm[2], 10);
+    // AM/PM 모호 가드 — 1) 분기와 동일.
+    if (!ampm && hour >= 1 && hour <= 12) {
+      return { kind: 'ambiguous', keyword: `${hour}시` };
+    }
     const h = Math.max(0, Math.min(23, toKstHour24(ampm, hour)));
     return { kind: 'objective', band: { start: h, end: h + 1, label: `${h}시` } };
   }
