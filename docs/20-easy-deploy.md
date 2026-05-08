@@ -262,6 +262,69 @@ ollama run gemma4:4bitit     # 대화 모드 진입 (Ctrl+D 로 종료)
 
 > 이후 본 가이드의 다른 곳에서 `gemma4:4bit` 라고 표기된 부분은 모두 본인이 위 3단계에서 정한 이름(`gemma4:4bitit`) 으로 읽으시면 됩니다.
 
+#### macOS (Apple Silicon / Intel) — 차이점
+
+Mac 에서 같은 흐름을 진행할 때 윈도우와 달라지는 부분만 정리.
+
+> **Apple Silicon (M1/M2/M3/M4)**: Metal 가속이 자동 사용 — 별도 GPU 드라이버 설치 불필요. 통합 메모리(Unified Memory) 구조라 GPU 메모리 = 시스템 RAM. 32GB 이상 Mac 이면 양자화 모델 운용에 여유.
+
+##### Ollama 설치 (윈도우 STEP 1.7 대응)
+
+```bash
+brew install ollama
+# 또는 https://ollama.com/download → Ollama-darwin.zip 다운로드 → 압축 해제 후 Applications 로 이동
+ollama --version
+```
+
+설치 후 메뉴바에 라마 아이콘이 표시되면 정상. 부팅 시 자동 시작은 시스템 설정 → 일반 → 로그인 항목에서 추가.
+
+##### Modelfile 작성 (위 2단계 macOS 버전)
+
+TextEdit 기본 모드(RTF, 서식 있는 텍스트) 로 저장하면 Modelfile 이 깨집니다. **터미널 + nano** 가 가장 깔끔:
+
+```bash
+mkdir -p ~/models
+cd ~/models
+nano Modelfile
+```
+
+내용 (본인 사용자명으로 치환):
+
+```dockerfile
+# macOS 절대 경로 — `~` 사용 불가, 반드시 /Users/... 형태
+FROM "/Users/사용자명/models/gemma-4-e4b-q4_k_m.gguf"
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+
+SYSTEM """
+당신은 유능하고 친절한 AI 어시스턴트입니다. 한국어로 답변해 주세요.
+"""
+```
+
+본인 사용자명을 모를 때 한 줄로 확인:
+
+```bash
+echo /Users/$USER/models/gemma-4-e4b-q4_k_m.gguf
+```
+
+`Ctrl+O` → Enter (저장) → `Ctrl+X` (종료).
+
+> TextEdit 으로 만들고 싶다면: 메뉴 **포맷 → 일반 텍스트로 만들기** (`⌘+Shift+T`) 로 RTF 해제 후, 저장 시 위치 `~/models`, 파일 이름 `Modelfile`, **"확장자 .txt 추가하지 않음"** 선택. (잘못 저장되면 Finder 에서 파일명 클릭 → 확장자 `.txt` 제거.)
+
+##### Ollama 등록·확인 (3, 4단계)
+
+```bash
+cd ~/models
+ollama create gemma4:4bitit -f Modelfile
+ollama list                  # 등록된 모델 목록 — gemma4:4bitit 가 보여야 함
+ollama run gemma4:4bitit     # 대화 모드 진입 (Ctrl+D 로 종료)
+```
+
+위 PowerShell 예시와 동일 — 셸만 Terminal.app 또는 iTerm2 로 대체.
+
+> Ollama 가 모델을 자체 라이브러리(`~/.ollama/models/`) 로 복사한 후엔 원본 GGUF 파일은 지워도 무관 — `~/models` 폴더 전체 삭제로 디스크 회수 가능.
+
 ### 2.2. 임베딩 모델: nomic-embed-text
 
 문서 검색용 작은 모델 (300MB).
