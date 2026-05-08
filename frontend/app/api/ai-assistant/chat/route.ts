@@ -546,18 +546,24 @@ async function parseScheduleQuery(question: string): Promise<{
   }
 }
 
-// keyword 가 있으면 title/description 부분 매치 (대소문자 무시). 빈 keyword 면 그대로 통과.
+// 한국어 띄어쓰기 변형 무관 매칭을 위한 정규화 — 모든 공백 제거 + 소문자화.
+// "디자인 리뷰" / "디자인리뷰" / "디자인  리뷰" 모두 "디자인리뷰" 로 정규화돼 양방향 매치.
+function normalizeForKeywordMatch(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, '');
+}
+
+// keyword 가 있으면 title/description 부분 매치 (대소문자·띄어쓰기 무시). 빈 keyword 면 그대로 통과.
 function filterByKeyword<T extends { title: string; description: string | null }>(
   schedules: T[],
   keyword: string
 ): T[] {
   if (!keyword) return schedules;
-  const k = keyword.toLowerCase();
-  return schedules.filter(
-    (s) =>
-      s.title.toLowerCase().includes(k) ||
-      (s.description ? s.description.toLowerCase().includes(k) : false)
-  );
+  const k = normalizeForKeywordMatch(keyword);
+  return schedules.filter((s) => {
+    const titleN = normalizeForKeywordMatch(s.title);
+    const descN = s.description ? normalizeForKeywordMatch(s.description) : '';
+    return titleN.includes(k) || descN.includes(k);
+  });
 }
 
 // 시간대 (오전·오후) — KST 기준 시(hour) 범위로 startAt 필터링.
