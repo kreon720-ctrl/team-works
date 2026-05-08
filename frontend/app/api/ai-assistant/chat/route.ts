@@ -446,6 +446,15 @@ function sanitizeKeyword(raw: string): string {
 // (?!간) 으로 "주간" 은 제외 (주간 = 별도 단어).
 const WEEK_OF_DATE_RE = /(?:\d+월\s*)?\d+일\s*주(?!간)/;
 
+// 사용자 입력에 "주" 글자 (week token) 가 있나 — "주간" 은 별도 단어라 제외.
+// 작은 모델이 "X일 일정" 을 system prompt 의 예시 "X일 주 일정" 패턴으로 착각해
+// view=week 로 떨어뜨리는 환각을 잡기 위한 negative signal.
+const HAS_WEEK_TOKEN_RE = /주(?!간)/;
+
+// 특정 날짜 시그널 — "X월 Y일", "X/Y", "어제/오늘/내일" 등.
+// HAS_WEEK_TOKEN_RE 가 false 인데 이게 true 면 사용자는 단일 날짜 의도가 명확.
+const SPECIFIC_DATE_RE = /\d+월\s*\d+일|\d+\s*\/\s*\d+|어제|오늘|내일|모레|글피/;
+
 // "(다음|이번|지난)주 + 요일" — 단일 요일 표현. LLM 이 "주" 만 보고 view=week 로
 // 잘못 떨어뜨리는 케이스를 정규식으로 잡아 view=day + 정확한 날짜로 강제 보정.
 const WEEKDAY_RELATIVE_RE = /(다음|이번|지난)\s*주\s*(월|화|수|목|금|토|일)요일/;
@@ -497,6 +506,15 @@ async function parseScheduleQuery(question: string): Promise<{
     } else if (WEEK_OF_DATE_RE.test(question)) {
       // "X일 주" 패턴이면 view=week 강제 (LLM 이 day 로 떨어뜨려도 정정)
       view = 'week';
+    } else if (
+      view === 'week' &&
+      SPECIFIC_DATE_RE.test(question) &&
+      !HAS_WEEK_TOKEN_RE.test(question)
+    ) {
+      // 작은 양자화 모델 (e4b 등) 이 "5월 1일 일정" 을 system prompt 의 예시
+      // "5월 1일 주 일정" 패턴으로 착각해 view=week 로 떨어뜨리는 환각 보정.
+      // 사용자 입력에 "주" 글자 자체가 없고 특정 날짜만 있으면 단일 날짜 의도가 명확 → day 강제.
+      view = 'day';
     }
     return {
       view,
