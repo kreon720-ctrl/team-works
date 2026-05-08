@@ -420,6 +420,10 @@ async function classify(question: string): Promise<Classification> {
 const KEYWORD_STOPWORDS = new Set([
   '일정', '스케줄',
   '정리', '알려', '보여', '확인', '조회', '찾아', '있어', '있나', '어떤', '뭐', '무엇',
+  // 시간대 단어 — detectTimeBand 가 band 필터로 처리. keyword 추출까지 같이 되면
+  // band×keyword AND 결합으로 검색이 너무 좁아짐 (예: '점심' 키워드 + 점심 시간대 →
+  // 제목에 '점심' 들어간 점심시간 일정만). band 만 적용되도록 stopword 처리.
+  '오전', '오후', '새벽', '아침', '점심', '저녁', '밤', '야식',
 ]);
 
 // 합성 keyword 의 stopword 토큰 제거.
@@ -566,17 +570,24 @@ function filterByKeyword<T extends { title: string; description: string | null }
   });
 }
 
-// 시간대 (오전·오후) — KST 기준 시(hour) 범위로 startAt 필터링.
-// 객관적 이분법인 오전/오후만 자동 매핑. 저녁·새벽·아침·밤·점심·야식 같이
-// 사람마다 경계가 다른 키워드는 자동 매핑 대신 사용자에게 구체 시각을 요청.
+// 시간대 — KST 기준 시(hour) 범위로 startAt 필터링.
+// 한국어 일상 표현으로 시간 범위가 합리적으로 합의되는 키워드는 OBJECTIVE 로 자동 매핑.
+// 자정을 가로지르거나 사람마다 경계 차이가 큰 야식 만 AMBIGUOUS 유지.
 type TimeBand = { start: number; end: number; label: string };
 
 const OBJECTIVE_BANDS: Record<string, TimeBand> = {
   오전: { start: 0, end: 12, label: '오전' },
   오후: { start: 12, end: 24, label: '오후' },
+  // 일상 시간대 — 한국어 관습 기반 합리 범위. 칼같이 맞을 필요 없음 (조회는 약간 넓게 잡혀도 OK).
+  새벽: { start: 0, end: 6, label: '새벽' },
+  아침: { start: 6, end: 11, label: '아침' },
+  점심: { start: 11, end: 14, label: '점심' },
+  저녁: { start: 18, end: 21, label: '저녁' },
+  밤: { start: 21, end: 24, label: '밤' },
 };
 
-const AMBIGUOUS_BANDS = ['저녁', '새벽', '아침', '밤', '점심', '야식'];
+// 야식 (22~02시) 같이 자정을 가로지르는 표현은 단일 [start, end) band 로 표현 불가 → 사용자에게 구체 시각 요청.
+const AMBIGUOUS_BANDS = ['야식'];
 
 const HAS_SPECIFIC_TIME = /\d+\s*시|\d+\s*[:：]\s*\d+/;
 
@@ -608,8 +619,8 @@ function toKstHour24(ampm: string | undefined, hour: number): number {
 //  1) "X시 이후/이전" — 명시적 시간 경계 (가장 구체적)
 //  2) "X시" 정확 시간 — 분/콜론/간/반 등 없는 단독 시 표기. [X, X+1) 한 시간대.
 //  3) HAS_SPECIFIC_TIME — "오후 3시 30분" / "12:30" 처럼 분 단위 동반 → 시간대 무시
-//  4) OBJECTIVE_BANDS — 오전/오후
-//  5) AMBIGUOUS_BANDS — 저녁/새벽/점심 등
+//  4) OBJECTIVE_BANDS — 오전/오후 + 일상 시간대 (새벽/아침/점심/저녁/밤)
+//  5) AMBIGUOUS_BANDS — 자정 가로지르는 야식 등 (단일 [start,end) 표현 불가)
 function detectTimeBand(question: string): TimeBandResult {
   // 1) 명시적 시간 경계 우선
   const bm = question.match(TIME_BOUND_RE);
@@ -907,7 +918,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                       previousQuestion: question,
                     });
                   } else {
-                    // 모호 키워드 (저녁/새벽/아침/밤/점심/야식) — 안내만.
+                    // 모호 키워드 (자정 가로지르는 야식 등) — 안내만.
                     send({
                       type: 'token',
                       text: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
