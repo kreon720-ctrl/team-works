@@ -66,6 +66,56 @@ function isPlaceholderContent(content: string): boolean {
   return false;
 }
 
+// 다중 턴 일정 등록 — needs 별로 보충 답변을 직전 질문에 병합해 한 줄로 재구성.
+// LLM 에 "X\n그리고 Y" 형태로 던지면 작은 모델일수록 두 절을 별개로 읽어 재차 같은 질문을
+// 반복하거나 JSON 추출에 실패함. 결정론적 정규식 병합으로 LLM 부담 제거.
+//
+// fallback (정규식이 매치 못 함): 옛 "그리고" 포맷 유지 — 정보 손실 없음.
+const AMPM_RE = /(오전|오후|정오|자정|새벽)/;
+const HOUR_RE = /\d+\s*시/;
+const DATE_HINT_RE = /(오늘|내일|어제|모레|글피|\d+월\s*\d+일|\d+일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주)/;
+
+function rebuildFollowUpQuestion(
+  prev: string,
+  needs: string,
+  supplement: string,
+): string {
+  const fallback = `${prev}\n그리고 ${supplement}`;
+  if (needs === 'time') {
+    const ampm = supplement.match(AMPM_RE)?.[1];
+    const hourInSupplement = supplement.match(/(\d+)\s*시/)?.[1];
+    // 보충에 시각 전체 ("오후 3시") → prev 의 시각 부분을 통째 교체
+    if (ampm && hourInSupplement) {
+      if (HOUR_RE.test(prev)) return prev.replace(HOUR_RE, `${ampm} ${hourInSupplement}시`);
+      // prev 에 시각 없으면 끝에 추가
+      return `${prev} ${ampm} ${hourInSupplement}시`;
+    }
+    // 보충에 AM/PM 만 ("오후") → prev 의 "N시" 앞에 삽입
+    if (ampm && HOUR_RE.test(prev) && !AMPM_RE.test(prev)) {
+      return prev.replace(HOUR_RE, (hr) => `${ampm} ${hr}`);
+    }
+    // 보충에 "N시" 만 ("3시", "13시") → prev 끝에 시각 추가 (시각이 prev 에 없을 때)
+    if (hourInSupplement && !HOUR_RE.test(prev)) {
+      return `${prev} ${hourInSupplement}시`;
+    }
+  }
+  if (needs === 'date') {
+    // 보충에 날짜 단서 ("내일", "5월 8일", "월요일" 등) → prev 앞에 prepend
+    if (DATE_HINT_RE.test(supplement)) return `${supplement} ${prev}`;
+  }
+  if (needs === 'title') {
+    // 보충은 보통 제목 자체 — prev 끝에 자연스럽게 삽입.
+    // "등록해줘" 류 동사가 prev 끝에 있으면 그 앞에, 없으면 단순 append.
+    const verbMatch = prev.match(/(등록|추가|만들|잡아|예약|넣어|생성)\s*(해줘|해|줘)?\s*$/);
+    if (verbMatch) {
+      const idx = verbMatch.index ?? prev.length;
+      return `${prev.slice(0, idx).trimEnd()} ${supplement} ${prev.slice(idx)}`;
+    }
+    return `${prev} ${supplement}`;
+  }
+  return fallback;
+}
+
 interface AIAssistantPanelProps {
   teamId: string;
   teamName: string;
@@ -115,7 +165,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     const pendingTurn = lastAssistant?.awaitingInput;
     const effectiveQuestion = pendingTurn
-      ? `${pendingTurn.previousQuestion}\n그리고 ${trimmed}`
+      ? rebuildFollowUpQuestion(pendingTurn.previousQuestion, pendingTurn.needs, trimmed)
       : trimmed;
 
     // 사용자 화면에는 사용자가 입력한 그대로 표시.
