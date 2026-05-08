@@ -367,6 +367,13 @@ app.post("/parse-schedule-args", async (req, res) => {
     if (!startAt || !endAt) {
       return res.json({ ok: false, needs: "date", hint: "날짜·시각을 다시 알려주세요." });
     }
+    // LLM 의 endKst 환각 (연도/시각 잘못 출력) 자동 보정 — endAt <= startAt 이면 시작 + 1시간.
+    // 작은 모델 (e4b 등) 에서 가끔 "2022 종료" 같은 출력이 나와 backend 400 으로 떨어지는 케이스를 방지.
+    const startMs = new Date(startAt).getTime();
+    const endMs = new Date(endAt).getTime();
+    if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs) {
+      endAt = new Date(startMs + 60 * 60 * 1000).toISOString();
+    }
     const args = { title, startAt, endAt, description };
     // 과거 시각 검증 — 무조건 미래만 허용. 1분 grace period.
     const startAtMs = new Date(args.startAt).getTime();
