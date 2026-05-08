@@ -455,6 +455,19 @@ const HAS_WEEK_TOKEN_RE = /주(?!간)/;
 // HAS_WEEK_TOKEN_RE 가 false 인데 이게 true 면 사용자는 단일 날짜 의도가 명확.
 const SPECIFIC_DATE_RE = /\d+월\s*\d+일|\d+\s*\/\s*\d+|어제|오늘|내일|모레|글피/;
 
+// "X월 Y일" 패턴을 결정론적으로 추출 — LLM 의 환각/fallback 을 무시하고 사용자 입력 그대로 사용.
+// 연도는 현재 연도 (조회는 과거·미래 양방향 가능하므로 휴리스틱 X).
+// 매치 안 되면 null — 호출자가 LLM 결과 또는 today 로 fallback.
+function extractSpecificDateYmd(question: string): string | null {
+  const m = question.match(/(\d{1,2})월\s*(\d{1,2})일/);
+  if (!m) return null;
+  const month = parseInt(m[1], 10);
+  const day = parseInt(m[2], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const year = new Date().getUTCFullYear();
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 // "(다음|이번|지난)주 + 요일" — 단일 요일 표현. LLM 이 "주" 만 보고 view=week 로
 // 잘못 떨어뜨리는 케이스를 정규식으로 잡아 view=day + 정확한 날짜로 강제 보정.
 const WEEKDAY_RELATIVE_RE = /(다음|이번|지난)\s*주\s*(월|화|수|목|금|토|일)요일/;
@@ -507,14 +520,17 @@ async function parseScheduleQuery(question: string): Promise<{
       // "X일 주" 패턴이면 view=week 강제 (LLM 이 day 로 떨어뜨려도 정정)
       view = 'week';
     } else if (
-      view === 'week' &&
+      view !== 'day' &&
       SPECIFIC_DATE_RE.test(question) &&
       !HAS_WEEK_TOKEN_RE.test(question)
     ) {
-      // 작은 양자화 모델 (e4b 등) 이 "5월 1일 일정" 을 system prompt 의 예시
-      // "5월 1일 주 일정" 패턴으로 착각해 view=week 로 떨어뜨리는 환각 보정.
+      // 작은 양자화 모델 (e4b 등) 의 환각 + LLM 호출 실패 fallback (view=month) 모두 흡수.
       // 사용자 입력에 "주" 글자 자체가 없고 특정 날짜만 있으면 단일 날짜 의도가 명확 → day 강제.
       view = 'day';
+      // X월 Y일 패턴이면 사용자 입력에서 결정론적으로 추출 — LLM 의 잘못된 date 무시.
+      // (LLM 실패 fallback 은 today 를 반환하므로 사용자가 명시한 날짜와 다를 수 있음)
+      const extracted = extractSpecificDateYmd(question);
+      if (extracted) date = extracted;
     }
     return {
       view,
