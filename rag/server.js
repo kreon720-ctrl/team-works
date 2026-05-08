@@ -92,6 +92,13 @@ const BLOCKED_DOMAINS = [
 const USAGE_KEYWORDS = [
   "사용법", "방법", "어떻게", "어떡", "하는 법", "쓰는 법", "쓰는 방법", "이용법", "사용 방법",
 ];
+// 시간 질의 표지자 — "언제", "몇 시", "며칠" 같이 시간을 묻는 표현은 거의 항상 일정 조회 의도.
+// SCHEDULE_NOUNS 매치가 안 돼도 (예: 사용자가 일정 제목을 직접 부른 경우 — '신체검사 언제야')
+// 이 표지자가 있으면 schedule_query 로 분류해 LLM stochastic 의존 우회.
+// USAGE_KEYWORDS / BLOCKED_VERBS / BLOCKED_DOMAINS 가 우선순위에서 먼저 잡으므로 false positive 위험은 낮음.
+const TIME_QUERY_KEYWORDS = [
+  "언제", "몇 시", "몇시", "며칠",
+];
 
 // 키워드 매치 헬퍼 — 매치된 첫 키워드 반환, 없으면 null.
 function findMatch(q, list) {
@@ -106,7 +113,9 @@ function findMatch(q, list) {
 //  3) 일정명사 + 등록동작 → schedule_create
 //  4) 일정명사 + 조회동작 (또는 일정명사 단독) → schedule_query
 //  5) HARD_KEYWORDS → usage
-//  6) GENERAL_KEYWORDS → general
+//  6) GENERAL_KEYWORDS → general (뉴스/날씨/주가 등 — 일정 조회 아님)
+//  6b) 시간 질의 표지자 ("언제" 등) → schedule_query (일정명사 미매치라도 fallback)
+//      — GENERAL_KEYWORDS 다음에 두어 '오늘 뉴스 언제 봐?' 같은 false positive 회피.
 //  7) 매치 없음 → unknown (route.ts 가 RAG 시도 후 거절형이면 general fallback)
 function classifyIntent(question) {
   const q = question.trim().toLowerCase();
@@ -143,6 +152,14 @@ function classifyIntent(question) {
   // 6) GENERAL_KEYWORDS → general
   const gen = findMatch(q, GENERAL_KEYWORDS);
   if (gen) return { intent: "general", reason: "general-keyword", matched: gen };
+  // 6b) 시간 질의 표지자만 있어도 schedule_query — 일정 제목을 직접 부른 케이스 흡수.
+  //     예: "신체검사 언제야", "회식 언제 시작해?", "5월 1일 데모 언제야"
+  //     GENERAL_KEYWORDS 까지 모두 통과한 시점이라 '오늘 뉴스 언제' 같은 false positive 회피.
+  //     BLOCKED_DOMAINS 가 동시 매치면 우회 — '프로젝트 채팅 언제 됐어?' 같은 케이스는 LLM 재분류로.
+  const timeQuery = findMatch(q, TIME_QUERY_KEYWORDS);
+  if (timeQuery && !blockedDomain) {
+    return { intent: "schedule_query", reason: "time-query", matched: timeQuery };
+  }
   // 7) 매치 없음
   return { intent: "unknown", reason: "no-keyword" };
 }
