@@ -569,7 +569,7 @@ const TIME_AT_HOUR_RE = /(오전|오후)?\s*(\d{1,2})\s*시(?!\s*\d|\s*[:：]|\s
 
 type TimeBandResult =
   | { kind: 'objective'; band: TimeBand }
-  | { kind: 'ambiguous'; keyword: string }
+  | { kind: 'ambiguous'; keyword: string; needsAmpm?: boolean }
   | { kind: 'none' };
 
 // "(오전|오후)? X시" → KST 24h hour 변환.
@@ -597,8 +597,9 @@ function detectTimeBand(question: string): TimeBandResult {
     const direction = bm[3]; // '이후' | '이전'
     // AM/PM 모호 가드 — bare 1~12 시 + 오전/오후 미명시면 → 후속 질문 (등록 경로와 동일 정책).
     // 13시+ 24h 표기 (13~24) 와 0시 (자정 = 명확) 는 통과.
+    // needsAmpm: true 로 마킹 — 채팅 핸들러가 multi-turn (awaiting-input) 처리.
     if (!ampm && hour >= 1 && hour <= 12) {
-      return { kind: 'ambiguous', keyword: `${hour}시 ${direction}` };
+      return { kind: 'ambiguous', keyword: `${hour}시 ${direction}`, needsAmpm: true };
     }
     const h = Math.max(0, Math.min(24, toKstHour24(ampm, hour)));
     if (direction === '이후') {
@@ -613,7 +614,7 @@ function detectTimeBand(question: string): TimeBandResult {
     const hour = parseInt(hm[2], 10);
     // AM/PM 모호 가드 — 1) 분기와 동일.
     if (!ampm && hour >= 1 && hour <= 12) {
-      return { kind: 'ambiguous', keyword: `${hour}시` };
+      return { kind: 'ambiguous', keyword: `${hour}시`, needsAmpm: true };
     }
     const h = Math.max(0, Math.min(23, toKstHour24(ampm, hour)));
     return { kind: 'objective', band: { start: h, end: h + 1, label: `${h}시` } };
@@ -872,11 +873,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
                 const tb = detectTimeBand(question);
                 if (tb.kind === 'ambiguous') {
-                  // 모호 키워드 (저녁/새벽/아침/밤/점심/야식) — 일정 조회 건너뛰고 안내만.
-                  send({
-                    type: 'token',
-                    text: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
-                  });
+                  if (tb.needsAmpm) {
+                    // bare 1~12시 — AM/PM 보충받아 재요청 (등록 경로의 needs:time 패턴과 동일).
+                    send({
+                      type: 'token',
+                      text: `'${tb.keyword}'의 시각을 명확히 알려주세요. 오전/오후 어느 쪽일까요? (예: '오후 ${tb.keyword}')`,
+                    });
+                    send({
+                      type: 'awaiting-input',
+                      needs: 'time',
+                      previousQuestion: question,
+                    });
+                  } else {
+                    // 모호 키워드 (저녁/새벽/아침/밤/점심/야식) — 안내만.
+                    send({
+                      type: 'token',
+                      text: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
+                    });
+                  }
                   break;
                 }
                 const band = tb.kind === 'objective' ? tb.band : null;
@@ -1018,8 +1032,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       case 'schedule_query': {
         const tb = detectTimeBand(question);
         if (tb.kind === 'ambiguous') {
+          // non-stream 경로 — awaiting-input 메커니즘 없음 (panel 은 stream 사용).
+          // 메시지만 needsAmpm 여부에 따라 다르게.
+          const answer = tb.needsAmpm
+            ? `'${tb.keyword}'의 시각을 명확히 알려주세요. 오전/오후 어느 쪽일까요? (예: '오후 ${tb.keyword}')`
+            : `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`;
           return NextResponse.json({
-            answer: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
+            answer,
             source: 'schedule',
             classification: cls,
             ...ragMeta,
