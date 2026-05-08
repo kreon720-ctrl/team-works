@@ -360,28 +360,86 @@ ollama run gemma4:4bit "안녕"
 
 Ollama 는 기본적으로 **5 분 idle** 이면 메모리에서 모델을 내립니다. 그러면 다음 질문 때 모델을 다시 GPU/RAM 에 로드하느라 첫 답변이 수십 초~1 분 가까이 느려집니다 (특히 큰 모델). 사내 상시 운영용이면 항상 메모리에 띄워두는 게 사용감이 훨씬 낫습니다.
 
-**Windows 시스템 환경변수로 영구 설정:**
+핵심: **`OLLAMA_KEEP_ALIVE=-1`** 환경변수를 모든 신규 호출의 기본값이 되도록 영구 등록. `-1` = 무제한 상주, `"24h"` / `"60m"` 같이 시간 지정도 가능. Ollama **데몬 시작 시점에 읽히므로** 환경변수 등록 후 반드시 재시작.
+
+#### Windows — 시스템 환경변수
 
 1. PowerShell **관리자 권한** 으로 실행 (`Win + X` → **Windows Terminal (관리자)** 또는 **PowerShell (관리자)**).
 2. 다음 명령 실행:
    ```powershell
    [Environment]::SetEnvironmentVariable("OLLAMA_KEEP_ALIVE", "-1", "Machine")
    ```
-   - `-1` = 무제한 (Ollama 가 종료되기 전까지 모델 메모리 유지).
-   - 시간으로 제한하고 싶으면 `"24h"`, `"60m"` 등으로 지정 가능.
-
-3. **Ollama 재시작** (환경변수는 프로세스 시작 시점에만 읽힘):
+3. **Ollama 재시작**:
    - 시스템 트레이의 Ollama 아이콘 → 우클릭 → **Quit Ollama**.
    - 시작 메뉴에서 **Ollama** 다시 실행.
 
-4. 적용 확인:
+4. 적용 확인 (PowerShell):
    ```powershell
    ollama run gemma4:4bit "한 단어로 답해: hello"
    ollama ps
    ```
-   `ollama ps` 출력의 **UNTIL** 컬럼이 `Forever` 로 표시되면 OK. (시간 지정 시엔 `24 hours from now` 같은 표시)
+   `ollama ps` 출력의 **UNTIL** 컬럼이 `Forever` 로 표시되면 OK.
 
-> ⚠️ VRAM/RAM 이 항상 점유됩니다. gemma4:4bit (~16GB) + nomic-embed-text (~0.3GB) 가 상주하므로 GPU 메모리가 빠듯한 환경이면 시간 제한(`"4h"` 등)을 검토.
+#### macOS — launchctl + LaunchAgent (재부팅 후에도 유지)
+
+Mac 의 `Ollama.app` 은 launchd 가 띄우므로 셸의 `~/.zshrc` 환경변수는 **읽지 못합니다**. `launchctl setenv` 로 시스템 환경에 등록 + `LaunchAgents` plist 로 재부팅 후 자동 재등록까지 묶어 처리.
+
+1. **즉시 적용** (재부팅 전까지 유지):
+   ```bash
+   launchctl setenv OLLAMA_KEEP_ALIVE -1
+   ```
+
+2. **재부팅 후에도 자동 유지** — `~/Library/LaunchAgents/com.user.ollama-env.plist` 작성:
+   ```bash
+   cat > ~/Library/LaunchAgents/com.user.ollama-env.plist <<'EOF'
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+     <key>Label</key>
+     <string>com.user.ollama-env</string>
+     <key>ProgramArguments</key>
+     <array>
+       <string>/bin/launchctl</string>
+       <string>setenv</string>
+       <string>OLLAMA_KEEP_ALIVE</string>
+       <string>-1</string>
+     </array>
+     <key>RunAtLoad</key>
+     <true/>
+   </dict>
+   </plist>
+   EOF
+   launchctl load ~/Library/LaunchAgents/com.user.ollama-env.plist
+   ```
+
+3. **Ollama.app 재시작** (환경변수는 데몬 시작 시점에만 읽힘):
+   ```bash
+   osascript -e 'quit app "Ollama"' && sleep 2 && open -a Ollama
+   ```
+   또는 메뉴바 라마 아이콘 → **Quit Ollama** → 다시 실행.
+
+4. 적용 확인:
+   ```bash
+   launchctl getenv OLLAMA_KEEP_ALIVE
+   # → -1 출력되면 OK
+
+   ollama run gemma4:e4b "한 단어로 답해: hello"
+   ollama ps
+   # UNTIL 컬럼이 'Forever' 면 OK
+   ```
+
+> **Ollama 메뉴바 Settings 대안** (Ollama 0.5+ 권장): 최신 Ollama 는 메뉴바 라마 아이콘 → **Settings** 안에 **"Keep models loaded forever"** 같은 토글이 있습니다. 환경변수 등록보다 단순 — GUI 한 번 클릭으로 끝. plist 작업이 부담스러우면 이쪽이 우선 대안.
+
+#### 공통 — 운영 환경별 권장 값
+
+| 환경 | 권장 값 | 비고 |
+|---|---|---|
+| 24/7 사내 운영 | `-1` (Forever) | VRAM/RAM 항상 점유. 큰 모델은 메모리 여유 확인 |
+| 9~18 시 업무 시간 | `"10h"` | 야간 자동 unload 로 누수 방지 |
+| 개발기 (간헐 사용) | `"30m"` ~ `"1h"` | default 5 분보다 길지만 영구는 부담 |
+
+> ⚠️ **Mac 추가** : `OLLAMA_KEEP_ALIVE=-1` 만으로는 시스템 슬립 (Mac 자체가 잠자기) 시점에 모델이 같이 멈춥니다. 24/7 운영이면 `sudo pmset -a sleep 0 disksleep 0 displaysleep 0` 으로 시스템 슬립도 비활성화 권장.
 >
 > 이 설정은 **Open WebUI 일반 질문 경로 / RAG 답변 / 임베딩** 모두에 적용됩니다 — 별도 설정 불필요.
 
