@@ -105,9 +105,15 @@ function findMatch(q, list) {
   return list.find((k) => q.includes(k)) ?? null;
 }
 
+// "X법" / "X 법" 단독 어휘 — 사용자가 사용법을 물을 때 자주 쓰는 표현.
+// USAGE_KEYWORDS 의 "하는 법" 같은 합성 패턴은 못 잡는 케이스 (예: "일정등록 법", "조회법") 흡수.
+// 어절 경계 (선두/공백 → 한글+ → 선택적 공백 → 법 → 어절 종료) 로 매치 — '방법론' 같은 합성어는 제외.
+const USAGE_LAW_RE = /(?:^|\s)[가-힣]+\s*법(?=\s|[?!.,]|$)/;
+
 // 의도 분류 — 4-way + blocked.
 // 우선순위:
 //  0) USAGE_KEYWORDS(사용법 시그널) → 즉시 usage (다른 분기보다 우선)
+//  0b) USAGE_LAW_RE ("X법" / "X 법" 단독 어휘 패턴) → usage
 //  1) 일정명사 + 거절동작 → blocked (schedule_modify)
 //  2) 거절도메인 + 동작(create/modify) → blocked (other_domain)
 //  3) 일정명사 + 등록동작 → schedule_create
@@ -123,6 +129,9 @@ function classifyIntent(question) {
   // 0) 사용법 질문 시그널 우선 — "프로젝트 등록하는 법" 같은 사용법 질의가 blocked 로 빠지는 걸 방지.
   const usage = findMatch(q, USAGE_KEYWORDS);
   if (usage) return { intent: "usage", reason: "usage-keyword", matched: usage };
+  // 0b) 'X법' / 'X 법' 단독 어휘 — 예: '일정등록 법 알려줘', '조회법 알려줘'.
+  const usageLaw = q.match(USAGE_LAW_RE);
+  if (usageLaw) return { intent: "usage", reason: "usage-pattern", matched: usageLaw[0].trim() };
 
   const noun = findMatch(q, SCHEDULE_NOUNS);
   const blockedVerb = findMatch(q, BLOCKED_VERBS);
