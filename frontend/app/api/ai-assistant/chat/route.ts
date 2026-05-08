@@ -497,6 +497,27 @@ function resolveRelativeWeekday(question: string): string | null {
   return target.toISOString().slice(0, 10);
 }
 
+// "(다음|이번|지난)주" 단독 — 요일 미지정 주 단위 시점 표현. "주간" 은 별도 단어라 제외.
+// 작은 모델이 "지난주" 를 view=day + 임의 날짜로 잘못 떨어뜨리는 환각을 정규식으로 잡아
+// view=week + 해당 주 월요일로 강제 보정. WEEKDAY_RELATIVE_RE 보다 후순위 (요일 명시면 day 우선).
+const RELATIVE_WEEK_RE = /(다음|이번|지난)\s*주(?!간)/;
+
+// RELATIVE_WEEK_RE 매치 시 해당 주의 월요일 날짜를 YYYY-MM-DD 로 반환. 매치 안 되면 null.
+function resolveRelativeWeek(question: string): string | null {
+  const m = question.match(RELATIVE_WEEK_RE);
+  if (!m) return null;
+  const [, rel] = m;
+  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayDow = nowKst.getUTCDay();
+  const daysToMonday = (todayDow + 6) % 7;
+  const thisMon = new Date(nowKst);
+  thisMon.setUTCDate(nowKst.getUTCDate() - daysToMonday);
+  const weekOffset = rel === '다음' ? 7 : rel === '지난' ? -7 : 0;
+  const target = new Date(thisMon);
+  target.setUTCDate(thisMon.getUTCDate() + weekOffset);
+  return target.toISOString().slice(0, 10);
+}
+
 // schedule 조회 자연어 → view+date+keyword 파싱 — RAG 서버의 /parse-schedule-query.
 // keyword 는 일정 제목 부분 매치용 (예: "디자인 리뷰"). 실패 시 default(month/오늘/no-keyword) fallback.
 //
@@ -517,9 +538,14 @@ async function parseScheduleQuery(question: string): Promise<{
     let date = (data?.date ?? new Date().toISOString().slice(0, 10)) as string;
     // "(다음|이번|지난)주 X요일" 이면 view=day + 정확한 요일 날짜로 강제 (가장 구체적)
     const weekdayDate = resolveRelativeWeekday(question);
+    const weekDate = !weekdayDate ? resolveRelativeWeek(question) : null;
     if (weekdayDate) {
       view = 'day';
       date = weekdayDate;
+    } else if (weekDate) {
+      // "(다음|이번|지난)주" 단독이면 view=week + 해당 주 월요일로 강제
+      view = 'week';
+      date = weekDate;
     } else if (WEEK_OF_DATE_RE.test(question)) {
       // "X일 주" 패턴이면 view=week 강제 (LLM 이 day 로 떨어뜨려도 정정)
       view = 'week';
