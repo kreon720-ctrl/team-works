@@ -1,0 +1,35 @@
+# 줄바꿈 통일 — 모든 환경(Windows/macOS/Linux) 에서 동일한 LF 로 저장.
+# Mac/Linux 와 Windows 양쪽에서 push/pull 할 때 CRLF 혼선으로 noisy diff 가
+# 발생하는 문제를 영구 차단. 체크아웃 시 OS 기본 줄바꿈으로 자동 변환됨.
+
+# 기본: 자동 감지된 텍스트 파일은 모두 LF 로 정규화 저장
+* text=auto eol=lf
+
+# Windows 전용 스크립트는 CRLF 유지 (cmd/PowerShell 호환)
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# 바이너리 — git 이 텍스트로 오해하지 않도록 명시
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.svg   text   # SVG 는 텍스트 (XML)
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
+*.7z    binary
+*.gguf  binary
+*.bin   binary
+*.mp4   binary
+*.webm  binary
+*.mp3   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
