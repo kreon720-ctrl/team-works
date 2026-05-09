@@ -16,8 +16,9 @@
 *.jpeg  binary
 *.gif   binary
 *.webp  binary
-*.svg   text   # SVG 는 텍스트 (XML)
 *.ico   binary
+# SVG 는 텍스트 (XML) — text 처리 + LF 정규화
+*.svg   text eol=lf
 *.pdf   binary
 *.zip   binary
 *.gz    binary
