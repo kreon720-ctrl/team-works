@@ -205,200 +205,98 @@ WSL2 는 **윈도우 안에서 리눅스를 돌리는 기능**입니다. Docker 
 
 GPU 가 작아서(8GB) 큰 모델은 못 써요. 우리 사양에 맞는 모델을 받습니다.
 
-### 2.1. 추천 모델: gemma4:e4b-q4 (Gemma 4 E4B OBLITERATED, 4-bit 양자화)
+### 2.1. 추천 모델: gemma4:e4b-q4 (Gemma 4 E4B Instruct, 4-bit 양자화)
 
-**OBLITERATED 변종** 의 Gemma 4 E4B 모델 (검열 해제) 을 4-bit 양자화 GGUF 로 받아 Ollama 에 등록합니다. `ollama pull` 로는 이 변종을 곧장 못 받으므로 Hugging Face 에서 직접 다운로드 후 `Modelfile` 로 등록.
+`ollama pull` 로 받는 공식 Gemma 4 E4B 는 **약 9 GB** 라 RTX 3070 (8GB VRAM) 에 부담스럽습니다. Hugging Face 에서 4-bit 양자화 GGUF (`Q4_K_M`) 를 받아 등록하면 약 5GB 로 줄어 안정 운영 가능.
 
-> ⚠️ **OBLITERATED = 검열 해제판**: Google 의 안전 가이드 학습이 약화된 모델이라 욕설·민감 주제 답변이 가능합니다. **시스템 프롬프트로 "자아 부여"** (어조·역할·금기 사항 명시) 가 매우 중요 — Modelfile 의 `SYSTEM` 블록을 비워두면 안 됩니다. 사내 도구로 쓸 거면 회사 정책에 부합하는지 사전 검토.
->
-> RTX 3070 (8GB VRAM) 기준 약 **70 토큰/s** 응답 속도. `num_ctx=8192` 로 키우면 **속도가 1/10 로 떨어지므로** 4096 권장.
-
-#### Windows — 단계별
+#### Windows
 
 ##### 1) Hugging Face 에서 GGUF 다운로드
 
-1. Hugging Face 검색창에 **`gemma-4-E4B-it-OBLITERATED-Q4_K_M`** 입력.
-2. 결과 저장소의 **Files and versions** 탭 → **`gemma-4-E4B-it-OBLITERATED-Q4_K_M.gguf`** 다운로드.
-3. Gemma 라이선스 동의 화면이 뜨면 동의 후 다운로드 활성화 (HF 계정 필요).
+검색창에 **`gemma-4-E4B-it-Q4_K_M`** → 결과 저장소의 **Files and versions** 탭 → **`gemma-4-E4B-it-Q4_K_M.gguf`** 다운로드. Gemma 라이선스 동의 화면이 뜨면 동의 (HF 계정 필요).
 
-##### 2) 모델 디렉토리 생성 + 파일 이동
+##### 2) Modelfile 작성
 
-PowerShell (관리자 권한 불필요):
-
-```powershell
-# 디렉토리 생성
-md C:\ai-models
-
-# 다운로드 폴더의 GGUF 를 ai-models 로 이동
-move "$env:USERPROFILE\Downloads\gemma-4-E4B-it-OBLITERATED-Q4_K_M.gguf" C:\ai-models\
-```
-
-##### 3) Modelfile 작성
-
-`C:\ai-models\` 안에 메모장 또는 VS Code 로 새 파일을 만들고 **확장자 없이** `Modelfile` 로 저장. 내용:
+`C:\ai-models\Modelfile` (확장자 없음) 으로 저장. 내용:
 
 ```dockerfile
-# 같은 디렉토리의 GGUF 파일을 상대경로로 참조 (Modelfile 이 C:\ai-models\ 에 있으므로)
-FROM ./gemma-4-E4B-it-OBLITERATED-Q4_K_M.gguf
+FROM "C:\Users\<사용자명>\Downloads\gemma-4-E4B-it-Q4_K_M.gguf"
 
-# 컨텍스트 4096 — 8192 로 올리면 RTX 3070 기준 속도 1/10 로 저하
-PARAMETER num_ctx 4096
-
-# 시스템 프롬프트 — OBLITERATED 모델은 자아 부여 필수.
-# 어조·역할·금기 사항을 명시해야 안전하게 운영 가능.
 SYSTEM """
-당신은 유능하고 친절한 AI 어시스턴트입니다. 한국어로 답변해 주세요.
+너는 통합 일정관리 프로그램 팀웍스 사용을 도와주는 최고의 AI 비서야.
+- 한국어로 친절하고 간결하게 답변해줘
 """
 ```
 
-> **메모장 저장 주의**: "다른 이름으로 저장" → 파일 형식 **모든 파일** → 파일 이름 `Modelfile` (따옴표 없이) → **확장자 자동으로 `.txt` 안 붙음** 확인.
+> RTX 3070 (8GB VRAM) 환경에서는 `num_ctx` 가 자동으로 4096 으로 잡혀 별도 명시 불필요.
+>
+> **메모장 저장 주의**: "다른 이름으로 저장" → 파일 형식 **모든 파일** → 파일 이름 `Modelfile` (따옴표 없이) → 확장자 `.txt` 안 붙는지 확인.
 
-##### 4) `OLLAMA_FLASH_ATTENTION` 환경변수 설정 (성능 ↑)
-
-Flash Attention 활성화로 추론 속도 추가 향상. PowerShell 또는 실행창 (`Win + R`) 에서:
-
-```
-sysdm.cpl
-```
-
-→ 시스템 속성 창 → **고급** 탭 → **환경 변수** 버튼 → **시스템 변수** 영역 → **새로 만들기**:
-- 변수 이름: **`OLLAMA_FLASH_ATTENTION`**
-- 변수 값: **`1`**
-
-확인 후 **Ollama 재시작**: 시스템 트레이 라마 아이콘 → **Quit Ollama** → 시작 메뉴에서 다시 실행.
-
-##### 5) Ollama 에 모델 등록
-
-PowerShell 에서:
+##### 3) Ollama 에 등록 · 실행 확인
 
 ```powershell
-cd C:\ai-models
-ollama create gemma4:e4b-q4 -f Modelfile
+ollama create gemma4:e4b-q4 -f C:\ai-models\Modelfile
+ollama list                         # gemma4:e4b-q4 가 보여야 함
+ollama run gemma4:e4b-q4 "안녕"
 ```
 
-Ollama 가 GGUF 를 자체 라이브러리(`%USERPROFILE%\.ollama\models\`) 로 복사·등록. 끝나면 원본 GGUF 파일은 지워도 무관.
-
-##### 6) 실행 확인
-
-```powershell
-ollama list                  # 등록된 모델 목록 — gemma4:e4b-q4 가 보여야 함
-ollama run gemma4:e4b-q4 "안녕"     # 한 줄 답변 후 종료
-```
-
-이후 Open WebUI (`http://localhost:8081`) 좌상단 모델 드롭다운에도 자동 등록 (Ollama 모델 sync). 안 보이면 `docker compose restart open-webui` 한 번.
+이후 Open WebUI (`http://localhost:8081`) 좌상단 모델 드롭다운에도 자동 등록. 안 보이면 `docker compose restart open-webui` 한 번.
 
 > 본 가이드의 모든 명령·예시에서 동일한 태그 `gemma4:e4b-q4` 를 사용합니다. 다른 이름으로 등록했다면 본인 태그로 치환해서 읽으세요.
 
 ---
 
-#### macOS (Apple Silicon / Intel) — 차이점
+#### macOS (Apple Silicon / Intel)
 
-Windows 와 동일한 모델·설정을 Mac 에서 진행할 때의 차이만 정리.
+> **Apple Silicon (M1/M2/M3/M4)**: Metal 가속 자동 — 별도 GPU 드라이버 설치 불필요. 통합 메모리 구조라 GPU 메모리 = 시스템 RAM.
 
-> **Apple Silicon (M1/M2/M3/M4)**: Metal 가속이 자동 사용 — 별도 GPU 드라이버 설치 불필요. 통합 메모리(Unified Memory) 구조라 GPU 메모리 = 시스템 RAM. 32GB 이상 Mac 이면 `num_ctx=4096` 보다 크게 잡아도 여유 있을 수 있음 — 단 첫 답변 지연이 길어지므로 4096 권장.
-
-##### Ollama 설치 (윈도우 STEP 1.7 대응)
+##### Ollama 설치
 
 ```bash
 brew install ollama
-# 또는 https://ollama.com/download → Ollama-darwin.zip 다운로드 → 압축 해제 후 Applications 로 이동
+# 또는 https://ollama.com/download → dmg 다운로드 → Applications 로 이동
 ollama --version
 ```
 
-설치 후 메뉴바에 라마 아이콘이 표시되면 정상. 부팅 시 자동 시작은 시스템 설정 → 일반 → 로그인 항목에서 추가.
+##### 1) GGUF 다운로드
 
-##### 1) GGUF 다운로드 + 이동
+위 Windows 와 동일한 `gemma-4-E4B-it-Q4_K_M.gguf` 를 브라우저로 받아 `~/Downloads/` 에 둠.
 
-브라우저로 `gemma-4-E4B-it-OBLITERATED-Q4_K_M.gguf` 받은 뒤:
+##### 2) Modelfile 작성
 
 ```bash
 mkdir -p ~/ai-models
-mv ~/Downloads/gemma-4-E4B-it-OBLITERATED-Q4_K_M.gguf ~/ai-models/
+nano ~/ai-models/Modelfile
 ```
 
-##### 2) Modelfile 작성 (nano 권장)
-
-TextEdit 기본 모드 (RTF) 로 저장하면 Modelfile 형식이 깨짐. **터미널 + nano** 가 가장 깔끔:
-
-```bash
-cd ~/ai-models
-nano Modelfile
-```
-
-내용 (Windows 와 동일 — 상대경로):
+내용 (사용자명 본인 환경에 맞게 치환):
 
 ```dockerfile
-FROM ./gemma-4-E4B-it-OBLITERATED-Q4_K_M.gguf
+FROM "/Users/kreon72/Downloads/gemma-4-E4B-it-Q4_K_M.gguf"
 
 PARAMETER num_ctx 4096
 
 SYSTEM """
-당신은 유능하고 친절한 AI 어시스턴트입니다. 한국어로 답변해 주세요.
+너는 통합 일정관리 프로그램 팀웍스 사용을 도와주는 최고의 AI 비서야.
+- 한국어로 친절하고 간결하게 답변해줘
 """
 ```
 
 `Ctrl+O` → Enter (저장) → `Ctrl+X` (종료).
 
-> TextEdit 으로 만들고 싶다면: 메뉴 **포맷 → 일반 텍스트로 만들기** (`⌘+Shift+T`) 로 RTF 해제 후, 저장 시 위치 `~/ai-models`, 파일 이름 `Modelfile`, **"확장자 .txt 추가하지 않음"** 선택.
+> Mac 에서는 `num_ctx` 를 명시적으로 4096 으로 잡습니다 (자동 기본값이 더 큰 값으로 잡힐 수 있음).
+>
+> TextEdit 으로 만들고 싶다면 메뉴 **포맷 → 일반 텍스트로 만들기** (`⌘+Shift+T`) 로 RTF 해제 후 저장 시 **"확장자 .txt 추가하지 않음"** 선택.
 
-##### 3) `OLLAMA_FLASH_ATTENTION` 환경변수 (성능 ↑)
-
-Mac 의 Ollama.app 은 launchd 가 띄우므로 `~/.zshrc` 의 환경변수를 못 읽음. `launchctl setenv` 로 시스템 환경에 등록:
-
-```bash
-# 즉시 적용 (재부팅 전까지 유지)
-launchctl setenv OLLAMA_FLASH_ATTENTION 1
-```
-
-재부팅 후에도 유지하려면 `~/Library/LaunchAgents/com.user.ollama-flash.plist` 작성:
+##### 3) Ollama 에 등록 · 실행 확인
 
 ```bash
-cat > ~/Library/LaunchAgents/com.user.ollama-flash.plist <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.user.ollama-flash</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/bin/launchctl</string>
-    <string>setenv</string>
-    <string>OLLAMA_FLASH_ATTENTION</string>
-    <string>1</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-</dict>
-</plist>
-EOF
-launchctl load ~/Library/LaunchAgents/com.user.ollama-flash.plist
-```
-
-**Ollama.app 재시작** (환경변수는 데몬 시작 시점에만 읽힘):
-
-```bash
-osascript -e 'quit app "Ollama"' && sleep 2 && open -a Ollama
-```
-
-> STEP 2.5 의 `OLLAMA_KEEP_ALIVE=-1` 도 같은 방식으로 등록되어 있어야 영구 운영. 둘 다 활성화돼있는지 확인:
-> ```bash
-> launchctl getenv OLLAMA_FLASH_ATTENTION   # → 1
-> launchctl getenv OLLAMA_KEEP_ALIVE        # → -1
-> ```
-
-##### 4) Ollama 등록·확인
-
-```bash
-cd ~/ai-models
-ollama create gemma4:e4b-q4 -f Modelfile
-ollama list                  # gemma4:e4b-q4 가 보여야 함
+ollama create gemma4:e4b-q4 -f ~/ai-models/Modelfile
+ollama list                         # gemma4:e4b-q4 가 보여야 함
 ollama run gemma4:e4b-q4 "안녕"
 ```
 
-위 PowerShell 예시와 동일 — 셸만 Terminal.app 또는 iTerm2 로 대체.
-
-> Ollama 가 모델을 자체 라이브러리 (`~/.ollama/models/`) 로 복사한 후엔 원본 GGUF 는 지워도 무관 — `~/ai-models` 폴더 전체 삭제로 디스크 회수 가능.
+> 등록 후 Ollama 가 `~/.ollama/models/` 로 복사해두므로 원본 GGUF 는 지워도 무관 — 디스크 회수 가능.
 
 ### 2.2. 임베딩 모델: nomic-embed-text
 
