@@ -79,9 +79,14 @@ const SCHEDULE_QUERY_VERBS = [
 const SCHEDULE_CREATE_VERBS = [
   "등록", "추가", "만들", "잡아", "예약", "넣어", "생성",
 ];
-// 거절 대상 동작 — schedule 관련일 때 "찰떡이는 조회·등록만" 거절 안내.
+// 거절 대상 동작 — 일정 수정·이동은 캘린더 화면에서 처리하도록 안내.
+// "삭제" 계열은 별도 SCHEDULE_DELETE_VERBS 로 분리 (AI 가 confirm 후 처리).
 const BLOCKED_VERBS = [
-  "수정", "삭제", "변경", "취소", "제거", "지워", "지운", "옮겨", "옮기", "바꿔",
+  "수정", "변경", "취소", "옮겨", "옮기", "바꿔",
+];
+// 삭제 동작 — 일정 + deleteVerb 면 schedule_delete (등록과 동일하게 confirm 후 실행).
+const SCHEDULE_DELETE_VERBS = [
+  "삭제", "제거", "지워", "지운",
 ];
 // 거절 대상 도메인 — 프로젝트·채팅 관련은 도메인 자체로 거절.
 const BLOCKED_DOMAINS = [
@@ -110,19 +115,20 @@ function findMatch(q, list) {
 // 어절 경계 (선두/공백 → 한글+ → 선택적 공백 → 법 → 어절 종료) 로 매치 — '방법론' 같은 합성어는 제외.
 const USAGE_LAW_RE = /(?:^|\s)[가-힣]+\s*법(?=\s|[?!.,]|$)/;
 
-// 의도 분류 — 4-way + blocked.
+// 의도 분류 — 5-way + blocked.
 // 우선순위:
 //  0) USAGE_KEYWORDS(사용법 시그널) → 즉시 usage (다른 분기보다 우선)
 //  0b) USAGE_LAW_RE ("X법" / "X 법" 단독 어휘 패턴) → usage
-//  1) 일정명사 + 거절동작 → blocked (schedule_modify)
-//  2) 거절도메인 + 동작(create/modify) → blocked (other_domain)
-//  3) 일정명사 + 등록동작 → schedule_create
-//  4) 일정명사 + 조회동작 (또는 일정명사 단독) → schedule_query
-//  5) HARD_KEYWORDS → usage
-//  6) GENERAL_KEYWORDS → general (뉴스/날씨/주가 등 — 일정 조회 아님)
-//  6b) 시간 질의 표지자 ("언제" 등) → schedule_query (일정명사 미매치라도 fallback)
+//  1) 일정명사 + 거절동작(수정/이동/취소) → blocked (schedule_modify)
+//  2) 거절도메인 + 동작(create/modify/delete) → blocked (other_domain)
+//  3) 일정명사 + 삭제동작 → schedule_delete  (confirm 후 실행)
+//  4) 일정명사 + 등록동작 → schedule_create
+//  5) 일정명사 + 조회동작 (또는 일정명사 단독) → schedule_query
+//  6) HARD_KEYWORDS → usage
+//  7) GENERAL_KEYWORDS → general (뉴스/날씨/주가 등 — 일정 조회 아님)
+//  7b) 시간 질의 표지자 ("언제" 등) → schedule_query (일정명사 미매치라도 fallback)
 //      — GENERAL_KEYWORDS 다음에 두어 '오늘 뉴스 언제 봐?' 같은 false positive 회피.
-//  7) 매치 없음 → unknown (route.ts 가 RAG 시도 후 거절형이면 general fallback)
+//  8) 매치 없음 → unknown (route.ts 가 RAG 시도 후 거절형이면 general fallback)
 function classifyIntent(question) {
   const q = question.trim().toLowerCase();
 
@@ -135,23 +141,28 @@ function classifyIntent(question) {
 
   const noun = findMatch(q, SCHEDULE_NOUNS);
   const blockedVerb = findMatch(q, BLOCKED_VERBS);
+  const deleteVerb = findMatch(q, SCHEDULE_DELETE_VERBS);
   const createVerb = findMatch(q, SCHEDULE_CREATE_VERBS);
   const queryVerb = findMatch(q, SCHEDULE_QUERY_VERBS);
   const blockedDomain = findMatch(q, BLOCKED_DOMAINS);
 
-  // 1) 일정 + 거절동작 → blocked
+  // 1) 일정 + 거절동작(수정/이동/취소) → blocked
   if (noun && blockedVerb) {
     return { intent: "blocked", subreason: "schedule_modify", matched: `${noun}+${blockedVerb}` };
   }
   // 2) 거절도메인 + 어떤 동작 → blocked
-  if (blockedDomain && (blockedVerb || createVerb)) {
+  if (blockedDomain && (blockedVerb || createVerb || deleteVerb)) {
     return { intent: "blocked", subreason: "other_domain", matched: blockedDomain };
   }
-  // 3) 일정 + 등록동작 → schedule_create
+  // 3) 일정 + 삭제동작 → schedule_delete (createVerb 보다 먼저 검사 — "삭제 등록" 같은 케이스에서 삭제 우선)
+  if (noun && deleteVerb) {
+    return { intent: "schedule_delete", reason: "keyword", matched: `${noun}+${deleteVerb}` };
+  }
+  // 4) 일정 + 등록동작 → schedule_create
   if (noun && createVerb) {
     return { intent: "schedule_create", reason: "keyword", matched: `${noun}+${createVerb}` };
   }
-  // 4) 일정명사 + 조회동작 (또는 단독) → schedule_query
+  // 5) 일정명사 + 조회동작 (또는 단독) → schedule_query
   if (noun && (queryVerb || !createVerb)) {
     return { intent: "schedule_query", reason: "keyword", matched: noun };
   }
@@ -188,7 +199,7 @@ app.get("/health", async (_req, res) => {
 // LLM 분류기 — 키워드가 위험 분기(blocked/unknown)로 떨어뜨린 입력에 대해
 // docs/classify-rules.md 를 system prompt 로 LLM 의미 기반 재분류.
 // /parse-schedule-* 와 같은 패턴: temperature 0.1 + 짧은 num_predict + JSON 정규식 추출 + 실패 throw.
-const VALID_INTENTS = ["usage", "general", "schedule_query", "schedule_create", "blocked", "unknown"];
+const VALID_INTENTS = ["usage", "general", "schedule_query", "schedule_create", "schedule_delete", "blocked", "unknown"];
 
 async function classifyIntentLLM(question, model) {
   const result = await chat(

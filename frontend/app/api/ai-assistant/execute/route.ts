@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSchedule } from '@/lib/mcp/scheduleQueries';
+import { createSchedule, deleteSchedule } from '@/lib/mcp/scheduleQueries';
 import { BackendError } from '@/lib/mcp/pgClient';
 
 // AI 어시스턴트의 confirm 카드 승인 시 호출.
 // 안전한 도구 화이트리스트만 허용 — 자유 도구 호출 불가.
-const TOOL_WHITELIST = ['createSchedule'] as const;
+const TOOL_WHITELIST = ['createSchedule', 'deleteSchedule'] as const;
 type WhitelistedTool = (typeof TOOL_WHITELIST)[number];
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -51,6 +51,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         color,
       });
       return NextResponse.json({ ok: true, schedule });
+    }
+
+    if (tool === 'deleteSchedule') {
+      const teamId = typeof args.teamId === 'string' ? args.teamId : '';
+      const scheduleId = typeof args.scheduleId === 'string' ? args.scheduleId : '';
+      if (!teamId || !scheduleId) {
+        return NextResponse.json(
+          { error: 'teamId, scheduleId 는 필수입니다.' },
+          { status: 400 }
+        );
+      }
+      await deleteSchedule({ teamId, jwt, scheduleId });
+      return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ error: '알 수 없는 도구' }, { status: 400 });

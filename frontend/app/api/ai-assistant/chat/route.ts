@@ -384,6 +384,7 @@ type Intent =
   | 'general'
   | 'schedule_query'
   | 'schedule_create'
+  | 'schedule_delete'
   | 'blocked'
   | 'unknown';
 
@@ -626,6 +627,11 @@ const TIME_BOUND_RE = /(오전|오후)?\s*(\d{1,2})\s*시\s*(이후|이전)/;
 // 매치 안 됨: "12시간" (간), "12시 30분" (분/숫자), "12:30" (콜론), "12시반" (반)
 const TIME_AT_HOUR_RE = /(오전|오후)?\s*(\d{1,2})\s*시(?!\s*\d|\s*[:：]|\s*분|간|반)/;
 
+// "(오전|오후)? X시 Y분" / "X:Y" / "X시반" — 분 단위까지 명시된 시각.
+// hour 만 추출해 [hour, hour+1) band 로 사용 (분은 무시) — 21:30 startAt 도 band [21,22) 에 들어와 매치됨.
+// schedule_delete 다중후보 좁힐 때 사용자가 "21시 30분", "21:30", "9시반" 같이 말해도 시 단위로 매치 가능.
+const TIME_AT_HOUR_MINUTE_RE = /(오전|오후)?\s*(\d{1,2})\s*(?:시\s*(?:\d{1,2}\s*분|반)|[:：]\s*\d{1,2})/;
+
 type TimeBandResult =
   | { kind: 'objective'; band: TimeBand }
   | { kind: 'ambiguous'; keyword: string; needsAmpm?: boolean }
@@ -644,7 +650,8 @@ function toKstHour24(ampm: string | undefined, hour: number): number {
 // 우선순위:
 //  1) "X시 이후/이전" — 명시적 시간 경계 (가장 구체적)
 //  2) "X시" 정확 시간 — 분/콜론/간/반 등 없는 단독 시 표기. [X, X+1) 한 시간대.
-//  3) HAS_SPECIFIC_TIME — "오후 3시 30분" / "12:30" 처럼 분 단위 동반 → 시간대 무시
+//  2.5) "X시 Y분" / "X:Y" / "X시반" — 분 단위 동반 시각. hour 만 추출해 [X, X+1) band 로 사용.
+//  3) HAS_SPECIFIC_TIME — 위 2.5 도 못 잡는 모호 시각 (예: "13시 5분 30초") → 시간대 무시
 //  4) OBJECTIVE_BANDS — 오전/오후 + 일상 시간대 (새벽/아침/점심/저녁/밤)
 //  5) AMBIGUOUS_BANDS — 자정 가로지르는 야식 등 (단일 [start,end) 표현 불가)
 function detectTimeBand(question: string): TimeBandResult {
@@ -678,7 +685,19 @@ function detectTimeBand(question: string): TimeBandResult {
     const h = Math.max(0, Math.min(23, toKstHour24(ampm, hour)));
     return { kind: 'objective', band: { start: h, end: h + 1, label: `${h}시` } };
   }
-  // 3) 분 단위 등 부수 표기 동반 시간 → 시간대 필터 적용 안 함
+  // 2.5) "X시 Y분" / "X:Y" / "X시반" — 분 단위 시각. hour 단위로만 band 추출 (분 무시).
+  //      "21시 30분" 입력해도 21:30 startAt schedule 매치 가능.
+  const hmm = question.match(TIME_AT_HOUR_MINUTE_RE);
+  if (hmm) {
+    const ampm = hmm[1] || undefined;
+    const hour = parseInt(hmm[2], 10);
+    if (!ampm && hour >= 1 && hour <= 12) {
+      return { kind: 'ambiguous', keyword: hmm[0].trim(), needsAmpm: true };
+    }
+    const h = Math.max(0, Math.min(23, toKstHour24(ampm, hour)));
+    return { kind: 'objective', band: { start: h, end: h + 1, label: `${h}시` } };
+  }
+  // 3) 위 2/2.5 도 못 잡는 모호 시각 → 시간대 필터 적용 안 함
   if (HAS_SPECIFIC_TIME.test(question)) return { kind: 'none' };
   // 4) 오전/오후
   for (const [kw, band] of Object.entries(OBJECTIVE_BANDS)) {
@@ -702,6 +721,26 @@ function filterByTimeBand<T extends { startAt: string }>(
       new Date(s.startAt).getTime() + 9 * 60 * 60 * 1000
     ).getUTCHours();
     return kstHour >= band.start && kstHour < band.end;
+  });
+}
+
+// 백엔드 GET ?view=month 는 캘린더 그리드(6주, 일~토 = 42일) 를 반환 — 사용자가
+// "이번달" / "5월" 로 의도한 달력월(1일~말일) 보다 넓다. 사용자 멘탈 모델에 맞춰
+// AI 어시스턴트 답변에선 startAt 의 KST 캘린더 month 가 date 의 month 와
+// 일치하는 일정만 노출. (캘린더 화면 자체는 그리드 표시 그대로 유지.)
+function filterByCalendarMonth<T extends { startAt: string }>(
+  schedules: T[],
+  date: string,
+): T[] {
+  const targetYear = parseInt(date.slice(0, 4), 10);
+  const targetMonth = parseInt(date.slice(5, 7), 10);
+  if (!targetYear || !targetMonth) return schedules;
+  return schedules.filter((s) => {
+    const kst = new Date(new Date(s.startAt).getTime() + 9 * 60 * 60 * 1000);
+    return (
+      kst.getUTCFullYear() === targetYear &&
+      kst.getUTCMonth() + 1 === targetMonth
+    );
   });
 }
 
@@ -729,8 +768,13 @@ async function runScheduleQuery(opts: {
   const allInitial = await getSchedules({
     teamId, jwt, view: initial.view, date: initial.date,
   });
+  // view=month 는 백엔드가 6주 그리드를 반환하므로 달력월(1일~말일) 로 추가 좁힘.
+  const allInitialBounded =
+    initial.view === 'month'
+      ? filterByCalendarMonth(allInitial, initial.date)
+      : allInitial;
   const filteredInitial = filterByTimeBand(
-    filterByKeyword(allInitial, initial.keyword),
+    filterByKeyword(allInitialBounded, initial.keyword),
     band,
   );
   const rangeBand = band ?? undefined;
@@ -741,8 +785,9 @@ async function runScheduleQuery(opts: {
   const expanded = await getSchedules({
     teamId, jwt, view: 'month', date: initial.date,
   });
+  const expandedBounded = filterByCalendarMonth(expanded, initial.date);
   const filteredExpanded = filterByTimeBand(
-    filterByKeyword(expanded, initial.keyword),
+    filterByKeyword(expandedBounded, initial.keyword),
     band,
   );
   return {
@@ -825,12 +870,28 @@ function formatSchedules(
 // 거절 안내 메시지.
 function blockedMessage(subreason?: string): string {
   if (subreason === 'schedule_modify') {
-    return '찰떡이는 **일정 조회·등록** 만 도와드릴 수 있어요. 일정 수정·삭제는 캘린더에서 직접 처리해 주세요. 🙏';
+    return '찰떡이는 **일정 조회·등록·삭제** 만 도와드릴 수 있어요. 일정 수정·시간 이동은 캘린더에서 직접 처리해 주세요. 🙏';
   }
   if (subreason === 'other_domain') {
-    return '찰떡이는 **일정 조회·등록** 만 도와드릴 수 있어요. 프로젝트·채팅·공지·포스트잇 같은 작업은 화면에서 직접 처리해 주세요. 🙏';
+    return '찰떡이는 **일정 조회·등록·삭제** 만 도와드릴 수 있어요. 프로젝트·채팅·공지·포스트잇 같은 작업은 화면에서 직접 처리해 주세요. 🙏';
   }
-  return '찰떡이는 **일정 조회·등록** 만 도와드릴 수 있어요. 직접 처리해 주세요. 🙏';
+  return '찰떡이는 **일정 조회·등록·삭제** 만 도와드릴 수 있어요. 직접 처리해 주세요. 🙏';
+}
+
+// schedule_delete — 후보 일정을 사람이 알아볼 수 있는 한 줄로 포맷.
+// formatSchedules 와 비슷하지만 confirm 카드 안에 넣을 단일 항목용.
+function formatScheduleLine(s: Schedule): string {
+  const start = new Date(s.startAt);
+  const end = new Date(s.endAt);
+  const startStr = start.toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const endStr = end.toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  return `${startStr} ~ ${endStr}  ${s.title}${s.description ? ` — ${s.description}` : ''}`;
 }
 
 // RAG 가드레일이 "참고 자료에 없어요" 류로 거절했는지 판정.
@@ -887,7 +948,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // schedule_* / blocked-other_domain(create 시) 는 로그인 + teamId 필수.
     const needsAuth =
-      cls.intent === 'schedule_query' || cls.intent === 'schedule_create';
+      cls.intent === 'schedule_query' ||
+      cls.intent === 'schedule_create' ||
+      cls.intent === 'schedule_delete';
     if (needsAuth && !jwt) {
       return NextResponse.json(
         { error: '일정 조회·등록은 로그인 후 이용해 주세요.' },
@@ -1003,6 +1066,71 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 send({
                   type: 'token',
                   text: `좀 더 구체적으로 말씀해 주시겠어요?\n(예: "내일 오후 3시 주간 회의 등록해줘")`,
+                });
+                break;
+              }
+              case 'schedule_delete': {
+                send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
+                const tb = detectTimeBand(question);
+                if (tb.kind === 'ambiguous') {
+                  if (tb.needsAmpm) {
+                    send({
+                      type: 'token',
+                      text: `오전/오후 어느 쪽일까요? (예: '오후 ${tb.keyword}')`,
+                    });
+                    send({
+                      type: 'awaiting-input',
+                      needs: 'time',
+                      previousQuestion: question,
+                    });
+                  } else {
+                    // 자정 가로지르는 야식 등 — 안내만 (schedule_query 와 동일).
+                    send({
+                      type: 'token',
+                      text: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
+                    });
+                  }
+                  break;
+                }
+                const band = tb.kind === 'objective' ? tb.band : null;
+                const { schedules, range } = await runScheduleQuery({ question, teamId, jwt, band });
+                if (schedules.length === 0) {
+                  send({
+                    type: 'token',
+                    text: `${formatSchedules(schedules, { teamName, range })}\n삭제할 일정을 찾지 못했어요. 시점·제목을 더 구체적으로 알려주세요.`,
+                  });
+                  break;
+                }
+                if (schedules.length > 1) {
+                  send({
+                    type: 'sources',
+                    sources: schedules.map((s) => ({
+                      title: s.title,
+                      startAt: s.startAt,
+                      endAt: s.endAt,
+                    })) as WebSource[],
+                  });
+                  send({
+                    type: 'token',
+                    text: `${formatSchedules(schedules, { teamName, range })}\n어떤 일정을 삭제할까요? 제목이나 시각을 더 구체적으로 알려주세요.`,
+                  });
+                  send({
+                    type: 'awaiting-input',
+                    needs: 'title',
+                    previousQuestion: question,
+                  });
+                  break;
+                }
+                // 단일 매치 — confirm 카드
+                const s = schedules[0];
+                send({
+                  type: 'pending-action',
+                  pendingAction: {
+                    tool: 'deleteSchedule',
+                    args: { teamId, scheduleId: s.id },
+                  },
+                  preview: { id: s.id, title: s.title, startAt: s.startAt, endAt: s.endAt },
+                  text: `다음 일정을 삭제할까요?\n\n• ${formatScheduleLine(s)}`,
                 });
                 break;
               }
@@ -1137,6 +1265,52 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           pendingAction: {
             tool: 'createSchedule',
             args: { ...parsed.args, teamId },
+          },
+          source: 'schedule',
+          classification: cls,
+          ...ragMeta,
+        });
+      }
+      case 'schedule_delete': {
+        const tb = detectTimeBand(question);
+        if (tb.kind === 'ambiguous') {
+          const answer = tb.needsAmpm
+            ? `오전/오후 어느 쪽일까요? (예: '오후 ${tb.keyword}')`
+            : `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`;
+          return NextResponse.json({
+            answer,
+            source: 'schedule',
+            classification: cls,
+            ...ragMeta,
+          });
+        }
+        const band = tb.kind === 'objective' ? tb.band : null;
+        const { schedules, range } = await runScheduleQuery({ question, teamId, jwt, band });
+        if (schedules.length === 0) {
+          return NextResponse.json({
+            answer: `${formatSchedules(schedules, { teamName, range })}\n삭제할 일정을 찾지 못했어요. 시점·제목을 더 구체적으로 알려주세요.`,
+            source: 'schedule',
+            classification: cls,
+            ...ragMeta,
+          });
+        }
+        if (schedules.length > 1) {
+          return NextResponse.json({
+            answer: `${formatSchedules(schedules, { teamName, range })}\n어떤 일정을 삭제할까요? 제목이나 시각을 더 구체적으로 알려주세요.`,
+            sources: schedules,
+            source: 'schedule',
+            classification: cls,
+            ...ragMeta,
+          });
+        }
+        const s = schedules[0];
+        return NextResponse.json({
+          kind: 'confirm',
+          answer: `다음 일정을 삭제할까요?\n\n• ${formatScheduleLine(s)}`,
+          preview: { id: s.id, title: s.title, startAt: s.startAt, endAt: s.endAt },
+          pendingAction: {
+            tool: 'deleteSchedule',
+            args: { teamId, scheduleId: s.id },
           },
           source: 'schedule',
           classification: cls,

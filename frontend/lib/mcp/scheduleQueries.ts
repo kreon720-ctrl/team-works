@@ -1,8 +1,9 @@
 /**
- * scheduleQueries — AI 어시스턴트의 schedule_query / schedule_create 의도 분기에서
- * 호출하는 도구 함수. 내부적으로 pgClient.callBackend 를 통해 백엔드 schedule API 를 호출.
+ * scheduleQueries — AI 어시스턴트의 schedule_query / schedule_create / schedule_delete
+ * 의도 분기에서 호출하는 도구 함수. 내부적으로 pgClient.callBackend 를 통해 백엔드
+ * schedule API 를 호출.
  *
- * 인터페이스 안정성: 향후 PG-MCP child process 로 교체해도 이 두 함수의 시그니처는 보존.
+ * 인터페이스 안정성: 향후 PG-MCP child process 로 교체해도 이 함수들의 시그니처는 보존.
  */
 import { callBackend } from './pgClient';
 
@@ -74,4 +75,24 @@ export async function createSchedule(opts: CreateScheduleOptions): Promise<Sched
     return (data as { schedule: Schedule }).schedule;
   }
   throw new Error('createSchedule: 예상치 못한 응답 형식');
+}
+
+export interface DeleteScheduleOptions {
+  teamId: string;
+  jwt: string;
+  scheduleId: string;
+}
+
+// 백엔드 DELETE /api/teams/:teamId/schedules/:scheduleId 호출. 권한·존재 검증은 백엔드가 처리.
+// 성공 시 void 반환. 백엔드는 204 또는 {ok:true} 등으로 응답할 수 있음 — 어느 쪽이든 호출 측은
+// 성공 여부만 신경쓰면 되므로 결과를 무시.
+export async function deleteSchedule(opts: DeleteScheduleOptions): Promise<void> {
+  const { teamId, jwt, scheduleId } = opts;
+  if (!teamId) throw new Error('teamId 가 필요합니다.');
+  if (!scheduleId) throw new Error('scheduleId 가 필요합니다.');
+  await callBackend<unknown>({
+    method: 'DELETE',
+    path: `/api/teams/${encodeURIComponent(teamId)}/schedules/${encodeURIComponent(scheduleId)}`,
+    jwt,
+  });
 }

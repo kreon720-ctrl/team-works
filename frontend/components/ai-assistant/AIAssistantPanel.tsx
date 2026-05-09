@@ -43,12 +43,13 @@ interface Message {
   awaitingInput?: { needs: string; previousQuestion: string };
 }
 
-// 단일 진입점 — 사용자가 자유롭게 묻고, 시스템이 자동으로 의도를 분류.
+// 단일 진입점 — 5개 의도(usage·general·query·create·delete) 대표 예시 1개씩.
 const EXAMPLE_QUESTIONS = [
-  '포스트잇 색깔 종류 알려줘',
-  '오늘 뉴스 검색해줘',
   '오늘 일정 알려줘',
   '내일 오후 3시 주간회의 등록해줘',
+  '내일 회의 삭제해줘',
+  '포스트잇 색깔 종류 알려줘',
+  '오늘 뉴스 검색해줘',
 ];
 
 function newId(): string {
@@ -66,7 +67,7 @@ function isPlaceholderContent(content: string): boolean {
   return false;
 }
 
-// 다중 턴 일정 등록 — needs 별로 보충 답변을 직전 질문에 병합해 한 줄로 재구성.
+// 다중 턴 일정 등록·삭제 — needs 별로 보충 답변을 직전 질문에 병합해 한 줄로 재구성.
 // LLM 에 "X\n그리고 Y" 형태로 던지면 작은 모델일수록 두 절을 별개로 읽어 재차 같은 질문을
 // 반복하거나 JSON 추출에 실패함. 결정론적 정규식 병합으로 LLM 부담 제거.
 //
@@ -74,6 +75,20 @@ function isPlaceholderContent(content: string): boolean {
 const AMPM_RE = /(오전|오후|정오|자정|새벽)/;
 const HOUR_RE = /\d+\s*시/;
 const DATE_HINT_RE = /(오늘|내일|어제|모레|글피|\d+월\s*\d+일|\d+일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주)/;
+// schedule_delete 다중 후보 보충 입력 처리용 — 보충이 자체 완결 schedule 질문인지 판정.
+// 둘 다 매치하면 그대로 새 질문으로 사용 (예: "15일 일정 삭제").
+const SELF_CONTAINED_NOUN_RE = /(일정|회의|미팅|약속|스케줄)/;
+const SELF_CONTAINED_VERB_END_RE = /(등록|추가|만들|잡아|예약|넣어|생성|삭제|제거|지워|지운)\s*(해줘|해|줘)?\s*$/;
+// 다중 후보 좁히기 단계에서 사용자가 "전체/모두/전부/모든/다 삭제" 같이 일괄 삭제를 시도하는지 판정.
+// 매치되면 안내 후 awaiting-input 상태 유지 — 의도치 않은 대량 삭제 차단.
+// "다섯/다른" 같은 합성어는 `다\s*(?:삭제|...)` 형태로만 잡아 false positive 회피.
+const BULK_DELETE_INTENT_RE = /(전체|모두|전부|모든|다\s*(?:삭제|지워|지운|제거))/;
+// 직전 질문이 schedule_delete 의도였는지 판정 — needs:'title' 은 create 도 사용하므로 분기 구분용.
+const DELETE_INTENT_IN_PREV_RE = /(삭제|지워|지운|제거)/;
+// supplement="2일" 단독 보충 + prev에 "X월" 단독 (뒤에 숫자 없음) → "X월 Y일" 로 결합용.
+// 예: prev="5월 점심일정 삭제해줘" + supplement="2일" → "5월 2일 점심일정 삭제해줘"
+const DAY_ONLY_SUPPLEMENT_RE = /^(\d{1,2})\s*일\s*$/;
+const MONTH_ONLY_IN_PREV_RE = /(\d{1,2})\s*월(?!\s*\d)/;
 
 function rebuildFollowUpQuestion(
   prev: string,
@@ -104,9 +119,40 @@ function rebuildFollowUpQuestion(
     if (DATE_HINT_RE.test(supplement)) return `${supplement} ${prev}`;
   }
   if (needs === 'title') {
-    // 보충은 보통 제목 자체 — prev 끝에 자연스럽게 삽입.
-    // "등록해줘" 류 동사가 prev 끝에 있으면 그 앞에, 없으면 단순 append.
-    const verbMatch = prev.match(/(등록|추가|만들|잡아|예약|넣어|생성)\s*(해줘|해|줘)?\s*$/);
+    // 1) 보충이 자체 완결된 schedule 질문이면 (명사 + 동사 모두 포함) prev 무시하고 그대로 사용.
+    //    예: prev="다음주 점심일정 삭제", supplement="15일 일정 삭제" → "15일 일정 삭제"
+    //    이중 동사·날짜 충돌 (다음주+15일+삭제 두 번) 방지.
+    if (SELF_CONTAINED_NOUN_RE.test(supplement) && SELF_CONTAINED_VERB_END_RE.test(supplement)) {
+      return supplement;
+    }
+    // 2) 보충="X일" 단독 → 단서 위치를 LLM 이 specific day 로 인식하도록 보정.
+    //    LLM 은 "X일" 같은 시점 단서가 앞쪽에 있을수록 day 로 정확히 분류 — 단어 순서 민감.
+    //    2a) prev 에 월(月) 만 있고 일(日) 없음 → "X월 Y일" 로 결합.
+    //        예: "5월 점심일정 삭제해줘" + "2일" → "5월 2일 점심일정 삭제해줘"
+    //    2b) prev 에 어떤 시점 단서도 없음 → supplement 를 prev 앞에 prepend.
+    //        예: "전체 회의 일정 삭제해줘" + "5일" → "5일 전체 회의 일정 삭제해줘"
+    //        동사 직전 insert 시 "전체" 같은 month 시그널이 먼저 읽혀 view=month 환각 회피.
+    //    prev 에 다른 시점 단서 (다음주, X월 Y일 등) 가 있으면 prepend 시 LLM 이 두 단서를
+    //    혼합 해석할 수 있어 (예: "15일 다음주" → 5/16 으로 오해석) 분기 4 (date-replace) 로 위임.
+    const dayOnly = supplement.match(DAY_ONLY_SUPPLEMENT_RE);
+    const monthOnly = prev.match(MONTH_ONLY_IN_PREV_RE);
+    if (dayOnly) {
+      if (monthOnly) {
+        return prev.replace(monthOnly[0], `${monthOnly[1]}월 ${dayOnly[1]}일`);
+      }
+      if (!DATE_HINT_RE.test(prev)) {
+        return `${supplement} ${prev}`;
+      }
+      // prev 에 시점 단서가 있으면 분기 3 (date-replace) 로 fall-through.
+    }
+    // 3) 보충에 날짜 단서만 있으면 prev 의 날짜 부분을 교체 (날짜 좁히기 의도).
+    //    예: prev="다음주 점심일정 삭제", supplement="15일" → "15일 점심일정 삭제"
+    if (DATE_HINT_RE.test(supplement) && DATE_HINT_RE.test(prev)) {
+      return prev.replace(DATE_HINT_RE, supplement);
+    }
+    // 4) 그 외 (제목/키워드 단서) — prev 의 동사 앞에 삽입.
+    //    예: prev="내일 회의 삭제해줘" + "고객미팅" → "내일 회의 고객미팅 삭제해줘"
+    const verbMatch = prev.match(SELF_CONTAINED_VERB_END_RE);
     if (verbMatch) {
       const idx = verbMatch.index ?? prev.length;
       return `${prev.slice(0, idx).trimEnd()} ${supplement} ${prev.slice(idx)}`;
@@ -127,7 +173,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
   const queryClient = useQueryClient();
   const userHint = useMemo(() => {
     if (!teamId) return undefined;
-    return `현재 사용자가 선택한 기본 팀: "${teamName}" (teamId=${teamId}). 사용자가 별도의 팀을 지정하지 않으면 이 팀을 대상으로 조회/등록하세요.`;
+    return `현재 사용자가 선택한 기본 팀: "${teamName}" (teamId=${teamId}). 사용자가 별도의 팀을 지정하지 않으면 이 팀을 대상으로 조회/등록/삭제하세요.`;
   }, [teamId, teamName]);
 
   const [messages, setMessages] = useState<Message[]>([
@@ -135,7 +181,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
       id: 'welcome',
       role: 'assistant',
       content:
-        '안녕하세요! AI 버틀러 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색)·우리 팀 일정 조회·등록(📅) 모두 자유롭게 물어봐 주세요. 시스템이 자동으로 적절한 경로로 답변합니다.\n(일정 수정·삭제, 프로젝트·채팅 작업은 화면에서 직접 처리해 주세요.)',
+        '안녕하세요! AI 버틀러 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색)·우리 팀 일정 조회·등록·삭제(📅) 모두 자유롭게 물어봐 주세요. 시스템이 자동으로 적절한 경로로 답변합니다.\n(일정 수정·이동, 프로젝트·채팅 작업은 화면에서 직접 처리해 주세요.)',
     },
   ]);
   const [input, setInput] = useState('');
@@ -164,6 +210,32 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
     // (서버는 stateless — 합친 한 question 으로 새 parse 시도.)
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     const pendingTurn = lastAssistant?.awaitingInput;
+
+    // 벌크 삭제 가드 — 다중 후보 좁히기(needs:'title') + 직전이 삭제 의도일 때만.
+    // "전체 일정 삭제" 같이 일괄 삭제 시도 시 안내 후 awaiting-input 상태 유지.
+    // 서버 호출 안 함 — 의도치 않은 대량 삭제 가능성 자체를 차단.
+    if (
+      pendingTurn?.needs === 'title' &&
+      DELETE_INTENT_IN_PREV_RE.test(pendingTurn.previousQuestion) &&
+      BULK_DELETE_INTENT_RE.test(trimmed)
+    ) {
+      setMessages((prev) => [
+        ...prev,
+        { id: newId(), role: 'user', content: trimmed },
+        {
+          id: newId(),
+          role: 'assistant',
+          content: '한 번에 하나의 일정만 삭제할 수 있어요. 후보 중 하나만 시각·제목으로 좁혀 알려주세요.',
+          awaitingInput: {
+            needs: 'title',
+            previousQuestion: pendingTurn.previousQuestion,
+          },
+        },
+      ]);
+      setInput('');
+      return;
+    }
+
     const effectiveQuestion = pendingTurn
       ? rebuildFollowUpQuestion(pendingTurn.previousQuestion, pendingTurn.needs, trimmed)
       : trimmed;
@@ -368,17 +440,21 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `실행 실패 (${res.status})`);
-      // 일정 등록 후 좌측 캘린더 자동 갱신 — 모든 schedules 쿼리(view×date 조합) 무효화.
-      // 도구가 createSchedule 인 경우만이지만, 향후 다른 도구도 같은 패턴으로 추가하면 됨.
-      if (target.pendingAction.tool === 'createSchedule' && teamId) {
+      // 일정 등록·삭제 후 좌측 캘린더 자동 갱신 — 모든 schedules 쿼리(view×date 조합) 무효화.
+      const tool = target.pendingAction.tool;
+      if ((tool === 'createSchedule' || tool === 'deleteSchedule') && teamId) {
         queryClient.invalidateQueries({ queryKey: ['schedules', teamId] });
       }
+      const doneMsg =
+        tool === 'deleteSchedule'
+          ? '삭제했어요. 캘린더에 반영됐어요. ✓'
+          : '완료했어요. 캘린더에 반영됐어요. ✓';
       setMessages((prev) => [
         ...prev,
         {
           id: newId(),
           role: 'assistant',
-          content: '완료했어요. 캘린더에 반영됐어요. ✓',
+          content: doneMsg,
         },
       ]);
     } catch (err) {
