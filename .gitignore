@@ -70,3 +70,6 @@ coverage/
 # board_attachments 테이블의 stored_name 으로 식별, 디스크 파일은 git 추적 제외.
 files/
 !files/.gitkeep
+
+# DB 백업 덤프 — 사용자 해시 포함, git 추적 제외.
+backups/
