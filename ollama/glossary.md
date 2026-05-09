@@ -119,7 +119,9 @@ TEAM WORKS 사용자를 돕는 AI 도우미. 우측 채팅 영역의 **AI 버틀
 | **general (일반)** | SearxNG 메타검색 + Open WebUI gemma4:26b | 웹 검색 5건 인용 + 🌐 출처 뱃지 |
 | **schedule_query (일정 조회)** | backend Schedule API 직접 조회 | 코드가 한국어로 즉시 포맷 |
 | **schedule_create (일정 등록)** | confirm 카드 + 사용자 ✓ 후 INSERT | 다중 턴 — 정보 부족 시 후속 질문 |
-| **blocked (거절)** | 정중한 거절 안내 | 일정 수정·삭제, 다른 도메인 변경 요청 등 |
+| **schedule_delete (일정 삭제)** | confirm 카드 + 사용자 ✓ 후 DELETE | 다중 후보 시 좁히기 안내, 벌크 차단 |
+| **schedule_update (일정 수정)** | 식별 → 새 일시 → 새 제목 multi-step → confirm 카드 + ✓ 후 PATCH | 일시·제목만 지원, "그대로" 답변으로 부분 수정 |
+| **blocked (거절)** | 정중한 거절 안내 | 일정 취소, 다른 도메인 변경, 비지원 필드(색깔·설명) 등 |
 
 이전 명칭(AI 비서)과 동일한 도구입니다. 캐릭터 이름은 "찰떡" — "개떡같이 물어도 찰떡같이 대답한다"는 의미.
 
