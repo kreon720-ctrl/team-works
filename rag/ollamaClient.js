@@ -4,6 +4,11 @@ import { OLLAMA_HOST } from "./config.js";
 // num_predict 는 답변 잘림 방지용 출력 토큰 budget.
 const DEFAULT_CHAT_OPTIONS = { num_ctx: 32768, num_predict: 1024 };
 
+// keep_alive=-1 → Ollama가 모델을 메모리에서 내리지 않도록 강제.
+// 기본 5분 idle 언로드 시 첫 호출 cold-start 지연 + /api/ps 기반 health check 오판 회피.
+// 모든 /api/* 호출에 동일 적용.
+const KEEP_ALIVE_FOREVER = -1;
+
 async function postJson(pathname, body) {
   const res = await fetch(`${OLLAMA_HOST}${pathname}`, {
     method: "POST",
@@ -18,7 +23,7 @@ async function postJson(pathname, body) {
 }
 
 export async function embed(model, input) {
-  const data = await postJson("/api/embed", { model, input });
+  const data = await postJson("/api/embed", { model, input, keep_alive: KEEP_ALIVE_FOREVER });
   const vec = data.embeddings?.[0];
   if (!Array.isArray(vec)) {
     throw new Error(`embed: invalid response for model ${model}`);
@@ -38,6 +43,7 @@ export async function chat(model, messages, options = {}) {
     model,
     messages,
     stream: false,
+    keep_alive: KEEP_ALIVE_FOREVER,
     ...THINK_OFF,
     options: { ...DEFAULT_CHAT_OPTIONS, ...options },
   });
@@ -53,6 +59,7 @@ export async function chatStreamRaw(model, messages, options = {}) {
       model,
       messages,
       stream: true,
+      keep_alive: KEEP_ALIVE_FOREVER,
       ...THINK_OFF,
       options: { ...DEFAULT_CHAT_OPTIONS, ...options },
     }),
