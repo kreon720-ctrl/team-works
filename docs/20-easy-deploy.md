@@ -904,13 +904,47 @@ frontend·backend 컨테이너가 재기동되면서:
 
 일반적인 코드 수정은 이 두 줄로 충분합니다.
 
-> **추가 작업이 필요한 경우** (PR 설명에 따라 판별):
+#### main 외 브랜치 (예: `gemma4-adjust`) 받기
+
+기능 개발용 브랜치를 운영 PC 에 임시 반영할 때:
+
+```powershell
+cd C:\TeamWorks\team-works
+git status                              # 로컬 변경 없는지 먼저 확인
+git fetch origin                        # 원격 최신 메타데이터 받기
+git checkout gemma4-adjust              # 로컬에 있으면 전환
+# 로컬에 없으면 한 번만:
+# git checkout -b gemma4-adjust origin/gemma4-adjust
+git pull origin gemma4-adjust           # 최신 코드 받기
+git log --oneline -5                    # 받은 commits 확인
+docker compose restart frontend backend
+```
+
+운영을 다시 main 으로 되돌리려면 `git checkout main && git pull` + `docker compose restart frontend backend`.
+
+#### 추가 작업이 필요한 경우 (PR 설명에 따라 판별)
+
+| 변경된 파일 | 영향 | 추가 명령 |
+|---|---|---|
+| `database/add-*.sql` 새 마이그레이션 | DB 스키마 변경 | `docker exec -i postgres-db psql -U teamworks-manager -d teamworks < database\add-*.sql` |
+| `ollama/*.md` (RAG 사용법 문서) | RAG 인덱스 재생성 필요 | `cd rag && npm run index` → RAG 서버 재기동 |
+| `rag/server.js`, `rag/docs/classify-rules.md`, `rag/promptBuilder.js`, `rag/retriever.js` 등 | RAG 서버 로직·prompt 변경 | **RAG 서버 재기동 필수** (인덱스 재빌드 불필요) |
+| `docker-compose.yml` 또는 루트 `.env` | compose 설정 변경 | `docker compose restart` 가 아니라 `docker compose up -d` (compose 파일·env 재평가) |
+| `frontend/**`, `backend/**` (TS/JS/CSS) | Next.js 코드 | dev 모드는 `docker compose restart frontend backend` 만으로 hot-reload, prod 모드는 별도 build 필요 |
+
+> **RAG 서버 재기동 방법** — STEP 5.5 의 시작 스크립트를 다시 실행하거나, 직접 PowerShell 에서:
 >
-> | 변경 종류 | 추가 명령 |
-> |---|---|
-> | DB 스키마 변경 (`database/add-*.sql` 새로 추가됨) | `docker exec -i postgres-db psql -U teamworks-manager -d teamworks < database\add-*.sql` |
-> | RAG 문서 변경 (`ollama/*.md`) | `cd rag && npm run index` 후 RAG 서버 재기동 |
-> | `docker-compose.yml` 또는 루트 `.env` 변경 | `docker compose restart` 가 아니라 `docker compose up -d` (compose 파일·env 재평가) |
+> ```powershell
+> # 기존 프로세스 종료 (윈도우)
+> taskkill /F /IM node.exe /FI "WINDOWTITLE eq RAG*"
+> # 또는 Ctrl+C 로 직접 띄운 창 닫기
+>
+> # 다시 시작
+> cd C:\TeamWorks\team-works\rag
+> npm run server
+> ```
+>
+> 정상 가동 확인: 다른 창에서 `curl http://127.0.0.1:8787/health` → `{"ok":true,"model":"..."}`
 
 #### (선택) 자동화 스크립트
 
@@ -918,13 +952,23 @@ frontend·backend 컨테이너가 재기동되면서:
 
 ```bat
 @echo off
-echo TEAM WORKS 업데이트 시작...
+setlocal
+set BRANCH=%1
+if "%BRANCH%"=="" set BRANCH=main
+echo TEAM WORKS 업데이트 시작 (브랜치: %BRANCH%)...
 cd /d C:\TeamWorks\team-works
-git pull origin main
+git fetch origin
+git checkout %BRANCH%
+git pull origin %BRANCH%
 docker compose restart frontend backend
 echo 업데이트 완료. 브라우저에서 동작 확인하세요.
+echo (RAG 코드/문서/인덱스 변경이 있었으면 별도로 RAG 서버 재기동 필요)
 pause
 ```
+
+사용법:
+- `update.bat` — main 브랜치 갱신 (기본)
+- `update.bat gemma4-adjust` — 특정 브랜치 갱신
 
 바탕화면에 바로가기로 빼두면 더블클릭 한 번으로 끝.
 
