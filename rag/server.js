@@ -79,14 +79,18 @@ const SCHEDULE_QUERY_VERBS = [
 const SCHEDULE_CREATE_VERBS = [
   "등록", "추가", "만들", "잡아", "예약", "넣어", "생성",
 ];
-// 거절 대상 동작 — 일정 수정·이동은 캘린더 화면에서 처리하도록 안내.
-// "삭제" 계열은 별도 SCHEDULE_DELETE_VERBS 로 분리 (AI 가 confirm 후 처리).
+// 거절 대상 동작 — "취소" 는 의미 모호 (삭제 vs 일정 통보 취소) 하므로 안전하게 거절.
 const BLOCKED_VERBS = [
-  "수정", "변경", "취소", "옮겨", "옮기", "바꿔",
+  "취소",
 ];
 // 삭제 동작 — 일정 + deleteVerb 면 schedule_delete (등록과 동일하게 confirm 후 실행).
 const SCHEDULE_DELETE_VERBS = [
   "삭제", "제거", "지워", "지운",
+];
+// 수정 동작 — 일정 + updateVerb 면 schedule_update (식별 → 새 일시 → 새 제목 → confirm).
+// "옮겨/옮기" 는 시각 이동도 의미 — 같은 update 분기로 처리.
+const SCHEDULE_UPDATE_VERBS = [
+  "수정", "변경", "바꿔", "옮겨", "옮기",
 ];
 // 거절 대상 도메인 — 프로젝트·채팅 관련은 도메인 자체로 거절.
 const BLOCKED_DOMAINS = [
@@ -115,20 +119,21 @@ function findMatch(q, list) {
 // 어절 경계 (선두/공백 → 한글+ → 선택적 공백 → 법 → 어절 종료) 로 매치 — '방법론' 같은 합성어는 제외.
 const USAGE_LAW_RE = /(?:^|\s)[가-힣]+\s*법(?=\s|[?!.,]|$)/;
 
-// 의도 분류 — 5-way + blocked.
+// 의도 분류 — 6-way + blocked.
 // 우선순위:
 //  0) USAGE_KEYWORDS(사용법 시그널) → 즉시 usage (다른 분기보다 우선)
 //  0b) USAGE_LAW_RE ("X법" / "X 법" 단독 어휘 패턴) → usage
-//  1) 일정명사 + 거절동작(수정/이동/취소) → blocked (schedule_modify)
-//  2) 거절도메인 + 동작(create/modify/delete) → blocked (other_domain)
+//  1) 일정명사 + 거절동작(취소) → blocked (schedule_modify)
+//  2) 거절도메인 + 동작(create/update/delete) → blocked (other_domain)
 //  3) 일정명사 + 삭제동작 → schedule_delete  (confirm 후 실행)
-//  4) 일정명사 + 등록동작 → schedule_create
-//  5) 일정명사 + 조회동작 (또는 일정명사 단독) → schedule_query
-//  6) HARD_KEYWORDS → usage
-//  7) GENERAL_KEYWORDS → general (뉴스/날씨/주가 등 — 일정 조회 아님)
-//  7b) 시간 질의 표지자 ("언제" 등) → schedule_query (일정명사 미매치라도 fallback)
+//  4) 일정명사 + 수정동작 → schedule_update (식별 → 새 일시 → 새 제목 → confirm)
+//  5) 일정명사 + 등록동작 → schedule_create
+//  6) 일정명사 + 조회동작 (또는 일정명사 단독) → schedule_query
+//  7) HARD_KEYWORDS → usage
+//  8) GENERAL_KEYWORDS → general (뉴스/날씨/주가 등 — 일정 조회 아님)
+//  8b) 시간 질의 표지자 ("언제" 등) → schedule_query (일정명사 미매치라도 fallback)
 //      — GENERAL_KEYWORDS 다음에 두어 '오늘 뉴스 언제 봐?' 같은 false positive 회피.
-//  8) 매치 없음 → unknown (route.ts 가 RAG 시도 후 거절형이면 general fallback)
+//  9) 매치 없음 → unknown (route.ts 가 RAG 시도 후 거절형이면 general fallback)
 function classifyIntent(question) {
   const q = question.trim().toLowerCase();
 
@@ -142,27 +147,32 @@ function classifyIntent(question) {
   const noun = findMatch(q, SCHEDULE_NOUNS);
   const blockedVerb = findMatch(q, BLOCKED_VERBS);
   const deleteVerb = findMatch(q, SCHEDULE_DELETE_VERBS);
+  const updateVerb = findMatch(q, SCHEDULE_UPDATE_VERBS);
   const createVerb = findMatch(q, SCHEDULE_CREATE_VERBS);
   const queryVerb = findMatch(q, SCHEDULE_QUERY_VERBS);
   const blockedDomain = findMatch(q, BLOCKED_DOMAINS);
 
-  // 1) 일정 + 거절동작(수정/이동/취소) → blocked
+  // 1) 일정 + 거절동작(취소) → blocked
   if (noun && blockedVerb) {
     return { intent: "blocked", subreason: "schedule_modify", matched: `${noun}+${blockedVerb}` };
   }
   // 2) 거절도메인 + 어떤 동작 → blocked
-  if (blockedDomain && (blockedVerb || createVerb || deleteVerb)) {
+  if (blockedDomain && (blockedVerb || createVerb || deleteVerb || updateVerb)) {
     return { intent: "blocked", subreason: "other_domain", matched: blockedDomain };
   }
-  // 3) 일정 + 삭제동작 → schedule_delete (createVerb 보다 먼저 검사 — "삭제 등록" 같은 케이스에서 삭제 우선)
+  // 3) 일정 + 삭제동작 → schedule_delete (updateVerb·createVerb 보다 먼저 — "삭제 변경" 류는 삭제 우선)
   if (noun && deleteVerb) {
     return { intent: "schedule_delete", reason: "keyword", matched: `${noun}+${deleteVerb}` };
   }
-  // 4) 일정 + 등록동작 → schedule_create
+  // 4) 일정 + 수정동작 → schedule_update (createVerb 보다 먼저 — "수정 등록" 류는 수정 우선)
+  if (noun && updateVerb) {
+    return { intent: "schedule_update", reason: "keyword", matched: `${noun}+${updateVerb}` };
+  }
+  // 5) 일정 + 등록동작 → schedule_create
   if (noun && createVerb) {
     return { intent: "schedule_create", reason: "keyword", matched: `${noun}+${createVerb}` };
   }
-  // 5) 일정명사 + 조회동작 (또는 단독) → schedule_query
+  // 6) 일정명사 + 조회동작 (또는 단독) → schedule_query
   if (noun && (queryVerb || !createVerb)) {
     return { intent: "schedule_query", reason: "keyword", matched: noun };
   }
@@ -199,7 +209,7 @@ app.get("/health", async (_req, res) => {
 // LLM 분류기 — 키워드가 위험 분기(blocked/unknown)로 떨어뜨린 입력에 대해
 // docs/classify-rules.md 를 system prompt 로 LLM 의미 기반 재분류.
 // /parse-schedule-* 와 같은 패턴: temperature 0.1 + 짧은 num_predict + JSON 정규식 추출 + 실패 throw.
-const VALID_INTENTS = ["usage", "general", "schedule_query", "schedule_create", "schedule_delete", "blocked", "unknown"];
+const VALID_INTENTS = ["usage", "general", "schedule_query", "schedule_create", "schedule_delete", "schedule_update", "blocked", "unknown"];
 
 async function classifyIntentLLM(question, model) {
   const result = await chat(
@@ -282,6 +292,33 @@ app.post("/classify", async (req, res) => {
 // 입력: { question, nowIso? } — nowIso 는 사용자 시점 (KST 보정 등). 미지정 시 서버 시간.
 // 출력: { ok:true, args: { title, startAt, endAt, description?, color? } } 또는 { ok:false, error }
 //   - startAt/endAt 은 ISO 8601 (UTC). LLM 이 사용자의 KST 표현을 KST→UTC 로 변환해 반환.
+// "Y일" (월 미명시 단독 일자) → 가장 가까운 미래 (year-month-day) 매핑 표 생성.
+// LLM 이 일자 단독을 과거로 떨어뜨리는 환각 방지용 — system prompt 에 미리 계산된 표 동봉.
+// parseScheduleArgs / parseScheduleQuery 둘 다 사용.
+function buildDayMappingTable(kstNow) {
+  const todayDay = kstNow.getUTCDate();
+  const todayMonth = kstNow.getUTCMonth();
+  const todayYear = kstNow.getUTCFullYear();
+  const lastDayOfMonth = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const lines = [];
+  for (let d = 1; d <= 31; d++) {
+    let y = todayYear, m = todayMonth;
+    if (d >= todayDay && d <= lastDayOfMonth(y, m)) {
+      // 이번 달 사용
+    } else {
+      m += 1;
+      if (m > 11) { m = 0; y += 1; }
+      while (d > lastDayOfMonth(y, m)) {
+        m += 1;
+        if (m > 11) { m = 0; y += 1; }
+      }
+    }
+    const ymd = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    lines.push(`  - "${d}일" → ${ymd}`);
+  }
+  return lines.join("\n");
+}
+
 // gemma4:26b think:false 로 짧은 JSON 응답 유도. JSON 파싱 실패 시 { ok:false }.
 app.post("/parse-schedule-args", async (req, res) => {
   const { question: rawQuestion, nowIso } = req.body ?? {};
@@ -315,33 +352,8 @@ app.post("/parse-schedule-args", async (req, res) => {
     return `  - 지난주 ${wd}: ${d.toISOString().slice(0, 10)}`;
   }).join("\n");
 
-  // 오늘 = ${kstDateStr}. 월·연 단독 보간 시 LLM 이 정확한 정수 산술을 하기 어려우므로
-  // 흔히 쓰이는 "Y일" → 가장 가까운 미래 매핑을 미리 계산해 표로 제공.
-  const todayDay = kstNow.getUTCDate();
-  const todayMonth = kstNow.getUTCMonth(); // 0~11
-  const todayYear = kstNow.getUTCFullYear();
-  // 1~31 일자에 대해 "Y일" 단독 입력 시 어떤 (year-month-day) 가 가장 가까운 미래인지 미리 산출.
-  // 규칙: 오늘 이후의 Y일이 이번 달에 있으면 이번 달, 아니면 다음 달 (다음 달에 Y일 없으면 그 다음 달).
-  const lastDayOfMonth = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-  const dayMapping = [];
-  for (let d = 1; d <= 31; d++) {
-    let y = todayYear, m = todayMonth;
-    // 이번 달에 d 일이 존재하고 오늘 이후 (오늘 포함) 면 이번 달
-    if (d >= todayDay && d <= lastDayOfMonth(y, m)) {
-      // 이번 달 사용
-    } else {
-      // 다음 달부터 d 일이 존재하는 첫 달 찾기 (최대 3번 진행 — 실제로는 1~2번 안에 결정)
-      m += 1;
-      if (m > 11) { m = 0; y += 1; }
-      while (d > lastDayOfMonth(y, m)) {
-        m += 1;
-        if (m > 11) { m = 0; y += 1; }
-      }
-    }
-    const ymd = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    dayMapping.push(`  - "${d}일" → ${ymd}`);
-  }
-  const dayMappingTable = dayMapping.join("\n");
+  // "Y일" 단독 → 가장 가까운 미래 매핑 표 (helper 사용 — query endpoint 와 공유).
+  const dayMappingTable = buildDayMappingTable(kstNow);
 
   const sysPrompt = `당신은 한국어 일정 등록 요청을 JSON 으로 변환합니다.\n현재 KST 날짜: ${kstDateStr} (${kstWeekday})\n사용자는 한국 시간대(KST)로 말한다고 가정. 출력도 KST 그대로 (UTC 변환은 서버가 함 — 절대 빼지 마세요).\n\n반드시 다음 둘 중 하나의 JSON 만 출력 (마크다운 금지):\n\n[A. 정보 충분 — 인자 반환]\n{"ok":true,"title":"...","startKst":"YYYY-MM-DDTHH:MM:SS","endKst":"YYYY-MM-DDTHH:MM:SS","description":""}\n\n[B. 정보 부족 — 후속 질문]\n{"ok":false,"needs":"time"|"date"|"title","hint":"한국어 한 문장 후속 질문"}\n\n날짜 추론 규칙 (오늘=${kstDateStr}(${kstWeekday}) 기준):\n- "오늘" → ${kstDateStr}\n- "내일" → 오늘 + 1일\n- "어제" → 오늘 - 1일\n- "X월 Y일" 연도 미명시 → 가장 가까운 미래 (오늘 이후의 X월 Y일).\n- "Y일" (월 미명시, 단독 일자) → **아래 매핑 표 그대로 사용**. 절대 추론·계산 금지. 과거 날짜 출력 금지.\n- 해당 월에 그 일자가 존재하지 않으면 (예: 4월 31일) 매핑 표대로 다음 달로 점프.\n- **절대 규칙**: "N일" / "Y일" 표기는 **달력 날짜** 입니다. "N일 전/후/뒤" 같은 상대 키워드가 명시되어 있지 않으면 절대 상대 기간으로 해석 금지. 예: "1일 점심 약속" 은 "다음 1일의 점심 약속" 이지 "1일 전 점심" 이 아닙니다 — 매핑 표를 그대로 사용.\n\n[Y일 단독 매핑 표 — 가장 가까운 미래]\n${dayMappingTable}\n\n요일 매핑 — 사용자가 "이번 주/다음 주/지난주 X요일" 이라고 말하면 **아래 표를 그대로 사용**. 추론·계산 금지.\n\n[이번 주 (일~토)]\n${weekMapping}\n\n[다음 주]\n${nextWeekMapping}\n\n[지난주]\n${lastWeekMapping}\n\n시각 표기 규칙 (간단 — 24시간 매핑만):\n- 출력은 한국 시간(KST) 그대로 24시간 형식 \`HH:MM:SS\`. UTC 변환·시차 계산 절대 금지.\n- "오전 N시" → \`0N:00:00\` (1<=N<=11) 또는 \`12:00:00\` (오전 12시 = 자정).\n- "오후 N시" → \`(N+12):00:00\` (1<=N<=11) 또는 \`12:00:00\` (오후 12시 = 정오).\n- "정오" → \`12:00:00\`. "자정" → \`00:00:00\`.\n- 24시간 표기 (13시·14시 등) → 그대로.\n- 예: "내일 오후 3시 회의" (오늘=${kstDateStr}) → startKst="${kstDateStr.slice(0, 8)}${String(kstNow.getUTCDate() + 1).padStart(2, "0")}T15:00:00", endKst=시작+1시간.\n- 예: "오후 1시" → 13:00:00. "오전 9시" → 09:00:00. "오전 11시 30분" → 11:30:00.\n\nA(완성) vs B(부족) 결정 규칙 (이 순서대로 검사):\n- 날짜가 명시 안 됨 또는 모호("회의 잡아줘", "다음에", "곧"...) → B, needs="date", hint="언제로 잡을까요?"\n- 시각이 명시 안 됨 또는 모호("오전?", "오후?", "조만간", "아침", "점심", "저녁", "야식") → B, needs="time", hint="몇 시에 잡을까요?" (식사 키워드는 시각이 아니라 이벤트 명사 — 구체 시각이 없으면 후속 질문)\n- **시각 모호 — AM/PM 미명시**: 사용자가 단순히 "1시", "5시" 처럼 12 이하 숫자만 말하고 "오전/오후/새벽/정오/자정" 같은 시간대 표현이 없으면 → B, needs="time", hint="오전/오후 어느 쪽일까요? (예: '오후 1시')". 13시 이상 24시간 표기는 명확하므로 OK.\n- **절대 금지**: 사용자가 시각을 한 글자도 명시 안 했으면 9시·10시·12시 같은 임의 시각을 절대 채우지 말 것. 무조건 needs="time".\n- 예: "5월 1일 주간회의 등록해줘" → {"ok":false,"needs":"time","hint":"몇 시에 잡을까요?"} (절대 9시·10시 등 임의 시각 채우면 안 됨)\n- 제목이 전혀 없으면 → B, needs="title", hint="회의 제목은 무엇으로 할까요?"\n- 위 모두 갖춰지면 → A. 종료 시각 미명시면 시작+1시간 가정 OK.\n- 제목은 사용자 표현 짧게(10자 내외). description 는 명시 안 하면 빈 문자열.\n- "Y일 일정 등록해줘" 처럼 일자만 있고 시각이 없으면 → B, needs="time" (날짜는 매핑 표로 결정 가능하나 시각이 없으므로 후속 질문).\n\n절대 JSON 외 다른 문자 출력 금지.`;
 
@@ -472,8 +484,10 @@ app.post("/parse-schedule-query", async (req, res) => {
   const todayKst = kstNow.toISOString().slice(0, 10);
   const kstWeekdays = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
   const kstWeekday = kstWeekdays[kstNow.getUTCDay()];
+  // "Y일" 단독 일자 → 가장 가까운 미래 매핑 (LLM 환각 방지 — parseScheduleArgs 와 동일).
+  const dayMappingTable = buildDayMappingTable(kstNow);
 
-  const sysPrompt = `당신은 한국어 일정 조회 요청을 JSON 으로 변환합니다.\n현재 KST 날짜: ${todayKst} (${kstWeekday})\n사용자가 한국 시간대로 말한다고 가정.\n\n반드시 다음 JSON 만 출력 (마크다운 금지):\n{"view":"day","date":"YYYY-MM-DD","keyword":""}\n\nview 결정 규칙:\n- 특정 하루 (예: "오늘", "내일", "어제", "4월 22일", "지난 화요일") → "day"\n- **"(다음|이번|지난)주 + 요일" 패턴** (예: "다음주 수요일", "이번주 금요일", "지난주 화요일") → "day", date=정확히 그 요일의 날짜\n  - 예시 (오늘이 ${todayKst} ${kstWeekday} 기준):\n    "다음주 수요일" → view="day", date=다음주의 수요일 날짜\n    "이번주 금요일" → view="day", date=이번주의 금요일 날짜\n    "지난주 화요일" → view="day", date=지난주의 화요일 날짜\n  - 절대 view="week" 로 분류하지 말 것 — 요일이 명시되면 단일 날짜.\n- 특정 주간 (예: "이번 주", "다음 주", "지난주") → "week" (요일 없을 때만)\n- **"X월 Y일 주" / "X일 주" 패턴** (특정 날짜 + 주 — 그 날짜를 포함하는 주) → "week", date=그 날짜\n  - 예: "4월 15일 주" → view="week", date="2026-04-15"\n  - 예: "5월 1일 주 일정" → view="week", date="2026-05-01"\n  - 주의: "주" 다음에 "간" 이 오면 (주간) 별도 단어 — 이 규칙 미적용\n- 특정 월 또는 모호 (예: "이번 달", "5월", "최근 일정", 시점 명시 없는 키워드 검색) → "month"\n\ndate 결정:\n- view=day 면 그 날짜 (YYYY-MM-DD).\n- view=week/month 면 해당 주/월 안의 임의 날짜 (예: 그 주 월요일, 그 달 1일).\n- 연도 미명시 시 가장 가까운 과거 또는 미래 중 자연스러운 쪽 (지나간 표현은 과거, 다가오는 표현은 미래).\n- 키워드 검색만 있고 시점 명시 없으면 date=오늘.\n\nkeyword 결정 규칙:\n- **금지 키워드 (절대 keyword 로 추출 금지)**: "일정", "스케줄", "정리", "알려", "보여", "확인", "조회", "찾아", "있어", "있나", "어떤", "뭐", "무엇". (메타 동사·너무 일반적인 단어)\n- **시점/시간 표현 (절대 keyword 로 추출 금지 — view/date 로 처리)**: "오늘", "내일", "어제", "이번주", "다음주", "지난주", "이번달", "오전", "오후", "아침", "점심", "저녁", "밤", "새벽", "X월", "X월 Y일", "X시", "X요일" 등.\n- **그 외 사용자가 입력한 모든 명사·구절은 keyword 로 추출.** 익숙치 않은 단어 ("고구마", "포스트잇", "백엔드", "운동", "면접", "발표" 등) 도 그대로 포함. 일정 제목에 들어갈 수 있는 단서면 무엇이든 keyword. 화이트리스트 없음.\n- 의심스러우면 **추출** (빈 문자열 X). 잘못된 keyword 라도 매치 0건이면 시스템이 자동 확장 fallback 처리.\n- 금지·시점 표현만 있고 일정 제목 단서가 없으면 그때만 빈 문자열.\n\n예시:\n- "지난주 일정 정리해줘" → keyword="" (모든 단어가 시점/금지)\n- "오늘 회의 있어?" → keyword="회의"\n- "이번주 고구마 일정" → keyword="고구마" (익숙치 않은 단어도 그대로)\n- "다음주 포스트잇 정리해줘" → keyword="포스트잇"\n- "이번주 백엔드 회의" → keyword="백엔드 회의"\n- "디자인 리뷰 일정 언제야?" → keyword="디자인 리뷰"\n- "킥오프 미팅 보여줘" → keyword="킥오프 미팅"\n- "이번 주 회의 일정" → keyword="회의"\n- "이번 주 일정" → keyword="" (일정 단독은 금지)\n\n절대 JSON 외 다른 문자 출력 금지.`;
+  const sysPrompt = `당신은 한국어 일정 조회 요청을 JSON 으로 변환합니다.\n현재 KST 날짜: ${todayKst} (${kstWeekday})\n사용자가 한국 시간대로 말한다고 가정.\n\n반드시 다음 JSON 만 출력 (마크다운 금지):\n{"view":"day","date":"YYYY-MM-DD","keyword":""}\n\nview 결정 규칙:\n- 특정 하루 (예: "오늘", "내일", "어제", "4월 22일", "지난 화요일") → "day"\n- **"(다음|이번|지난)주 + 요일" 패턴** (예: "다음주 수요일", "이번주 금요일", "지난주 화요일") → "day", date=정확히 그 요일의 날짜\n  - 예시 (오늘이 ${todayKst} ${kstWeekday} 기준):\n    "다음주 수요일" → view="day", date=다음주의 수요일 날짜\n    "이번주 금요일" → view="day", date=이번주의 금요일 날짜\n    "지난주 화요일" → view="day", date=지난주의 화요일 날짜\n  - 절대 view="week" 로 분류하지 말 것 — 요일이 명시되면 단일 날짜.\n- 특정 주간 (예: "이번 주", "다음 주", "지난주") → "week" (요일 없을 때만)\n- **"X월 Y일 주" / "X일 주" 패턴** (특정 날짜 + 주 — 그 날짜를 포함하는 주) → "week", date=그 날짜\n  - 예: "4월 15일 주" → view="week", date="2026-04-15"\n  - 예: "5월 1일 주 일정" → view="week", date="2026-05-01"\n  - 주의: "주" 다음에 "간" 이 오면 (주간) 별도 단어 — 이 규칙 미적용\n- 특정 월 또는 모호 (예: "이번 달", "5월", "최근 일정", 시점 명시 없는 키워드 검색) → "month"\n\n**"X을/를 Y로 옮겨/바꿔/수정" 패턴** (수정 의도의 single-shot 표현):\n- 첫 발화에 두 시점 단서가 있고 "을/를 ... 로/으로 옮겨/바꿔/변경/수정" 형태면 X 가 식별 대상, Y 는 새 값.\n- 이 식별 단계 응답에선 **X (앞 시점) 만 사용** 하고 Y 는 무시.\n- 예: "5월 8일 미팅을 5월 9일로 옮겨줘" → date="2026-05-08" (X), keyword="미팅" (Y 의 5/9 무시)\n- 예: "내일 회의를 모레 오후 3시로 변경" → date=내일 날짜, keyword="회의"\n\ndate 결정:\n- view=day 면 그 날짜 (YYYY-MM-DD).\n- view=week/month 면 해당 주/월 안의 임의 날짜 (예: 그 주 월요일, 그 달 1일).\n- "오늘" → ${todayKst}, "내일" → 오늘+1일, "어제" → 오늘-1일.\n- "X월 Y일" 연도 미명시 → 가장 가까운 미래 (오늘 이후의 X월 Y일).\n- **"Y일" (월 미명시, 단독 일자) → 아래 매핑 표 그대로 사용**. 절대 추론·계산 금지. 과거 날짜 출력 금지.\n  예: 오늘이 ${todayKst} 기준 "22일" → 매핑 표의 "22일" 행 그대로.\n- "어제/지난주/지난달" 같은 명시적 과거 표현이 있을 때만 과거 날짜 사용.\n- 키워드 검색만 있고 시점 명시 없으면 date=오늘.\n\n[Y일 단독 매핑 표 — 가장 가까운 미래]\n${dayMappingTable}\n\nkeyword 결정 규칙:\n- **금지 키워드 (절대 keyword 로 추출 금지)** — 메타 동사·너무 일반적인 단어:\n  - 조회 동사: "일정", "스케줄", "정리", "알려", "보여", "확인", "조회", "찾아", "있어", "있나", "어떤", "뭐", "무엇"\n  - 등록 동사: "등록", "추가", "만들", "잡아", "예약", "넣어", "생성"\n  - 삭제 동사: "삭제", "제거", "지워", "지운"\n  - 수정 동사: "수정", "변경", "바꿔", "옮겨", "옮기"\n  - 필드명: "제목", "시간", "시각", "색깔", "색상", "색", "설명", "메모"\n  - 양 한정사: "모두", "전체", "전부", "모든", "다"\n- **시점/시간 표현 (절대 keyword 로 추출 금지 — view/date 로 처리)**: "오늘", "내일", "어제", "이번주", "다음주", "지난주", "이번달", "오전", "오후", "아침", "점심", "저녁", "밤", "새벽", "X월", "X월 Y일", "X시", "X요일" 등.\n- **그 외 사용자가 입력한 모든 명사·구절은 keyword 로 추출.** 익숙치 않은 단어 ("고구마", "포스트잇", "백엔드", "운동", "면접", "발표" 등) 도 그대로 포함. 일정 제목에 들어갈 수 있는 단서면 무엇이든 keyword. 화이트리스트 없음.\n- 의심스러우면 **추출** (빈 문자열 X). 잘못된 keyword 라도 매치 0건이면 시스템이 자동 확장 fallback 처리.\n- 금지·시점 표현만 있고 일정 제목 단서가 없으면 그때만 빈 문자열.\n\n예시:\n- "지난주 일정 정리해줘" → keyword="" (모든 단어가 시점/금지)\n- "오늘 회의 있어?" → keyword="회의"\n- "이번주 고구마 일정" → keyword="고구마" (익숙치 않은 단어도 그대로)\n- "다음주 포스트잇 정리해줘" → keyword="포스트잇"\n- "이번주 백엔드 회의" → keyword="백엔드 회의"\n- "디자인 리뷰 일정 언제야?" → keyword="디자인 리뷰"\n- "킥오프 미팅 보여줘" → keyword="킥오프 미팅"\n- "이번 주 회의 일정" → keyword="회의"\n- "이번 주 일정" → keyword="" (일정 단독은 금지)\n- "어제 회의 수정" → keyword="회의" (수정은 금지 동사)\n- "회의 제목 변경해줘" → keyword="회의" (제목·변경은 금지)\n- "이번주 회의 모두 수정해줘" → keyword="회의" (모두·수정 금지)\n\n절대 JSON 외 다른 문자 출력 금지.`;
 
   try {
     const model = await resolveChatModel();

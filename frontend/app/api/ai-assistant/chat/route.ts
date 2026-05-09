@@ -385,6 +385,7 @@ type Intent =
   | 'schedule_query'
   | 'schedule_create'
   | 'schedule_delete'
+  | 'schedule_update'
   | 'blocked'
   | 'unknown';
 
@@ -421,6 +422,12 @@ async function classify(question: string): Promise<Classification> {
 const KEYWORD_STOPWORDS = new Set([
   '일정', '스케줄',
   '정리', '알려', '보여', '확인', '조회', '찾아', '있어', '있나', '어떤', '뭐', '무엇',
+  // schedule_update / schedule_delete 메타 동사 — title 에 절대 안 들어가는 동작어.
+  // 작은 모델이 "어제 회의 수정" 같이 동사를 keyword 로 추출하는 환각 차단.
+  '수정', '변경', '바꿔', '옮겨', '옮기', '삭제', '제거', '지워', '지운',
+  '등록', '추가', '만들', '잡아', '예약', '넣어', '생성',
+  // 필드명 — "회의 제목 변경" / "회의 색깔 바꿔줘" 류에서 의미 없는 필드명이 keyword 로 들어감.
+  '제목', '시간', '시각', '색깔', '색상', '색', '설명', '메모',
   // 시간대 단어 — detectTimeBand 가 band 필터로 처리. keyword 추출까지 같이 되면
   // band×keyword AND 결합으로 검색이 너무 좁아짐 (예: '점심' 키워드 + 점심 시간대 →
   // 제목에 '점심' 들어간 점심시간 일정만). band 만 적용되도록 stopword 처리.
@@ -456,18 +463,30 @@ const WEEK_OF_DATE_RE = /(?:\d+월\s*)?\d+일\s*주(?!간)/;
 // view=week 로 떨어뜨리는 환각을 잡기 위한 negative signal.
 const HAS_WEEK_TOKEN_RE = /주(?!간)/;
 
-// 특정 날짜 시그널 — "X월 Y일", "X/Y", "어제/오늘/내일" 등.
+// 특정 날짜 시그널 — "X월 Y일", "X/Y", "X.Y" / "X.Y." (약식), "어제/오늘/내일" 등.
 // HAS_WEEK_TOKEN_RE 가 false 인데 이게 true 면 사용자는 단일 날짜 의도가 명확.
-const SPECIFIC_DATE_RE = /\d+월\s*\d+일|\d+\s*\/\s*\d+|어제|오늘|내일|모레|글피/;
+// 약식 점·슬래시 표기 — 한국에서 흔히 쓰임 (5.1., 5/1).
+const SPECIFIC_DATE_RE =
+  /\d+월\s*\d+일|\d+\s*\/\s*\d+|\d+\s*\.\s*\d+\.?(?!\d)|어제|오늘|내일|모레|글피/;
 
-// "X월 Y일" 패턴을 결정론적으로 추출 — LLM 의 환각/fallback 을 무시하고 사용자 입력 그대로 사용.
+// 특정 날짜 패턴들을 결정론적으로 추출 — LLM 의 환각/fallback 을 무시하고 사용자 입력 그대로 사용.
+// 우선순위: "X월 Y일" → "X.Y." → "X/Y" → "X.Y". 매치 안 되면 null.
 // 연도는 현재 연도 (조회는 과거·미래 양방향 가능하므로 휴리스틱 X).
-// 매치 안 되면 null — 호출자가 LLM 결과 또는 today 로 fallback.
 function extractSpecificDateYmd(question: string): string | null {
-  const m = question.match(/(\d{1,2})월\s*(\d{1,2})일/);
-  if (!m) return null;
-  const month = parseInt(m[1], 10);
-  const day = parseInt(m[2], 10);
+  // 1) 정식 표기 "X월 Y일"
+  const formal = question.match(/(\d{1,2})월\s*(\d{1,2})일/);
+  if (formal) {
+    return buildYmd(parseInt(formal[1], 10), parseInt(formal[2], 10));
+  }
+  // 2) 약식 점·슬래시 — "5.1.", "5.1", "5/1". 앞뒤로 다른 숫자 없을 때만 (소수·분수 false positive 회피).
+  const shorthand = question.match(/(?<![\d.])(\d{1,2})\s*[./]\s*(\d{1,2})(?![\d])/);
+  if (shorthand) {
+    return buildYmd(parseInt(shorthand[1], 10), parseInt(shorthand[2], 10));
+  }
+  return null;
+}
+
+function buildYmd(month: number, day: number): string | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   const year = new Date().getUTCFullYear();
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -744,11 +763,19 @@ function filterByCalendarMonth<T extends { startAt: string }>(
   });
 }
 
+// 사용자 입력에 시점 단서가 있는지 판정 — runScheduleQuery 의 month 자동 확장 결정용.
+// 시점 단서가 없으면 LLM 이 today fallback 으로 view=day 떨어뜨릴 가능성 높음 (환각).
+// 사용자가 "회의 수정해줘" 처럼 시점 명시 없이 던지면 의도는 "모든 회의 중 선택" — month 가 합리적.
+// 약식 날짜 표기 모두 포함 — 5.1 / 5/1 / 5.1. (월·일) + 22. (일자만, trailing dot) — 한국에서 자주 쓰임.
+const HAS_TIMING_SIGNAL_RE =
+  /(어제|오늘|내일|모레|글피|\d+\s*월|\d+\s*일|\d+\s*\.\s*\d+|\d+\s*\/\s*\d+|\d{1,2}\s*\.\s|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주|이번\s*달|다음\s*달|지난\s*달)/;
+
 // schedule_query 본체 — 자연어 파싱 + DB 조회 + keyword 필터 + 0건이면 month 자동 확장.
 //
-// 확장 규칙: keyword 가 있고 첫 검색이 day/week 였는데 0건이면 month 로 재조회.
-//   사용자가 "디자인 리뷰 언제야?" 처럼 시점 모호한 keyword 질문을 던졌을 때
-//   LLM 이 day 로 떨어뜨려도 결과 0건이면 자동으로 더 넓은 범위로 fallback.
+// 확장 규칙:
+//  (a) keyword 가 있고 첫 검색이 day/week 였는데 0건이면 month 로 재조회.
+//  (b) view=day 인데 사용자가 시점 단서를 명시하지 않았으면 (LLM today fallback 환각 가능성)
+//      결과 건수와 무관하게 month 로 확장 — 의도 ("모든 X 중 선택") 에 더 가까운 결과 제공.
 async function runScheduleQuery(opts: {
   question: string;
   teamId: string;
@@ -778,10 +805,17 @@ async function runScheduleQuery(opts: {
     band,
   );
   const rangeBand = band ?? undefined;
-  if (filteredInitial.length || !initial.keyword || initial.view === 'month') {
+  // 사용자 입력에 시점 단서가 있는지 — 없으면 LLM 의 today fallback 환각 가능성 높음.
+  // view=day 인데 시점 단서 없음 → month 로 확장 (의도: "회의 수정해줘" → 모든 회의 후보).
+  const userGaveTime = HAS_TIMING_SIGNAL_RE.test(question);
+  const shouldExpandForMissingTime = initial.view === 'day' && !userGaveTime;
+  if (
+    (filteredInitial.length || !initial.keyword || initial.view === 'month') &&
+    !shouldExpandForMissingTime
+  ) {
     return { schedules: filteredInitial, range: { ...initial, band: rangeBand } };
   }
-  // keyword 매치 0건 + 좁은 범위 → month 로 확장 재조회 (시간대 필터도 다시 적용)
+  // keyword 매치 0건 + 좁은 범위 OR 시점 미명시 + view=day → month 로 확장 재조회.
   const expanded = await getSchedules({
     teamId, jwt, view: 'month', date: initial.date,
   });
@@ -870,12 +904,12 @@ function formatSchedules(
 // 거절 안내 메시지.
 function blockedMessage(subreason?: string): string {
   if (subreason === 'schedule_modify') {
-    return '찰떡이는 **일정 조회·등록·삭제** 만 도와드릴 수 있어요. 일정 수정·시간 이동은 캘린더에서 직접 처리해 주세요. 🙏';
+    return '찰떡이는 **일정 조회·등록·삭제·수정** 만 도와드릴 수 있어요. 일정 취소는 캘린더에서 직접 처리해 주세요. 🙏';
   }
   if (subreason === 'other_domain') {
-    return '찰떡이는 **일정 조회·등록·삭제** 만 도와드릴 수 있어요. 프로젝트·채팅·공지·포스트잇 같은 작업은 화면에서 직접 처리해 주세요. 🙏';
+    return '찰떡이는 **일정 조회·등록·삭제·수정** 만 도와드릴 수 있어요. 프로젝트·채팅·공지·포스트잇 같은 작업은 화면에서 직접 처리해 주세요. 🙏';
   }
-  return '찰떡이는 **일정 조회·등록·삭제** 만 도와드릴 수 있어요. 직접 처리해 주세요. 🙏';
+  return '찰떡이는 **일정 조회·등록·삭제·수정** 만 도와드릴 수 있어요. 직접 처리해 주세요. 🙏';
 }
 
 // schedule_delete — 후보 일정을 사람이 알아볼 수 있는 한 줄로 포맷.
@@ -892,6 +926,109 @@ function formatScheduleLine(s: Schedule): string {
     hour: '2-digit', minute: '2-digit', hour12: false,
   });
   return `${startStr} ~ ${endStr}  ${s.title}${s.description ? ` — ${s.description}` : ''}`;
+}
+
+// schedule_update multi-step state — 식별 → 새 일시 → 새 제목 → confirm.
+// stateless 한 chat route 가 step 간 정보를 carry 하기 위해 클라이언트가 매 turn 마다
+// 이 객체를 request body 에 동봉해 보냄.
+type UpdateState = {
+  needs: 'new-datetime' | 'new-title';
+  targetScheduleId: string;
+  targetTitle: string;
+  targetStartAt: string;
+  targetEndAt: string;
+  newStartAt?: string;
+  newEndAt?: string;
+  newTitle?: string;
+};
+
+// "그대로" 류 키워드 — 사용자가 해당 필드를 변경하지 않겠다는 의사 표시.
+const KEEP_AS_IS_RE = /^(그대로|기존|유지|동일|안\s*바꿔|안\s*바꿈|변경\s*없음)\s*\.?\s*$/;
+
+// 새 제목 추출 trailing 패턴 — "X (으)로/라고 [동사] [어미]" 에서 X 만 남김.
+// 사용자가 "저녁고객미팅으로 해줘" / "전체 회의로 바꿔줘" 라 답하면 X 만 title 로 사용.
+// 동사·어미 모두 optional — "X으로" / "X로" / "X 라고" 만 입력해도 같은 효과.
+// false positive 방지: "(으)로/라고" 가 반드시 있어야 strip — title 끝에 동사형이 있어도 보존.
+const NEW_TITLE_TRAILING_RE =
+  /\s*(?:으로|로|라고)\s*(?:변경|바꿔|수정|이동|넣어|입력|부탁(?:드려)?)?\s*(?:해줘|해|줘)?\s*\.?\s*$/;
+function extractNewTitle(input: string): string {
+  return input.replace(NEW_TITLE_TRAILING_RE, '').trim();
+}
+
+// 첫 발화 벌크 의도 — schedule_update / schedule_delete 의 식별 단계 진입 직후 안내.
+// frontend 의 BULK_DELETE_INTENT_RE 와 동일 패턴 (서버에서도 한 번 더 가드).
+const BULK_INTENT_RE = /(전체|모두|전부|모든|다\s*(?:삭제|지워|지운|제거|수정|변경|바꿔))/;
+
+// schedule_update 비지원 필드 — multi-step 흐름은 시각·제목만 변경 가능.
+// 색깔·설명·메모 등은 캘린더 화면에서 직접 처리하도록 안내.
+const UNSUPPORTED_UPDATE_FIELD_RE = /(색깔|색상|색\b|설명|메모)/;
+
+// schedule_update 진행 중인지 판정 (request body 의 updateState 기반).
+function parseUpdateState(raw: unknown): UpdateState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const needs = r.needs;
+  if (needs !== 'new-datetime' && needs !== 'new-title') return null;
+  if (
+    typeof r.targetScheduleId !== 'string' ||
+    typeof r.targetTitle !== 'string' ||
+    typeof r.targetStartAt !== 'string' ||
+    typeof r.targetEndAt !== 'string'
+  ) return null;
+  return {
+    needs,
+    targetScheduleId: r.targetScheduleId,
+    targetTitle: r.targetTitle,
+    targetStartAt: r.targetStartAt,
+    targetEndAt: r.targetEndAt,
+    newStartAt: typeof r.newStartAt === 'string' ? r.newStartAt : undefined,
+    newEndAt: typeof r.newEndAt === 'string' ? r.newEndAt : undefined,
+    newTitle: typeof r.newTitle === 'string' ? r.newTitle : undefined,
+  };
+}
+
+// 변경 전/후 비교 텍스트 — confirm 카드에 들어갈 요약.
+// 시각은 "M. D. HH:MM ~ HH:MM" 한 줄로 묶어 표시 (formatScheduleLine 과 동일 포맷).
+function formatUpdateConfirm(state: {
+  targetTitle: string;
+  targetStartAt: string;
+  targetEndAt: string;
+  newTitle?: string;
+  newStartAt?: string;
+  newEndAt?: string;
+}): string {
+  const fmtRange = (startIso: string, endIso: string): string => {
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    const startStr = start.toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    const endStr = end.toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    return `${startStr} ~ ${endStr}`;
+  };
+
+  const lines: string[] = ['다음과 같이 수정할까요?', ''];
+  const newTitle = state.newTitle ?? state.targetTitle;
+  if (newTitle !== state.targetTitle) {
+    lines.push(`• 제목: ${state.targetTitle} => ${newTitle}`);
+  } else {
+    lines.push(`• 제목: ${state.targetTitle} (그대로)`);
+  }
+
+  const newStartAt = state.newStartAt ?? state.targetStartAt;
+  const newEndAt = state.newEndAt ?? state.targetEndAt;
+  const oldRange = fmtRange(state.targetStartAt, state.targetEndAt);
+  const newRange = fmtRange(newStartAt, newEndAt);
+  if (oldRange !== newRange) {
+    lines.push(`• ${oldRange} => ${newRange}`);
+  } else {
+    lines.push(`• ${oldRange} (그대로)`);
+  }
+  return lines.join('\n');
 }
 
 // RAG 가드레일이 "참고 자료에 없어요" 류로 거절했는지 판정.
@@ -935,7 +1072,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const auth = request.headers.get('authorization') || '';
     const jwt = /^Bearer\s+(.+)$/i.exec(auth)?.[1] || '';
 
-    const cls = await classify(question);
+    // schedule_update multi-step state — 클라이언트가 매 turn 마다 carry 하는 conversation 상태.
+    // 이 객체가 있으면 classify 우회하고 schedule_update 분기로 직진 (사용자 답변이
+    // "내일 오후 3시" / "그대로" 같이 분류 키워드 미포함이라도 정확히 라우팅).
+    const updateState = parseUpdateState(body?.updateState);
+    const cls: Classification = updateState
+      ? { intent: 'schedule_update', reason: 'multi-step' }
+      : await classify(question);
     const topK = Number.isFinite(body?.topK) ? body.topK : undefined;
     const isStream = body?.stream === true;
     // RAG 서버가 런타임에 해석한 채팅 모델명 — UI 푸터 표시용. 미응답 시 undefined.
@@ -950,7 +1093,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const needsAuth =
       cls.intent === 'schedule_query' ||
       cls.intent === 'schedule_create' ||
-      cls.intent === 'schedule_delete';
+      cls.intent === 'schedule_delete' ||
+      cls.intent === 'schedule_update';
     if (needsAuth && !jwt) {
       return NextResponse.json(
         { error: '일정 조회·등록은 로그인 후 이용해 주세요.' },
@@ -1071,6 +1215,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               }
               case 'schedule_delete': {
                 send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
+                // 벌크 가드 — 첫 발화에 "전체/모두/다 삭제" 류 → 후보는 보여주되 안내 동시 발송.
+                const bulkDelete = BULK_INTENT_RE.test(question);
                 const tb = detectTimeBand(question);
                 if (tb.kind === 'ambiguous') {
                   if (tb.needsAmpm) {
@@ -1110,9 +1256,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                       endAt: s.endAt,
                     })) as WebSource[],
                   });
+                  const bulkNote = bulkDelete
+                    ? '\n(한 번에 하나의 일정만 삭제할 수 있어요.) '
+                    : '';
                   send({
                     type: 'token',
-                    text: `${formatSchedules(schedules, { teamName, range })}\n어떤 일정을 삭제할까요? 제목이나 시각을 더 구체적으로 알려주세요.`,
+                    text: `${formatSchedules(schedules, { teamName, range })}\n어떤 일정을 삭제할까요? 제목이나 시각을 더 구체적으로 알려주세요.${bulkNote}`,
                   });
                   send({
                     type: 'awaiting-input',
@@ -1131,6 +1280,199 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   },
                   preview: { id: s.id, title: s.title, startAt: s.startAt, endAt: s.endAt },
                   text: `다음 일정을 삭제할까요?\n\n• ${formatScheduleLine(s)}`,
+                });
+                break;
+              }
+              case 'schedule_update': {
+                send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
+
+                // === 단계 2: new-datetime — 사용자가 새 일시 답변 ===
+                if (updateState && updateState.needs === 'new-datetime') {
+                  let newStartAt: string;
+                  let newEndAt: string;
+                  if (KEEP_AS_IS_RE.test(question)) {
+                    newStartAt = updateState.targetStartAt;
+                    newEndAt = updateState.targetEndAt;
+                  } else {
+                    // 사용자 답변에 날짜 단서가 없으면 target 의 날짜를 자동 prefix —
+                    // 사용자가 시각만 ("오전 10시") 답해도 parseScheduleArgs 가 needs:'date' 로
+                    // 떨어지지 않게 (수정 의도는 보통 동일 일정의 시각만 바꾸는 케이스가 많음).
+                    let augmented = question;
+                    if (!HAS_TIMING_SIGNAL_RE.test(question)) {
+                      const tgtKst = new Date(new Date(updateState.targetStartAt).getTime() + 9 * 60 * 60 * 1000);
+                      const y = tgtKst.getUTCFullYear();
+                      const m = tgtKst.getUTCMonth() + 1;
+                      const d = tgtKst.getUTCDate();
+                      augmented = `${y}년 ${m}월 ${d}일 ${question}`;
+                    }
+                    // parseScheduleArgs 는 title 도 요구하므로 dummy 추가해서 시각만 추출.
+                    const parsed = await parseScheduleArgs(`${augmented} 회의`);
+                    if (parsed.ok) {
+                      newStartAt = parsed.args.startAt;
+                      newEndAt = parsed.args.endAt;
+                    } else if ('needs' in parsed) {
+                      // parseScheduleArgs 의 needs (time/date) 를 그대로 emit — frontend 의
+                      // rebuildFollowUpQuestion(needs) 로직이 보충("오후") 을 직전 입력
+                      // ("다음주 수요일 2시") 과 combine 해 "다음주 수요일 오후 2시" 로 만들고
+                      // updateState 동봉해 다시 new-datetime 단계로 진입.
+                      send({ type: 'token', text: parsed.hint });
+                      send({
+                        type: 'awaiting-input',
+                        needs: parsed.needs,
+                        previousQuestion: question,
+                        updateState,
+                      });
+                      break;
+                    } else {
+                      send({
+                        type: 'token',
+                        text: `AI 응답을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.\n(원인: ${(parsed as { error: string }).error})`,
+                      });
+                      break;
+                    }
+                  }
+                  // 다음 단계로 진행 — 새 제목 묻기.
+                  const nextState: UpdateState = {
+                    ...updateState,
+                    needs: 'new-title',
+                    newStartAt,
+                    newEndAt,
+                  };
+                  send({
+                    type: 'token',
+                    text: `새 제목은 무엇으로 할까요? (예: '주간 회의', 그대로 유지하려면 '그대로')`,
+                  });
+                  send({
+                    type: 'awaiting-input',
+                    needs: 'new-title',
+                    previousQuestion: question,
+                    updateState: nextState,
+                  });
+                  break;
+                }
+
+                // === 단계 3: new-title — 사용자가 새 제목 답변 → confirm 카드 ===
+                if (updateState && updateState.needs === 'new-title') {
+                  const newTitle = KEEP_AS_IS_RE.test(question)
+                    ? updateState.targetTitle
+                    : extractNewTitle(question) || updateState.targetTitle;
+                  const finalStartAt = updateState.newStartAt ?? updateState.targetStartAt;
+                  const finalEndAt = updateState.newEndAt ?? updateState.targetEndAt;
+                  // 변경 없음 가드.
+                  if (
+                    newTitle === updateState.targetTitle &&
+                    finalStartAt === updateState.targetStartAt &&
+                    finalEndAt === updateState.targetEndAt
+                  ) {
+                    send({ type: 'token', text: '변경할 내용이 없어요. 일정을 그대로 둘게요.' });
+                    break;
+                  }
+                  const summary = formatUpdateConfirm({
+                    targetTitle: updateState.targetTitle,
+                    targetStartAt: updateState.targetStartAt,
+                    targetEndAt: updateState.targetEndAt,
+                    newTitle,
+                    newStartAt: finalStartAt,
+                    newEndAt: finalEndAt,
+                  });
+                  // 부분 PATCH — 변경된 필드만 전송 (백엔드는 부분 수정 지원).
+                  const args: Record<string, unknown> = {
+                    teamId,
+                    scheduleId: updateState.targetScheduleId,
+                  };
+                  if (newTitle !== updateState.targetTitle) args.title = newTitle;
+                  if (finalStartAt !== updateState.targetStartAt) args.startAt = finalStartAt;
+                  if (finalEndAt !== updateState.targetEndAt) args.endAt = finalEndAt;
+                  send({
+                    type: 'pending-action',
+                    pendingAction: { tool: 'updateSchedule', args },
+                    preview: { ...args },
+                    text: summary,
+                  });
+                  break;
+                }
+
+                // === 단계 1: 식별 (delete 와 동일 패턴) ===
+                // 비지원 필드 가드 — 색깔/설명 등은 v1 multi-step 흐름이 처리 못 함.
+                if (UNSUPPORTED_UPDATE_FIELD_RE.test(question)) {
+                  send({
+                    type: 'token',
+                    text: 'AI 어시스턴트는 일정의 **일시·제목** 수정만 지원해요. 색깔·설명·메모는 캘린더 화면에서 직접 변경해 주세요. 🙏',
+                  });
+                  break;
+                }
+                // 벌크 가드 — 첫 발화에 "전체/모두/다 수정" 류 → 후보는 보여주되 안내 동시 발송.
+                const bulkUpdate = BULK_INTENT_RE.test(question);
+                const tb = detectTimeBand(question);
+                if (tb.kind === 'ambiguous') {
+                  if (tb.needsAmpm) {
+                    send({
+                      type: 'token',
+                      text: `오전/오후 어느 쪽일까요? (예: '오후 ${tb.keyword}')`,
+                    });
+                    send({
+                      type: 'awaiting-input',
+                      needs: 'time',
+                      previousQuestion: question,
+                    });
+                  } else {
+                    send({
+                      type: 'token',
+                      text: `'${tb.keyword}'의 기준 시각이 모호해요. '오후 6시 이후 일정' 처럼 구체적으로 알려주세요.`,
+                    });
+                  }
+                  break;
+                }
+                const band = tb.kind === 'objective' ? tb.band : null;
+                const { schedules, range } = await runScheduleQuery({ question, teamId, jwt, band });
+                if (schedules.length === 0) {
+                  send({
+                    type: 'token',
+                    text: `${formatSchedules(schedules, { teamName, range })}\n수정할 일정을 찾지 못했어요. 시점·제목을 더 구체적으로 알려주세요.`,
+                  });
+                  break;
+                }
+                if (schedules.length > 1) {
+                  send({
+                    type: 'sources',
+                    sources: schedules.map((s) => ({
+                      title: s.title,
+                      startAt: s.startAt,
+                      endAt: s.endAt,
+                    })) as WebSource[],
+                  });
+                  const bulkNote = bulkUpdate
+                    ? '\n(한 번에 하나의 일정만 수정할 수 있어요.) '
+                    : '';
+                  send({
+                    type: 'token',
+                    text: `${formatSchedules(schedules, { teamName, range })}\n어떤 일정을 수정할까요? 제목이나 시각을 더 구체적으로 알려주세요.${bulkNote}`,
+                  });
+                  send({
+                    type: 'awaiting-input',
+                    needs: 'title',
+                    previousQuestion: question,
+                  });
+                  break;
+                }
+                // 단일 매치 — 수정 단계 진입 (새 일시 묻기).
+                const s = schedules[0];
+                const initState: UpdateState = {
+                  needs: 'new-datetime',
+                  targetScheduleId: s.id,
+                  targetTitle: s.title,
+                  targetStartAt: s.startAt,
+                  targetEndAt: s.endAt,
+                };
+                send({
+                  type: 'token',
+                  text: `다음 일정을 수정합니다.\n• ${formatScheduleLine(s)}\n\n새 일시는 언제로 할까요? (예: '내일 오후 3시', 그대로 유지하려면 '그대로')`,
+                });
+                send({
+                  type: 'awaiting-input',
+                  needs: 'new-datetime',
+                  previousQuestion: question,
+                  updateState: initState,
                 });
                 break;
               }
@@ -1312,6 +1654,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             tool: 'deleteSchedule',
             args: { teamId, scheduleId: s.id },
           },
+          source: 'schedule',
+          classification: cls,
+          ...ragMeta,
+        });
+      }
+      case 'schedule_update': {
+        // non-stream 경로 — multi-step (new-datetime → new-title) 진행 불가.
+        // 식별 단계까지만 처리하고 stream 사용을 권장.
+        return NextResponse.json({
+          answer:
+            '일정 수정은 스트리밍 채팅 패널을 사용해 주세요. (단계별 입력이 필요한 흐름입니다.)',
           source: 'schedule',
           classification: cls,
           ...ragMeta,

@@ -1,7 +1,7 @@
 /**
- * scheduleQueries — AI 어시스턴트의 schedule_query / schedule_create / schedule_delete
- * 의도 분기에서 호출하는 도구 함수. 내부적으로 pgClient.callBackend 를 통해 백엔드
- * schedule API 를 호출.
+ * scheduleQueries — AI 어시스턴트의 schedule_query / schedule_create / schedule_delete /
+ * schedule_update 의도 분기에서 호출하는 도구 함수. 내부적으로 pgClient.callBackend 를
+ * 통해 백엔드 schedule API 를 호출.
  *
  * 인터페이스 안정성: 향후 PG-MCP child process 로 교체해도 이 함수들의 시그니처는 보존.
  */
@@ -95,4 +95,43 @@ export async function deleteSchedule(opts: DeleteScheduleOptions): Promise<void>
     path: `/api/teams/${encodeURIComponent(teamId)}/schedules/${encodeURIComponent(scheduleId)}`,
     jwt,
   });
+}
+
+export interface UpdateScheduleOptions {
+  teamId: string;
+  jwt: string;
+  scheduleId: string;
+  // 모두 optional — 백엔드 PATCH 가 부분 수정 지원. 제공된 필드만 변경됨.
+  title?: string;
+  startAt?: string; // ISO 8601 (UTC)
+  endAt?: string;
+  description?: string | null;
+  color?: 'indigo' | 'blue' | 'emerald' | 'amber' | 'rose';
+}
+
+// 백엔드 PATCH /api/teams/:teamId/schedules/:scheduleId 호출. 권한(생성자만)·존재·날짜 유효성은 백엔드가 처리.
+export async function updateSchedule(opts: UpdateScheduleOptions): Promise<Schedule> {
+  const { teamId, jwt, scheduleId, title, startAt, endAt, description, color } = opts;
+  if (!teamId) throw new Error('teamId 가 필요합니다.');
+  if (!scheduleId) throw new Error('scheduleId 가 필요합니다.');
+  const body: Record<string, unknown> = {};
+  if (title !== undefined) body.title = title;
+  if (startAt !== undefined) body.startAt = startAt;
+  if (endAt !== undefined) body.endAt = endAt;
+  if (description !== undefined) body.description = description;
+  if (color !== undefined) body.color = color;
+  if (Object.keys(body).length === 0) {
+    throw new Error('수정할 필드가 없습니다.');
+  }
+  const data = await callBackend<Schedule | { schedule: Schedule }>({
+    method: 'PATCH',
+    path: `/api/teams/${encodeURIComponent(teamId)}/schedules/${encodeURIComponent(scheduleId)}`,
+    jwt,
+    body,
+  });
+  if (data && typeof data === 'object' && 'id' in data) return data as Schedule;
+  if (data && typeof data === 'object' && 'schedule' in data) {
+    return (data as { schedule: Schedule }).schedule;
+  }
+  throw new Error('updateSchedule: 예상치 못한 응답 형식');
 }

@@ -24,6 +24,19 @@ interface PendingAction {
   args: Record<string, unknown>;
 }
 
+// schedule_update multi-step 진행 상태 — 채팅 핸들러가 carry, 매 turn 마다 chat route 에 동봉 전송.
+// stateless 한 chat route 가 step 간 정보 (target schedule + 누적 새 값) 를 받기 위함.
+interface UpdateState {
+  needs: 'new-datetime' | 'new-title';
+  targetScheduleId: string;
+  targetTitle: string;
+  targetStartAt: string;
+  targetEndAt: string;
+  newStartAt?: string;
+  newEndAt?: string;
+  newTitle?: string;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'error' | 'system';
@@ -38,16 +51,21 @@ interface Message {
   // Once the user confirms or cancels, we flip this so the card stops
   // rendering its action buttons.
   actionResolved?: 'confirmed' | 'cancelled';
-  // 다중 턴 일정 등록 — 직전 user 질문이 정보 부족이라 후속 답변을 기다리는 상태.
-  // 다음 user 입력이 들어오면 previousQuestion 과 합쳐 재요청.
-  awaitingInput?: { needs: string; previousQuestion: string };
+  // 다중 턴 일정 등록·삭제·수정 — 직전 user 질문이 정보 부족이라 후속 답변을 기다리는 상태.
+  // 다음 user 입력이 들어오면 previousQuestion 과 합쳐 (또는 updateState 와 함께) 재요청.
+  awaitingInput?: {
+    needs: string;
+    previousQuestion: string;
+    updateState?: UpdateState;
+  };
 }
 
-// 단일 진입점 — 5개 의도(usage·general·query·create·delete) 대표 예시 1개씩.
+// 단일 진입점 — 6개 의도(usage·general·query·create·delete·update) 대표 예시 1개씩.
 const EXAMPLE_QUESTIONS = [
   '오늘 일정 알려줘',
   '내일 오후 3시 주간회의 등록해줘',
   '내일 회의 삭제해줘',
+  '내일 회의 수정해줘',
   '포스트잇 색깔 종류 알려줘',
   '오늘 뉴스 검색해줘',
 ];
@@ -89,6 +107,15 @@ const DELETE_INTENT_IN_PREV_RE = /(삭제|지워|지운|제거)/;
 // 예: prev="5월 점심일정 삭제해줘" + supplement="2일" → "5월 2일 점심일정 삭제해줘"
 const DAY_ONLY_SUPPLEMENT_RE = /^(\d{1,2})\s*일\s*$/;
 const MONTH_ONLY_IN_PREV_RE = /(\d{1,2})\s*월(?!\s*\d)/;
+// 사용자 입력이 명백한 새 schedule 요청인지 판정 — schedule 동사 포함.
+// awaiting-input 중에 새 요청이 들어오면 직전 대기 상태(updateState 등) 를 무시하고
+// fresh classification 으로 진행. 단순 보충 입력엔 이 동사들 없음.
+// rag/server.js 의 SCHEDULE_*_VERBS / 조회 동사와 의미상 일치하도록 모두 포함.
+const FRESH_SCHEDULE_REQUEST_RE = /(수정|변경|바꿔|옮겨|옮기|삭제|제거|지워|지운|등록|추가|만들|잡아|예약|넣어|생성|보여|알려|확인|조회|찾아|정리)/;
+// schedule_update multi-step 답변 패턴 — "(으)로/라고 + 동사" 형태는 새 값 명시 답변이지
+// 새 schedule 요청이 아님. 예: "저녁 고객미팅으로 바꿔줘" → 새 제목 명시 (FRESH 우회 대상).
+// chat route 의 NEW_TITLE_TRAILING_RE 와 의미상 동일 — 동사 부분이 있어야 매치.
+const NEW_VALUE_HINT_RE = /(?:으로|로|라고)\s*(?:변경|바꿔|수정|이동|넣어|입력|부탁|해|줘)/;
 
 function rebuildFollowUpQuestion(
   prev: string,
@@ -173,7 +200,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
   const queryClient = useQueryClient();
   const userHint = useMemo(() => {
     if (!teamId) return undefined;
-    return `현재 사용자가 선택한 기본 팀: "${teamName}" (teamId=${teamId}). 사용자가 별도의 팀을 지정하지 않으면 이 팀을 대상으로 조회/등록/삭제하세요.`;
+    return `현재 사용자가 선택한 기본 팀: "${teamName}" (teamId=${teamId}). 사용자가 별도의 팀을 지정하지 않으면 이 팀을 대상으로 조회/등록/삭제/수정하세요.`;
   }, [teamId, teamName]);
 
   const [messages, setMessages] = useState<Message[]>([
@@ -181,7 +208,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
       id: 'welcome',
       role: 'assistant',
       content:
-        '안녕하세요! AI 버틀러 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색)·우리 팀 일정 조회·등록·삭제(📅) 모두 자유롭게 물어봐 주세요. 시스템이 자동으로 적절한 경로로 답변합니다.\n(일정 수정·이동, 프로젝트·채팅 작업은 화면에서 직접 처리해 주세요.)',
+        '안녕하세요! AI 버틀러 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색)·우리 팀 일정 조회·등록·삭제·수정(📅) 모두 자유롭게 물어봐 주세요. 시스템이 자동으로 적절한 경로로 답변합니다.\n(일정 취소, 프로젝트·채팅 작업은 화면에서 직접 처리해 주세요.)',
     },
   ]);
   const [input, setInput] = useState('');
@@ -209,7 +236,25 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
     // 다중 턴 — 직전 assistant 메시지가 awaitingInput 이면 두 turn 을 합쳐 재요청.
     // (서버는 stateless — 합친 한 question 으로 새 parse 시도.)
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-    const pendingTurn = lastAssistant?.awaitingInput;
+    let pendingTurn = lastAssistant?.awaitingInput;
+
+    // Fresh-request 가드 — pendingTurn 이 있어도 사용자가 명백히 새 schedule 요청을 보냈으면 무시.
+    // 예: schedule_update 의 new-datetime 대기 중에 사용자가 "8일 회의 수정해줘" 같은 새 요청을 보내면
+    // 직전 updateState 가 carry 되어 multi-step 으로 잘못 라우팅됨 ("몇 시에 잡을까요?" 같은 환각).
+    // schedule 동사 (수정/삭제/등록 등) 가 supplement 에 있으면 명백히 새 요청으로 간주.
+    // (단순 시점·제목 보충 입력엔 이런 동사 없음 — 예: "오후", "정기회의", "15시", "그대로")
+    //
+    // 예외: multi-step (new-datetime/new-title) 답변에서 "(으)로/라고 + 동사" 패턴이면
+    // 새 값 명시 답변으로 간주 — FRESH 매치돼도 우회. 예: "저녁 고객미팅으로 바꿔줘" 는
+    // 새 제목 명시이지 새 schedule 요청이 아님.
+    if (pendingTurn && FRESH_SCHEDULE_REQUEST_RE.test(trimmed)) {
+      const isMultiStepAnswer =
+        (pendingTurn.needs === 'new-title' || pendingTurn.needs === 'new-datetime') &&
+        NEW_VALUE_HINT_RE.test(trimmed);
+      if (!isMultiStepAnswer) {
+        pendingTurn = undefined;
+      }
+    }
 
     // 벌크 삭제 가드 — 다중 후보 좁히기(needs:'title') + 직전이 삭제 의도일 때만.
     // "전체 일정 삭제" 같이 일괄 삭제 시도 시 안내 후 awaiting-input 상태 유지.
@@ -236,7 +281,19 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
       return;
     }
 
-    const effectiveQuestion = pendingTurn
+    // schedule_update multi-step 분기:
+    //  - skipCombine: needs='new-datetime'|'new-title' — 사용자가 새 값 전체를 그대로 입력 → 결합 없이 전송
+    //  - clarify: needs='time'|'date'|'title' + updateState — parseScheduleArgs 가 부족분 다시 묻는 중
+    //    → rebuildFollowUpQuestion 으로 직전 입력과 결합 후 updateState 동봉해 chat route 의
+    //    new-datetime 단계로 재진입 (예: "다음주 수요일 2시" + "오후" → "다음주 수요일 오후 2시")
+    const updateStateCarry = pendingTurn?.updateState;
+    const skipCombine =
+      !!updateStateCarry &&
+      !!pendingTurn &&
+      (pendingTurn.needs === 'new-datetime' || pendingTurn.needs === 'new-title');
+    const effectiveQuestion = skipCombine
+      ? trimmed
+      : pendingTurn
       ? rebuildFollowUpQuestion(pendingTurn.previousQuestion, pendingTurn.needs, trimmed)
       : trimmed;
 
@@ -267,6 +324,9 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
           teamName,
           userHint,
           stream: useStream,
+          // schedule_update multi-step state — skipCombine (새 값 직접 입력) +
+          // clarify (time/date 보충) 양쪽 모두 carry 해서 chat route 가 단계별로 처리.
+          updateState: updateStateCarry,
         }),
       });
 
@@ -348,7 +408,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
                 prev.map((m) => (m.id === msgId ? { ...m, sources: evt.sources } : m))
               );
             } else if (evt.type === 'awaiting-input' && typeof evt.previousQuestion === 'string') {
-              // 다중 턴 — 정보 부족. 다음 user 입력에서 합쳐 재요청.
+              // 다중 턴 — 정보 부족. 다음 user 입력에서 합쳐 (또는 updateState 와 함께) 재요청.
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === msgId
@@ -357,6 +417,10 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
                         awaitingInput: {
                           needs: typeof evt.needs === 'string' ? evt.needs : 'unknown',
                           previousQuestion: evt.previousQuestion,
+                          updateState:
+                            evt.updateState && typeof evt.updateState === 'object'
+                              ? (evt.updateState as UpdateState)
+                              : undefined,
                         },
                       }
                     : m
@@ -440,14 +504,19 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `실행 실패 (${res.status})`);
-      // 일정 등록·삭제 후 좌측 캘린더 자동 갱신 — 모든 schedules 쿼리(view×date 조합) 무효화.
+      // 일정 등록·삭제·수정 후 좌측 캘린더 자동 갱신 — 모든 schedules 쿼리(view×date 조합) 무효화.
       const tool = target.pendingAction.tool;
-      if ((tool === 'createSchedule' || tool === 'deleteSchedule') && teamId) {
+      if (
+        (tool === 'createSchedule' || tool === 'deleteSchedule' || tool === 'updateSchedule') &&
+        teamId
+      ) {
         queryClient.invalidateQueries({ queryKey: ['schedules', teamId] });
       }
       const doneMsg =
         tool === 'deleteSchedule'
           ? '삭제했어요. 캘린더에 반영됐어요. ✓'
+          : tool === 'updateSchedule'
+          ? '수정했어요. 캘린더에 반영됐어요. ✓'
           : '완료했어요. 캘린더에 반영됐어요. ✓';
       setMessages((prev) => [
         ...prev,
