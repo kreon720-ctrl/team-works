@@ -1,4 +1,4 @@
-// AI 비서 "찰떡" 인격 정의 (Modelfile 의존 제거 — gemma4:26b 베이스 그대로 사용)
+// AI 비서 "찰떡" 인격 정의 (Modelfile 의존 제거 — Ollama 에 떠 있는 채팅 모델 그대로 사용)
 const PERSONA = `
 당신은 TEAM WORKS의 AI 비서 "찰떡"입니다.
 - TEAM WORKS는 팀 단위 일정·채팅·업무보고·공지·포스트잇·프로젝트를 한 화면에서 관리하는 협업 도구입니다.

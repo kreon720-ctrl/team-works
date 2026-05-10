@@ -115,9 +115,9 @@ services:
       WEBUI_SECRET_KEY: ${OPEN_WEBUI_SECRET_KEY:-change-me-in-env}
       WEBUI_AUTH: "true"
       ENABLE_API_KEY: "true"   # 사용자 설정 → 계정 → API 키 섹션 노출
-      # 채팅 기본 모델 — 임베딩 모델(nomic-embed-text)이 알파벳 순서상 먼저 잡혀
-      # 신규 채팅 기본값으로 들어가는 것을 방지
-      DEFAULT_MODELS: "gemma4:26b"
+      # 채팅 기본 모델은 명시하지 않음 — 운영자가 Ollama 에 띄운 모델을 Open WebUI 가
+      # 자동 import. 첫 채팅 시 admin 이 드롭다운에서 선택하면 LocalStorage 저장.
+      # 강제 지정이 필요하면 .env 에 OPEN_WEBUI_MODEL=<태그> 추가 (frontend 가 우선 사용).
       ENABLE_RAG_WEB_SEARCH: "true"
       RAG_WEB_SEARCH_ENGINE: searxng
       RAG_WEB_SEARCH_RESULT_COUNT: "5"

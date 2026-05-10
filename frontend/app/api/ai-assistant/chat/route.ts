@@ -4,7 +4,7 @@ import { BackendError } from '@/lib/mcp/pgClient';
 import { resolveOpenWebUiModel } from '@/lib/openWebUiModel';
 
 // Next.js 16 의 API route default maxDuration 이 300초(5분) 라서
-// gemma4:26b + 검색 결과 컨텍스트의 답변 생성이 그 이상 걸리면 강제 종료된다.
+// 큰 채팅 모델 + 검색 결과 컨텍스트의 답변 생성이 그 이상 걸리면 강제 종료된다.
 // 10분(600s)으로 명시 확장.
 export const maxDuration = 600;
 
@@ -12,8 +12,8 @@ const RAG_SERVER_URL = process.env.RAG_SERVER_URL || 'http://127.0.0.1:8787';
 const OPEN_WEBUI_BASE_URL =
   process.env.OPEN_WEBUI_BASE_URL || 'http://127.0.0.1:8081';
 const OPEN_WEBUI_API_KEY = process.env.OPEN_WEBUI_API_KEY || '';
-// Open WebUI 모델 이름은 런타임에 Ollama /api/ps 로 자동 해석 (lib/openWebUiModel.ts).
-// `OPEN_WEBUI_MODEL` env 가 명시되면 그 값 우선 사용.
+// Open WebUI 채팅 모델 이름은 매 호출 시 Open WebUI /api/models 로 자동 해석
+// (lib/openWebUiModel.ts). `OPEN_WEBUI_MODEL` env 가 명시되면 그 값 우선 사용.
 // Open WebUI 의 OpenAI-compatible 응답은 URL 메타데이터를 노출하지 않음.
 // sources 보강용으로 SearxNG 를 같은 쿼리로 한 번 더 호출해 URL/title 을 직접 채운다.
 const SEARXNG_BASE_URL = process.env.SEARXNG_BASE_URL || '';
@@ -151,7 +151,7 @@ async function callOpenWebUi(question: string) {
   const model = await resolveOpenWebUiModel();
 
   // Node.js undici(fetch 구현) 의 기본 receive timeout 이 5분(300초)이라
-  // Open WebUI + gemma4:26b 답변이 그 이상 걸리면 끊긴다. 9분으로 명시 확장.
+  // Open WebUI + 큰 채팅 모델 답변이 그 이상 걸리면 끊긴다. 9분으로 명시 확장.
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 540000);
   const res = await fetch(`${OPEN_WEBUI_BASE_URL}/api/chat/completions`, {
@@ -318,8 +318,9 @@ async function streamRag(question: string, topK: number | undefined, send: SendF
 // 우리가 SearxNG 를 직접 호출해 결과를 inline 컨텍스트로 system prompt 에 주입하고
 // Open WebUI 의 web_search 는 비활성. 검색 ~2초 후 곧장 모델 stream 시작.
 //
-// thinking-mode 모델(gemma4:26b)은 답변(content) 전에 reasoning_content 단계가 흐른다.
+// thinking-mode 모델은 답변(content) 전에 reasoning_content 단계가 흐른다.
 // 사용자에게 첫 시그널을 빠르게 주기 위해 reasoning 시작 시 progress 한 번 송출.
+// (비-thinking 모델이면 이 단계 없이 곧장 content 시작 — 분기는 무해.)
 async function streamOpenWebUi(question: string, send: SendFn) {
   if (!OPEN_WEBUI_API_KEY) {
     throw new Error(

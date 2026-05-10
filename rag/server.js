@@ -340,7 +340,7 @@ function buildDayMappingTable(kstNow) {
   return lines.join("\n");
 }
 
-// gemma4:26b think:false 로 짧은 JSON 응답 유도. JSON 파싱 실패 시 { ok:false }.
+// 채팅 모델에 think:false 로 짧은 JSON 응답 유도. JSON 파싱 실패 시 { ok:false }.
 app.post("/parse-schedule-args", async (req, res) => {
   const { question: rawQuestion, nowIso } = req.body ?? {};
   if (!rawQuestion || typeof rawQuestion !== "string") {
