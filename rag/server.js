@@ -79,13 +79,12 @@ const SCHEDULE_QUERY_VERBS = [
 const SCHEDULE_CREATE_VERBS = [
   "등록", "추가", "만들", "잡아", "예약", "넣어", "생성",
 ];
-// 거절 대상 동작 — "취소" 는 의미 모호 (삭제 vs 일정 통보 취소) 하므로 안전하게 거절.
-const BLOCKED_VERBS = [
-  "취소",
-];
+// 거절 대상 동작 — 현재 비어 있음. ("취소" 는 사용자 의미상 삭제와 동일 → SCHEDULE_DELETE_VERBS 로 이전)
+const BLOCKED_VERBS = [];
 // 삭제 동작 — 일정 + deleteVerb 면 schedule_delete (등록과 동일하게 confirm 후 실행).
+// "취소" 는 한국어 일상에서 "삭제" 와 같은 의미로 쓰임 (예: "회의 취소해" = "회의 일정 지워").
 const SCHEDULE_DELETE_VERBS = [
-  "삭제", "제거", "지워", "지운",
+  "삭제", "제거", "지워", "지운", "취소",
 ];
 // 수정 동작 — 일정 + updateVerb 면 schedule_update (식별 → 새 일시 → 새 제목 → confirm).
 // "옮겨/옮기" 는 시각 이동도 의미 — 같은 update 분기로 처리.

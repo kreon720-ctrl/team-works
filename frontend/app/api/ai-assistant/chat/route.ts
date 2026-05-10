@@ -1090,8 +1090,9 @@ function formatSchedules(
 
 // 거절 안내 메시지.
 function blockedMessage(subreason?: string): string {
+  // schedule_modify subreason 은 현재 미사용 (취소 = 삭제 로 통합) — 안전망으로 유지.
   if (subreason === 'schedule_modify') {
-    return '찰떡이는 **일정 조회·등록·삭제·수정** 만 도와드릴 수 있어요. 일정 취소는 캘린더에서 직접 처리해 주세요. 🙏';
+    return '찰떡이는 **일정 조회·등록·삭제·수정** 만 도와드릴 수 있어요. 🙏';
   }
   if (subreason === 'other_domain') {
     return '찰떡이는 **일정 조회·등록·삭제·수정** 만 도와드릴 수 있어요. 프로젝트·채팅·공지·포스트잇 같은 작업은 화면에서 직접 처리해 주세요. 🙏';
