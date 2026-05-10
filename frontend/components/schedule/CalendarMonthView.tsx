@@ -222,8 +222,8 @@ export function CalendarMonthView({
         ))}
       </div>
 
-      {/* 캘린더 그리드 */}
-      <div className="flex flex-col gap-1.5">
+      {/* 캘린더 그리드 — 모바일은 gap 0, PC 만 gap 1.5 */}
+      <div className="flex flex-col gap-0 md:gap-1.5">
         {weeks.map((week, weekIndex) => {
           const multiDayRows = getMultiDaySchedulesForWeek(week);
           const multiDayBarHeights = multiDayRows.map(({ schedule, colStart, colEnd }) => {
@@ -262,7 +262,7 @@ export function CalendarMonthView({
             <div key={weekIndex} className="relative">
               {/* 날짜 셀 그리드 */}
               <div
-                className="grid grid-cols-7 gap-1.5"
+                className="grid grid-cols-7 gap-0 md:gap-1.5"
                 style={{ gridTemplateRows: `minmax(${cellMinHeight}, auto)` }}
               >
                 {week.map((date, dayIndex) => {
@@ -278,7 +278,7 @@ export function CalendarMonthView({
                       onClick={() => onDateClick?.(date)}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onDateClick?.(date); }}
                       className={`
-                        relative p-2 rounded-lg border transition-all duration-150 flex flex-col cursor-pointer
+                        relative p-0.5 md:p-2 rounded-none md:rounded-lg border-[0.5px] md:border transition-all duration-150 flex flex-col cursor-pointer
                         ${isToday(date)
                           ? 'border-orange-500'
                           : isSelected(date)
@@ -314,7 +314,7 @@ export function CalendarMonthView({
                       {sameDaySchedules.map(schedule => (
                         <div
                           key={schedule.id}
-                          className={`text-[11px] md:text-xs px-1 py-0.5 break-words overflow-hidden rounded mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 -mx-0.5 md:mx-0 break-words overflow-hidden rounded-none md:rounded mb-0 md:mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
@@ -354,11 +354,11 @@ export function CalendarMonthView({
                     return (
                       <div
                         key={`multi-${schedule.id}-${weekIndex}`}
-                        className="absolute px-0.5"
+                        className="absolute px-0 md:px-0.5"
                         style={{ left: leftPct, width: widthPct, top: `${topPx}px`, height: `${barH}px`, pointerEvents: 'auto' }}
                       >
                         <div
-                          className={`text-[11px] md:text-xs px-1 py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded h-full text-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded-none md:rounded h-full text-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
@@ -373,7 +373,7 @@ export function CalendarMonthView({
               )}
               {/* 오늘 날짜 링 — 모든 오버레이 위에 렌더링 */}
               {week.some(d => isToday(d)) && (
-                <div className="absolute inset-0 pointer-events-none grid grid-cols-7 gap-1.5 z-20">
+                <div className="absolute inset-0 pointer-events-none grid grid-cols-7 gap-0 md:gap-1.5 z-20">
                   {week.map((date) => (
                     <div
                       key={date.toISOString()}

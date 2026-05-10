@@ -114,17 +114,17 @@ export function TeamPageHeader({
 
   // Mobile header
   return (
-    <header className="flex items-center justify-between h-10 px-3 bg-white border-b border-gray-200 sticky top-0 z-30 dark:bg-dark-surface dark:border-dark-border">
-      <div className="flex items-center gap-1.5 min-w-0">
+    <header className="flex items-center justify-between h-8 px-2 bg-white border-b border-gray-200 sticky top-0 z-30 dark:bg-dark-surface dark:border-dark-border">
+      <div className="flex items-center gap-1 min-w-0">
         <div className="relative group">
           <button
             type="button"
             onClick={onNavigateHome}
-            className="p-1 rounded-lg hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
+            className="flex items-center justify-center w-5 h-5 rounded-md hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
             aria-label="팀목록 보기"
           >
             {/* 팀 목록(리스트) 아이콘 — 좌측 점 + 우측 라인 3줄 */}
-            <svg className="w-5 h-5 text-gray-700 dark:text-dark-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg className="w-4 h-4 text-gray-700 dark:text-dark-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="5" cy="6" r="1" fill="currentColor" stroke="none" />
               <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
               <circle cx="5" cy="18" r="1" fill="currentColor" stroke="none" />
@@ -139,16 +139,53 @@ export function TeamPageHeader({
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800 dark:border-b-gray-700" />
           </div>
         </div>
-        <h1 className="text-base font-semibold text-gray-900 truncate dark:text-dark-text">{teamName}</h1>
+        <h1 className="flex items-center h-5 text-sm font-semibold leading-none text-gray-900 truncate dark:text-dark-text">{teamName}</h1>
       </div>
-      <div className="flex items-center gap-1">
-        <ThemeToggle />
+      {/* TEAM WORKS 중앙 브랜드 — 팀명/로그아웃 사이 시각적 구분 */}
+      <div className="absolute left-1/2 -translate-x-1/2 select-none pointer-events-none flex items-center gap-1">
+        <span
+          role="img"
+          aria-label="TEAM WORKS 로고"
+          className="block w-4 h-4 shrink-0 bg-black dark:bg-[#FFB800]"
+          style={{
+            WebkitMaskImage: 'url(/imgs/logo_v.svg)',
+            maskImage: 'url(/imgs/logo_v.svg)',
+            WebkitMaskSize: 'contain',
+            maskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskPosition: 'center',
+          }}
+        />
+        <span className="text-xs font-bold tracking-wider text-gray-900 dark:text-dark-text">TEAM WORKS</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="relative group">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center justify-center w-5 h-5 rounded-md hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
+            aria-label="로그아웃"
+          >
+            <svg className="w-4 h-4 text-gray-700 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+            로그아웃
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800 dark:border-b-gray-700" />
+          </div>
+        </div>
+        <div className="flex items-center h-5">
+          <ThemeToggle />
+        </div>
         <button
           type="button"
-          className="p-1 rounded-lg hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
+          className="flex items-center justify-center w-5 h-5 rounded-md hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
           aria-label="메뉴"
         >
-          <svg className="w-5 h-5 text-gray-700 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-gray-700 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
           </svg>
         </button>

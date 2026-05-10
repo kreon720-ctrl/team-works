@@ -73,8 +73,8 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-base">
-      {/* Header */}
-      <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 sticky top-0 z-30 dark:bg-dark-surface dark:border-dark-border">
+      {/* PC Header */}
+      <header className="hidden md:flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 sticky top-0 z-30 dark:bg-dark-surface dark:border-dark-border">
         <div className="flex items-center gap-2">
           {/* TEAM WORKS 로고 — 라이트:블랙 / 다크:앰버골드(#FFB800) */}
           <span
@@ -116,9 +116,67 @@ export default function HomePage() {
         </div>
       </header>
 
+      {/* Mobile Header — TeamPageHeader 모바일 모드와 동일 패턴 */}
+      <header className="md:hidden flex items-center justify-between h-8 px-2 bg-white border-b border-gray-200 sticky top-0 z-30 dark:bg-dark-surface dark:border-dark-border">
+        <div className="flex items-center gap-1 min-w-0">
+          {/* 팀목록 아이콘 — 현재 페이지가 팀 목록이므로 장식 (클릭 동작 없음) */}
+          <div className="flex items-center justify-center w-5 h-5 text-gray-700 dark:text-dark-text-muted" aria-hidden="true">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="5" cy="6" r="1" fill="currentColor" stroke="none" />
+              <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+              <circle cx="5" cy="18" r="1" fill="currentColor" stroke="none" />
+              <line x1="9" y1="6" x2="20" y2="6" />
+              <line x1="9" y1="12" x2="20" y2="12" />
+              <line x1="9" y1="18" x2="20" y2="18" />
+            </svg>
+          </div>
+          <h1 className="flex items-center h-5 text-sm font-semibold leading-none text-gray-900 truncate dark:text-dark-text">내 팀 목록</h1>
+        </div>
+        {/* TEAM WORKS 중앙 브랜드 — 페이지 타이틀/로그아웃 사이 시각적 구분 */}
+        <div className="absolute left-1/2 -translate-x-1/2 select-none pointer-events-none flex items-center gap-1">
+          <span
+            role="img"
+            aria-label="TEAM WORKS 로고"
+            className="block w-4 h-4 shrink-0 bg-black dark:bg-[#FFB800]"
+            style={{
+              WebkitMaskImage: 'url(/imgs/logo_v.svg)',
+              maskImage: 'url(/imgs/logo_v.svg)',
+              WebkitMaskSize: 'contain',
+              maskSize: 'contain',
+              WebkitMaskRepeat: 'no-repeat',
+              maskRepeat: 'no-repeat',
+              WebkitMaskPosition: 'center',
+              maskPosition: 'center',
+            }}
+          />
+          <span className="text-xs font-bold tracking-wider text-gray-900 dark:text-dark-text">TEAM WORKS</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative group flex items-center h-5">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center justify-center w-5 h-5 rounded-md hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
+              aria-label="로그아웃"
+            >
+              <svg className="w-4 h-4 text-gray-700 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+              로그아웃
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800 dark:border-b-gray-700" />
+            </div>
+          </div>
+          <div className="flex items-center h-5">
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
       {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 py-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4 dark:text-dark-text">내 팀 목록</h2>
+        <h2 className="hidden md:block text-xl font-semibold text-gray-900 mb-4 dark:text-dark-text">내 팀 목록</h2>
 
         {/* Toast 메시지 */}
         {toast && (
@@ -164,8 +222,28 @@ export default function HomePage() {
           />
         )}
 
-        {/* Bottom action buttons */}
-        <div className="flex justify-center gap-3 mt-8">
+        {/* Bottom action buttons — 모바일은 sm/w-24, PC 는 md/w-32 */}
+        <div className="flex md:hidden justify-center gap-2 mt-8">
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => setShowCreateTeamModal(true)}
+            className="w-24"
+          >
+            + 팀 생성
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowExploreTeamModal(true)}
+            className="w-24"
+          >
+            팀 검색
+          </Button>
+        </div>
+        <div className="hidden md:flex justify-center gap-3 mt-8">
           <Button
             type="button"
             variant="primary"

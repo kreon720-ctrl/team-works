@@ -191,24 +191,22 @@ export function CalendarView({
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className={`flex items-center ${compact ? 'gap-2' : 'gap-4'}`}>
           {/* 일정 등록 버튼 (project view에서는 숨김) */}
           {!isProjectView && canCreateSchedule && onCreateSchedule && (
             <div className="relative group">
               <button
                 type="button"
                 onClick={() => onCreateSchedule()}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 dark:bg-[#FFB800] dark:text-gray-900 dark:hover:bg-[#E6A600] dark:active:bg-[#CC9200] font-medium transition-colors duration-150 ${
-                  compact ? 'text-xs' : 'text-sm'
+                className={`flex items-center justify-center rounded-md bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 dark:bg-[#FFB800] dark:text-gray-900 dark:hover:bg-[#E6A600] dark:active:bg-[#CC9200] font-medium transition-colors duration-150 ${
+                  compact ? 'p-0.5' : 'gap-1 px-3 py-1.5 text-sm rounded-lg'
                 }`}
                 aria-label="일정 등록"
               >
-                {!compact && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                )}
-                {compact ? '등록' : '일정 등록'}
+                <svg className={compact ? 'w-3 h-3' : 'w-4 h-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                {!compact && '일정 등록'}
               </button>
               {!compact && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
@@ -246,7 +244,7 @@ export function CalendarView({
                 onClick={() => onViewChange?.(tab.id)}
                 className={`
                   py-2 font-medium border-b-2 transition-colors duration-150
-                  ${compact ? 'px-3 text-xs' : 'px-4 text-sm'}
+                  ${compact ? 'px-2.5 text-xs' : 'px-4 text-sm'}
                   ${view === tab.id
                     ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
