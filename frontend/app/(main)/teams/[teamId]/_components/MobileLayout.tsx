@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { AIAssistantPanel } from '@/components/ai-assistant/AIAssistantPanel';
+import { ResizableSplit } from '@/components/common/ResizableSplit';
 import { CalendarSection } from './CalendarSection';
 import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType } from '@/types/schedule';
 
@@ -75,6 +76,50 @@ export function MobileLayout({
   onEditModalClose,
   onEditSubmit,
 }: MobileLayoutProps) {
+  // AI 버틀러 탭 안에서 일정 아이콘으로 토글하는 split view (상단 캘린더 1/3 + 하단 AI 2/3).
+  const [showCalendarSplit, setShowCalendarSplit] = useState(false);
+
+  // 두 곳(calendar tab, split view)에서 공유하는 CalendarSection element.
+  const calendarSectionElement = (
+    <CalendarSection
+      teamId={teamId}
+      currentDate={currentDate}
+      selectedDate={selectedDate}
+      calendarView={calendarView}
+      schedules={schedules}
+      postits={[]}
+      currentUserId={undefined}
+      isLeader={isLeader}
+      compact={true}
+      selectedPostitColor={null}
+      showCreateModal={showCreateModal}
+      showEditModal={showEditModal}
+      showDetailModal={showDetailModal}
+      scheduleDefaultDate={scheduleDefaultDate}
+      selectedSchedule={selectedSchedule}
+      createScheduleIsPending={createScheduleIsPending}
+      createScheduleError={createScheduleError}
+      updateScheduleIsPending={updateScheduleIsPending}
+      updateScheduleError={updateScheduleError}
+      deleteScheduleIsPending={deleteScheduleIsPending}
+      onPostitColorSelect={() => {}}
+      onPostitDelete={() => {}}
+      onPostitContentChange={() => {}}
+      onViewChange={onViewChange}
+      onDateChange={onDateChange}
+      onDateClick={onDateClick}
+      onCreateSchedule={onCreateSchedule}
+      onScheduleClick={onScheduleClick}
+      onCreateModalClose={onCreateModalClose}
+      onCreateSubmit={onCreateSubmit}
+      onDetailClose={onDetailClose}
+      onDetailEdit={onDetailEdit}
+      onDelete={onDelete}
+      onEditModalClose={onEditModalClose}
+      onEditSubmit={onEditSubmit}
+    />
+  );
+
   return (
     <>
       {/* Tab navigation */}
@@ -139,43 +184,7 @@ export function MobileLayout({
         {/* Calendar tab */}
         <div className={`h-full ${activeTab === 'calendar' ? 'block' : 'hidden'}`}>
           <div className="h-full overflow-y-auto bg-white">
-            <CalendarSection
-              teamId={teamId}
-              currentDate={currentDate}
-              selectedDate={selectedDate}
-              calendarView={calendarView}
-              schedules={schedules}
-              postits={[]}
-              currentUserId={undefined}
-              isLeader={isLeader}
-              compact={true}
-              selectedPostitColor={null}
-              showCreateModal={showCreateModal}
-              showEditModal={showEditModal}
-              showDetailModal={showDetailModal}
-              scheduleDefaultDate={scheduleDefaultDate}
-              selectedSchedule={selectedSchedule}
-              createScheduleIsPending={createScheduleIsPending}
-              createScheduleError={createScheduleError}
-              updateScheduleIsPending={updateScheduleIsPending}
-              updateScheduleError={updateScheduleError}
-              deleteScheduleIsPending={deleteScheduleIsPending}
-              onPostitColorSelect={() => {}}
-              onPostitDelete={() => {}}
-              onPostitContentChange={() => {}}
-              onViewChange={onViewChange}
-              onDateChange={onDateChange}
-              onDateClick={onDateClick}
-              onCreateSchedule={onCreateSchedule}
-              onScheduleClick={onScheduleClick}
-              onCreateModalClose={onCreateModalClose}
-              onCreateSubmit={onCreateSubmit}
-              onDetailClose={onDetailClose}
-              onDetailEdit={onDetailEdit}
-              onDelete={onDelete}
-              onEditModalClose={onEditModalClose}
-              onEditSubmit={onEditSubmit}
-            />
+            {calendarSectionElement}
           </div>
         </div>
 
@@ -190,11 +199,37 @@ export function MobileLayout({
           />
         </div>
 
-        {/* AI 버틀러 tab */}
+        {/* AI 버틀러 tab — 일정 아이콘 토글 시 상단 캘린더(1/3) + 하단 AI(2/3) split */}
         <div
           className={`h-[calc(100vh-6rem)] ${activeTab === 'ai-assistant' ? 'flex' : 'hidden'} flex-col`}
         >
-          <AIAssistantPanel teamId={teamId} teamName={teamName} />
+          {showCalendarSplit ? (
+            <ResizableSplit
+              orientation="vertical"
+              initialLeftPercent={33}
+              minLeftPercent={15}
+              maxLeftPercent={75}
+              left={
+                <div className="h-full overflow-y-auto bg-white dark:bg-dark-surface">
+                  {calendarSectionElement}
+                </div>
+              }
+              right={
+                <AIAssistantPanel
+                  teamId={teamId}
+                  teamName={teamName}
+                  onToggleCalendar={() => setShowCalendarSplit(false)}
+                  calendarSplitActive
+                />
+              }
+            />
+          ) : (
+            <AIAssistantPanel
+              teamId={teamId}
+              teamName={teamName}
+              onToggleCalendar={() => setShowCalendarSplit(true)}
+            />
+          )}
         </div>
       </div>
     </>

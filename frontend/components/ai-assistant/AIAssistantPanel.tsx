@@ -208,9 +208,14 @@ interface AIAssistantPanelProps {
   teamName: string;
   // 팀 페이지 우측 탭 안에 임베드될 땐 헤더가 탭에 흡수되어 false. 직접 URL(/ai-assistant?...) fallback 일 땐 true.
   showHeader?: boolean;
+  // 일정 아이콘(전송 버튼 아래) 클릭 시 호출되는 콜백. 미전달 시 아이콘 자체를 렌더하지 않음.
+  // 부모(MobileLayout 등)에서 split view 상태 토글에 사용.
+  onToggleCalendar?: () => void;
+  // split view 활성 여부 — 아이콘 시각 강조에 사용 (선택).
+  calendarSplitActive?: boolean;
 }
 
-export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAssistantPanelProps) {
+export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggleCalendar, calendarSplitActive = false }: AIAssistantPanelProps) {
   const queryClient = useQueryClient();
   const userHint = useMemo(() => {
     if (!teamId) return undefined;
@@ -657,19 +662,45 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
             className="flex-1 resize-none max-h-56 min-h-[88px] rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-base px-4 py-2.5 text-sm font-normal text-gray-800 dark:text-dark-text leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled transition-colors duration-150 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:disabled:bg-dark-elevated dark:disabled:border-dark-border dark:disabled:text-dark-text-disabled"
             disabled={isLoading}
           />
-          <button
-            type="button"
-            onClick={() => sendQuestion(input)}
-            disabled={!input.trim() || isLoading}
-            className="inline-flex items-center justify-center gap-1 rounded-lg py-[9px] px-3 text-xs font-medium transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled self-start"
-          >
-            {isLoading ? (
-              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : '전송'}
-          </button>
+          <div className="flex flex-col gap-1.5 self-start">
+            <button
+              type="button"
+              onClick={() => sendQuestion(input)}
+              disabled={!input.trim() || isLoading}
+              className="inline-flex items-center justify-center gap-1 rounded-lg py-[9px] px-3 text-xs font-medium transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
+            >
+              {isLoading ? (
+                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : '전송'}
+            </button>
+            {onToggleCalendar && (
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={onToggleCalendar}
+                  className={`inline-flex items-center justify-center w-full rounded-lg py-1.5 px-3 transition-colors duration-150 ${
+                    calendarSplitActive
+                      ? 'bg-primary-500 text-white hover:bg-primary-600 dark:bg-dark-accent-strong dark:text-gray-900'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:text-dark-text-muted dark:hover:bg-dark-elevated'
+                  }`}
+                  aria-label="일정화면 보기"
+                  aria-pressed={calendarSplitActive}
+                >
+                  {/* 캘린더 아이콘 — heroicons calendar */}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </button>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                  일정화면 보기
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800 dark:border-t-gray-700" />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <p className="mt-1.5 text-[11px] text-gray-400 dark:text-dark-text-disabled text-center">
           Answered by {activeModel ?? 'AI'} · 사용법은 공식 문서, 일정은 팀 DB, 그 외엔 웹 검색으로 답해요.
