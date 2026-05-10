@@ -180,6 +180,13 @@ function classifyIntent(question) {
   if (noun && createVerb) {
     return { intent: "schedule_create", reason: "keyword", matched: `${noun}+${createVerb}` };
   }
+  // 5b) 일정 noun 없어도 명확한 datetime + 등록동작 → schedule_create 추론.
+  //     예: "13일 오후 2시20분 고속버스 티켓 예매 등록" — 일정/약속 noun 미명시이지만
+  //     날짜·시각 + 등록 동사 조합이면 사용자 의도는 schedule_create.
+  //     날짜·시각 둘 다 있어야 함 (둘 중 하나만이면 시각 단독 질의 등 다른 의도일 수 있음).
+  if (createVerb && /\d+\s*일|어제|오늘|내일|모레|글피|월요일|화요일|수요일|목요일|금요일|토요일|일요일/.test(q) && /\d+\s*시|\d+\s*[:：]\s*\d+|오전|오후|새벽|아침|점심|저녁|밤|정오|자정/.test(q)) {
+    return { intent: "schedule_create", reason: "datetime+verb", matched: createVerb };
+  }
   // 6) 일정명사 + 조회동작 (또는 단독) → schedule_query
   if (noun && (queryVerb || !createVerb)) {
     return { intent: "schedule_query", reason: "keyword", matched: noun };
