@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getValidAccessToken } from '@/lib/authInterceptor';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 interface Source {
   // RAG 결과 (TEAM WORKS 공식 문서)
@@ -213,9 +214,12 @@ interface AIAssistantPanelProps {
   onToggleCalendar?: () => void;
   // split view 활성 여부 — 아이콘 시각 강조에 사용 (선택).
   calendarSplitActive?: boolean;
+  // 음성 입력(STT) 마이크 아이콘 노출 — true 일 때만 렌더. 모바일 컨텍스트에서 부모가 전달.
+  // 비지원 브라우저(SpeechRecognition 미지원)는 자체적으로 hide.
+  enableVoiceInput?: boolean;
 }
 
-export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggleCalendar, calendarSplitActive = false }: AIAssistantPanelProps) {
+export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggleCalendar, calendarSplitActive = false, enableVoiceInput = false }: AIAssistantPanelProps) {
   const queryClient = useQueryClient();
   const userHint = useMemo(() => {
     if (!teamId) return undefined;
@@ -227,7 +231,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
       id: 'welcome',
       role: 'assistant',
       content:
-        '안녕하세요! AI 버틀러 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색)·우리 팀 일정 조회·등록·삭제·수정(📅) 모두 자유롭게 물어봐 주세요. 시스템이 자동으로 적절한 경로로 답변합니다.\n(일정 취소, 프로젝트·채팅 작업은 화면에서 직접 처리해 주세요.)',
+        '안녕하세요! AI 버틀러 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색)·우리 팀 일정 조회·등록·삭제·수정(📅) 모두 자유롭게 물어봐 주세요. 시스템이 자동으로 적절한 경로로 답변합니다.\n(프로젝트·채팅 작업은 화면에서 직접 처리해 주세요.)',
     },
   ]);
   const [input, setInput] = useState('');
@@ -247,6 +251,22 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // STT (음성 입력) — 모바일 컨텍스트(enableVoiceInput=true) 에서만 활성.
+  // hook 자체는 항상 호출 (Rules of Hooks). 비지원 브라우저는 isSupported=false 로 자체 차단.
+  const stt = useSpeechRecognition();
+
+  // 음성 인식 결과(transcript) 가 들어올 때마다 입력창에 반영.
+  // 빈 문자열일 때는 sync 하지 않음 (사용자가 키보드로 입력 중일 가능성).
+  useEffect(() => {
+    if (stt.transcript) setInput(stt.transcript);
+  }, [stt.transcript]);
+
+  // STT 오류는 채팅 영역에 error 메시지로 노출 (기존 error 메시지 패턴 재사용).
+  useEffect(() => {
+    if (!stt.error) return;
+    setMessages(prev => [...prev, { id: newId(), role: 'error', content: stt.error! }]);
+  }, [stt.error]);
 
   async function sendQuestion(question: string) {
     const trimmed = question.trim();
@@ -304,6 +324,10 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
         },
       ]);
       setInput('');
+      // 음성 입력 잔여 정리 — 진행 중인 STT 세션 종료 + transcript reset
+      // (이전 명령이 다음 세션에 누적되는 문제 차단)
+      if (stt.isListening) stt.stop();
+      stt.reset();
       return;
     }
 
@@ -327,6 +351,10 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
     const userMsg: Message = { id: newId(), role: 'user', content: trimmed };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+    // 음성 입력 잔여 정리 — 진행 중인 STT 세션 종료 + transcript reset
+    // (이전 명령이 다음 세션에 누적되는 문제 차단)
+    if (stt.isListening) stt.stop();
+    stt.reset();
     setIsLoading(true);
 
     try {
@@ -696,6 +724,30 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
                 </button>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
                   일정화면 보기
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800 dark:border-t-gray-700" />
+                </div>
+              </div>
+            )}
+            {enableVoiceInput && stt.isSupported && (
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={stt.isListening ? stt.stop : stt.start}
+                  className={`inline-flex items-center justify-center w-full rounded-lg py-1.5 px-3 transition-colors duration-150 ${
+                    stt.isListening
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:text-dark-text-muted dark:hover:bg-dark-elevated'
+                  }`}
+                  aria-label={stt.isListening ? '음성 입력 중지' : '음성 입력 시작'}
+                  aria-pressed={stt.isListening}
+                >
+                  {/* heroicons microphone */}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 3a4 4 0 014 4v4a4 4 0 01-8 0V7a4 4 0 014-4z" />
+                  </svg>
+                </button>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                  {stt.isListening ? '음성 입력 중지' : '음성 입력 시작'}
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800 dark:border-t-gray-700" />
                 </div>
               </div>

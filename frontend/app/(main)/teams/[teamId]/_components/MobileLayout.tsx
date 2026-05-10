@@ -220,6 +220,7 @@ export function MobileLayout({
                   teamName={teamName}
                   onToggleCalendar={() => setShowCalendarSplit(false)}
                   calendarSplitActive
+                  enableVoiceInput
                 />
               }
             />
@@ -228,6 +229,7 @@ export function MobileLayout({
               teamId={teamId}
               teamName={teamName}
               onToggleCalendar={() => setShowCalendarSplit(true)}
+              enableVoiceInput
             />
           )}
         </div>
