@@ -68,8 +68,11 @@ coverage/
 
 # 자료실 첨부파일 — 운영 환경에선 클라우드 스토리지로 이전 예정.
 # board_attachments 테이블의 stored_name 으로 식별, 디스크 파일은 git 추적 제외.
-files/
-!files/.gitkeep
+# 절대경로 prefix `/` 로 저장소 root 의 files/ 만 매칭.
+# (prefix 없는 `files/` 는 backend/lib/files/, backend/app/api/files/ 같은 코드 디렉터리도
+#  무차별 매칭해 서비스 코드가 git 에서 누락되는 사고가 발생함 — 절대 prefix 필수.)
+/files/
+!/files/.gitkeep
 
 # DB 백업 덤프 — 사용자 해시 포함, git 추적 제외.
 backups/
