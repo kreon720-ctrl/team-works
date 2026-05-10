@@ -92,7 +92,10 @@ function isPlaceholderContent(content: string): boolean {
 // fallback (정규식이 매치 못 함): 옛 "그리고" 포맷 유지 — 정보 손실 없음.
 const AMPM_RE = /(오전|오후|정오|자정|새벽)/;
 const HOUR_RE = /\d+\s*시/;
-const DATE_HINT_RE = /(오늘|내일|어제|모레|글피|\d+월\s*\d+일|\d+일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주)/;
+// 약식 도트·슬래시 표기 ("5.4. 주", "5/4 주", "5.4") 도 포함 — 한국 약식 표기 흔함.
+// 모든 날짜 패턴은 끝의 선택적 "주" 까지 한 단위로 매치해야 분기 3 (date-replace) 에서
+// 주 단위 단서 ("5월 4일 주", "5.4.주") 를 보충("5일") 로 한 번에 교체 가능 (잔존 "주" 방지).
+const DATE_HINT_RE = /(오늘|내일|어제|모레|글피|\d+월\s*\d+일\s*주?|\d+일\s*주?|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주|\d{1,2}\s*\.\s*\d{1,2}\s*\.?\s*주?|\d{1,2}\s*\/\s*\d{1,2}\s*주?)/;
 // schedule_delete 다중 후보 보충 입력 처리용 — 보충이 자체 완결 schedule 질문인지 판정.
 // 둘 다 매치하면 그대로 새 질문으로 사용 (예: "15일 일정 삭제").
 const SELF_CONTAINED_NOUN_RE = /(일정|회의|미팅|약속|스케줄)/;
@@ -123,7 +126,16 @@ function rebuildFollowUpQuestion(
   supplement: string,
 ): string {
   const fallback = `${prev}\n그리고 ${supplement}`;
+  if (needs === 'datetime') {
+    // schedule_create 통합 묻기 ("일시는 언제로 할까요?") 의 보충 답변.
+    // 보충에 날짜·시각 어떤 조합이 와도 prev 끝에 단순 결합 — LLM 이 다음 턴에 다시 분석해
+    // 부족분(time/date) 만 후속 질문하거나 ok 로 confirm 진행.
+    return `${prev} ${supplement}`;
+  }
   if (needs === 'time') {
+    // 사용자가 prev 와 무관한 datetime 풀세트("9일 20시")로 다시 답한 케이스 — 결합하면 모순.
+    // 거절 응답 후 사용자가 시각만 보충하는 게 아니라 새 일시를 통째로 알려주는 흐름 보호.
+    if (DATE_HINT_RE.test(supplement) && HOUR_RE.test(supplement)) return supplement;
     const ampm = supplement.match(AMPM_RE)?.[1];
     const hourInSupplement = supplement.match(/(\d+)\s*시/)?.[1];
     // 보충에 시각 전체 ("오후 3시") → prev 의 시각 부분을 통째 교체
@@ -142,6 +154,8 @@ function rebuildFollowUpQuestion(
     }
   }
   if (needs === 'date') {
+    // 자체완결 datetime ("9일 20시") → prev 무시하고 supplement 만. (needs='time' 분기 가드와 동일 사유)
+    if (DATE_HINT_RE.test(supplement) && HOUR_RE.test(supplement)) return supplement;
     // 보충에 날짜 단서 ("내일", "5월 8일", "월요일" 등) → prev 앞에 prepend
     if (DATE_HINT_RE.test(supplement)) return `${supplement} ${prev}`;
   }
@@ -251,7 +265,14 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
       const isMultiStepAnswer =
         (pendingTurn.needs === 'new-title' || pendingTurn.needs === 'new-datetime') &&
         NEW_VALUE_HINT_RE.test(trimmed);
-      if (!isMultiStepAnswer) {
+      // 예외 2: schedule_delete 의 title 단계에서 "모두/전체 삭제" 류 일괄 삭제 시도.
+      // FRESH 가 "삭제" 동사를 잡아 pendingTurn 을 clear 하면 아래 BULK 가드가 못 동작 →
+      // 사용자 입력이 fresh classification 으로 빠져 의도와 다른 응답(웹검색 등) 나옴.
+      const isBulkDeleteFollowUp =
+        pendingTurn.needs === 'title' &&
+        DELETE_INTENT_IN_PREV_RE.test(pendingTurn.previousQuestion) &&
+        BULK_DELETE_INTENT_RE.test(trimmed);
+      if (!isMultiStepAnswer && !isBulkDeleteFollowUp) {
         pendingTurn = undefined;
       }
     }
@@ -270,7 +291,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false }: AIAss
         {
           id: newId(),
           role: 'assistant',
-          content: '한 번에 하나의 일정만 삭제할 수 있어요. 후보 중 하나만 시각·제목으로 좁혀 알려주세요.',
+          content: '한 번에 한 가지 일정만 삭제할 수 있어요. 삭제할 일정의 제목이나 시각을 더 구체적으로 알려주세요.',
           awaitingInput: {
             needs: 'title',
             previousQuestion: pendingTurn.previousQuestion,
