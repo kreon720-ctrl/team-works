@@ -98,8 +98,16 @@ const BLOCKED_DOMAINS = [
 ];
 // 사용법 질문 시그널 — 매치되면 다른 분기보다 우선해 usage(RAG) 로 라우팅.
 // 예: "프로젝트 등록하는 법", "회의 어떻게 만들어?" — blocked/schedule_create 가 아니라 사용법 답변이 정답.
+// 개념·정의·비교 질문 시그널도 포함 — "프로젝트 일정과 세부일정의 차이점", "X 가 무엇인지 설명해줘" 류는
+// 일정 명사가 들어 있어도 schedule_query 가 아니라 RAG 기반 사용법 답변이 정답.
+// 모호 단어("설명", "차이", "뭐", "무엇") 단독은 schedule field/일반 질의와 충돌하므로 제외 — 명확한 phrase 형태로만 매치.
 const USAGE_KEYWORDS = [
   "사용법", "방법", "어떻게", "어떡", "하는 법", "쓰는 법", "쓰는 방법", "이용법", "사용 방법",
+  // 개념·정의 질문
+  "차이점", "차이가 뭐", "차이가 무엇", "다른점", "다른 점",
+  "무엇인지", "뭐인지", "뭐가 다른", "뭐가 달라",
+  // 설명 요청
+  "설명해줘", "설명해주세요", "설명해 줘", "설명 부탁",
 ];
 // 시간 질의 표지자 — "언제", "몇 시", "며칠" 같이 시간을 묻는 표현은 거의 항상 일정 조회 의도.
 // SCHEDULE_NOUNS 매치가 안 돼도 (예: 사용자가 일정 제목을 직접 부른 경우 — '신체검사 언제야')
@@ -418,10 +426,34 @@ app.post("/parse-schedule-args", async (req, res) => {
     }
     // LLM 의 endKst 환각 (연도/시각 잘못 출력) 자동 보정 — endAt <= startAt 이면 시작 + 1시간.
     // 작은 모델 (e4b 등) 에서 가끔 "2022 종료" 같은 출력이 나와 backend 400 으로 떨어지는 케이스를 방지.
-    const startMs = new Date(startAt).getTime();
-    const endMs = new Date(endAt).getTime();
+    let startMs = new Date(startAt).getTime();
+    let endMs = new Date(endAt).getTime();
     if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs) {
       endAt = new Date(startMs + 60 * 60 * 1000).toISOString();
+      endMs = new Date(endAt).getTime();
+    }
+    // LLM hour 환각 cross-check — 사용자 입력의 시각 단서가 있는데 LLM 출력 시각이 다르면
+    // 사용자 값으로 보정. 작은 모델(e4b)이 "20시"를 "10시" 등으로 오인식하는 케이스 차단.
+    // duration 은 유지. 날짜 부분은 LLM 추론(매핑 표 기반) 그대로 신뢰.
+    const userTimeMatch = question.match(/(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/);
+    if (userTimeMatch && Number.isFinite(startMs) && Number.isFinite(endMs)) {
+      let userHour = parseInt(userTimeMatch[1], 10);
+      const userMinute = userTimeMatch[2] ? parseInt(userTimeMatch[2], 10) : 0;
+      const ampm = question.match(/(오전|오후|새벽|정오|자정)/)?.[1];
+      if (ampm === "오후" && userHour >= 1 && userHour <= 11) userHour += 12;
+      else if (ampm === "오전" && userHour === 12) userHour = 0;
+      else if (ampm === "새벽" && userHour === 12) userHour = 0;
+      const kstStart = new Date(startMs + 9 * 60 * 60 * 1000);
+      const llmHour = kstStart.getUTCHours();
+      const llmMin = kstStart.getUTCMinutes();
+      if (userHour >= 0 && userHour <= 23 && (llmHour !== userHour || llmMin !== userMinute)) {
+        const dur = endMs - startMs;
+        kstStart.setUTCHours(userHour, userMinute, 0, 0);
+        startMs = kstStart.getTime() - 9 * 60 * 60 * 1000;
+        startAt = new Date(startMs).toISOString();
+        endAt = new Date(startMs + dur).toISOString();
+        endMs = startMs + dur;
+      }
     }
     const args = { title, startAt, endAt, description };
     // 과거 시각 검증 — 무조건 미래만 허용. 1분 grace period.
