@@ -560,6 +560,8 @@ docker compose up -d
 
 처음 실행 시 모든 이미지 다운로드 — 약 5~15분. 인내심.
 
+> **Whisper STT 컨테이너**: ~2GB PyTorch 이미지라 가장 오래 걸립니다 (10-20분 추가 가능). `teamworks-whisper` 만 늦게 떠도 다른 서비스는 정상 동작 — STT 만 잠시 못 씀. 첫 음성 변환 호출 시 small 모델(~480MB) 추가 다운로드 후 `whisper_cache` 볼륨에 영속 저장.
+
 ### 5.2. 컨테이너 상태 확인
 
 ```powershell
@@ -574,6 +576,7 @@ team-works-nginx-1       running
 postgres-db              running
 teamworks-open-webui     running
 teamworks-searxng        running
+teamworks-whisper        running
 ```
 
 ### 5.3. 데이터베이스 스키마 적용 (테이블 만들기)
@@ -934,8 +937,62 @@ docker compose restart frontend backend
 | `database/add-*.sql` 새 마이그레이션 | DB 스키마 변경 | `docker exec -i postgres-db psql -U teamworks-manager -d teamworks < database\add-*.sql` |
 | `ollama/*.md` (RAG 사용법 문서) | RAG 인덱스 재생성 필요 | `cd rag && npm run index` → RAG 서버 재기동 |
 | `rag/server.js`, `rag/docs/classify-rules.md`, `rag/promptBuilder.js`, `rag/retriever.js` 등 | RAG 서버 로직·prompt 변경 | **RAG 서버 재기동 필수** (인덱스 재빌드 불필요) |
-| `docker-compose.yml` 또는 루트 `.env` | compose 설정 변경 | `docker compose restart` 가 아니라 `docker compose up -d` (compose 파일·env 재평가) |
+| `docker-compose.yml` 또는 루트 `.env` | compose 설정 변경 (신규 서비스 / env 추가 등) | `docker compose restart` 가 아니라 `docker compose up -d` (compose 파일·env 재평가) |
+| `docker/nginx.dev.conf` | nginx 라우팅 / proxy 설정 변경 | **`docker compose restart nginx` 필수** — `up -d` 가 변경 감지 못 함 (compose 본문이 아니라 mount 된 설정 파일이라) |
 | `frontend/**`, `backend/**` (TS/JS/CSS) | Next.js 코드 | dev 모드는 `docker compose restart frontend backend` 만으로 hot-reload, prod 모드는 별도 build 필요 |
+
+#### 음성 입력(STT) Whisper 컨테이너 도입 시
+
+`gemma4-adjust` 브랜치에 자체 호스팅 Whisper STT (`teamworks-whisper`) 가 추가되었습니다. 모바일/데스크톱 STT 엔진 불일치 (Galaxy Samsung 등) 우회 + 한국어 정확도 향상. 운영 환경에 적용하려면:
+
+```powershell
+cd C:\TeamWorks\team-works
+git pull origin gemma4-adjust          # 1) 코드 받기 (compose·nginx·frontend 변경 포함)
+docker compose up -d                   # 2) frontend recreate (WHISPER_URL env 주입) + whisper 신규 생성
+docker compose restart nginx           # 3) nginx 의 /api/stt 라우팅 활성화 (필수)
+```
+
+**첫 부팅 시 자동으로 진행되는 일** (한 번만):
+- Whisper 이미지 pull — `onerahmet/openai-whisper-asr-webservice:latest` ~2GB (PyTorch 포함, 5-15분 / 회선 따라)
+- Whisper small 모델 다운로드 — 첫 STT 호출 시 ~480MB (1-2분). `whisper_cache` 볼륨에 영속 저장.
+
+**RTX 3070 GPU 가속 (강력 권장)** — CPU 모드는 ~5-15초, GPU 모드는 ~0.5-1초. `docker-compose.yml` 의 `whisper` 서비스 일부 수정:
+
+```yaml
+whisper:
+  image: onerahmet/openai-whisper-asr-webservice:latest-gpu   # :latest → :latest-gpu
+  environment:
+    ASR_MODEL: small
+    ASR_ENGINE: faster_whisper          # 메모리 절반 + 속도 2-3배 (CTranslate2 최적화)
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+```
+
+수정 후 `docker compose up -d whisper` 로 재생성. 전제: NVIDIA Container Toolkit 설치 (Ollama GPU 쓰고 있으면 이미 설치됨).
+
+**메모리 가이드 (RTX 3070 8GB VRAM)** — 현재 gemma4-e4b-pure (~6.5GB) + nomic-embed (~0.5GB) 점유 가정, 남은 ~1GB 에 Whisper 가 올라감:
+
+| 모델 / 엔진 | VRAM | 한국어 정확도 | 권장도 |
+|---|---|---|---|
+| faster_whisper small | ~0.6GB | 우수 | **권장** |
+| faster_whisper base | ~0.25GB | 양호 | 메모리 빠듯할 때 |
+| faster_whisper medium | ~1.5GB | 매우 우수 | gemma4 와 공존 시 OOM 위험 |
+| openai_whisper small | ~1.5GB | 우수 | OOM 위험 — faster_whisper 권장 |
+
+**⚠️ 모바일 사용 전제 — HTTPS 필수**: `MediaRecorder + getUserMedia` 는 Secure Context (HTTPS 또는 localhost) 에서만 동작합니다. Cloudflare Tunnel (STEP 6.3) 로 HTTPS 도메인을 이미 노출했다면 자동 충족. HTTP IP 접속 시 모바일에서 마이크 다이얼로그가 silent block — 권한 거부 토스트도 안 뜸.
+
+**확인 명령**:
+```powershell
+docker ps                                                  # teamworks-whisper Up 상태 확인
+docker logs --tail 20 teamworks-whisper                    # uvicorn 부팅 + 모델 로드 로그
+curl -X POST http://localhost:8080/api/stt -F "audio=@test.wav"   # /api/stt → whisper 라우팅 검증
+```
+
 
 > **RAG 서버 재기동 방법** — STEP 5.5 의 시작 스크립트를 다시 실행하거나, 직접 PowerShell 에서:
 >
@@ -965,11 +1022,14 @@ cd /d C:\TeamWorks\team-works
 git fetch origin
 git checkout %BRANCH%
 git pull origin %BRANCH%
-docker compose restart frontend backend
+docker compose up -d
+docker compose restart nginx
 echo 업데이트 완료. 브라우저에서 동작 확인하세요.
 echo (RAG 코드/문서/인덱스 변경이 있었으면 별도로 RAG 서버 재기동 필요)
 pause
 ```
+
+> `restart frontend backend` 가 아니라 `up -d` + `restart nginx` 로 변경 — compose 파일/env 변경(예: 신규 Whisper 서비스, WHISPER_URL env), nginx 설정 변경까지 모두 흡수. 코드만 바뀐 경우엔 `up -d` 가 변경 없음을 인식해 no-op 으로 빠르게 끝남 (안전).
 
 사용법:
 - `update.bat` — main 브랜치 갱신 (기본)

@@ -704,6 +704,44 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
                 </svg>
               ) : '전송'}
             </button>
+            {enableVoiceInput && stt.isSupported && (
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={stt.isListening ? stt.stop : stt.start}
+                  disabled={stt.isTranscribing || isLoading}
+                  className={`inline-flex items-center justify-center w-full rounded-lg py-1.5 px-3 transition-colors duration-150 ${
+                    stt.isListening
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : stt.isTranscribing
+                        ? 'bg-amber-400 text-white cursor-wait'
+                        : isLoading
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-dark-elevated dark:text-dark-text-disabled'
+                          : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:text-dark-text-muted dark:hover:bg-dark-elevated'
+                  }`}
+                  aria-label={stt.isListening ? '음성 입력 중지' : stt.isTranscribing ? '음성 변환 중' : isLoading ? '응답 대기 중' : '음성 입력 시작'}
+                  aria-pressed={stt.isListening}
+                  aria-busy={stt.isTranscribing || isLoading}
+                >
+                  {stt.isTranscribing ? (
+                    // 변환 중 스피너
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    // heroicons microphone
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 3a4 4 0 014 4v4a4 4 0 01-8 0V7a4 4 0 014-4z" />
+                    </svg>
+                  )}
+                </button>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                  {stt.isListening ? '음성 입력 중지' : stt.isTranscribing ? '음성 변환 중...' : isLoading ? '응답 대기 중' : '음성 입력 시작'}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800 dark:border-t-gray-700" />
+                </div>
+              </div>
+            )}
             {onToggleCalendar && (
               <div className="relative group">
                 <button
@@ -724,30 +762,6 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
                 </button>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
                   일정화면 보기
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800 dark:border-t-gray-700" />
-                </div>
-              </div>
-            )}
-            {enableVoiceInput && stt.isSupported && (
-              <div className="relative group">
-                <button
-                  type="button"
-                  onClick={stt.isListening ? stt.stop : stt.start}
-                  className={`inline-flex items-center justify-center w-full rounded-lg py-1.5 px-3 transition-colors duration-150 ${
-                    stt.isListening
-                      ? 'bg-red-500 text-white animate-pulse'
-                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:text-dark-text-muted dark:hover:bg-dark-elevated'
-                  }`}
-                  aria-label={stt.isListening ? '음성 입력 중지' : '음성 입력 시작'}
-                  aria-pressed={stt.isListening}
-                >
-                  {/* heroicons microphone */}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 3a4 4 0 014 4v4a4 4 0 01-8 0V7a4 4 0 014-4z" />
-                  </svg>
-                </button>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                  {stt.isListening ? '음성 입력 중지' : '음성 입력 시작'}
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800 dark:border-t-gray-700" />
                 </div>
               </div>

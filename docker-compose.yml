@@ -63,6 +63,8 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       # OPEN_WEBUI_MODEL: 강제 override (escape hatch). 명시 시 자동 해석 우회.
       OPEN_WEBUI_MODEL: ${OPEN_WEBUI_MODEL:-}
+      # 자체 호스팅 Whisper STT — 모바일/데스크톱 동일 엔진 보장 (Web Speech API quirk 우회)
+      WHISPER_URL: http://whisper:9000
       # Open WebUI 응답엔 URL 이 빠져 있어 SearxNG 를 직접 호출해 sources 보강
       SEARXNG_BASE_URL: http://searxng:8080
       WATCHPACK_POLLING: "true"
@@ -147,10 +149,34 @@ services:
       - teamworks-net
     restart: unless-stopped
 
+  # 자체 호스팅 Whisper (OpenAI 오픈소스 STT) — 모바일/데스크톱 STT 엔진 통일.
+  # 첫 부팅 시 ASR_MODEL 자동 다운로드 → whisper_cache 볼륨에 영속 저장 (재기동 시 재다운로드 X).
+  # 기본은 CPU 이미지 (Mac dev 호환) — 운영 GPU 환경은 image 를 :latest-gpu 로 swap + nvidia runtime 설정.
+  # 모델 선택 가이드:
+  #   - tiny   ~75MB    한국어 보통    초저사양 폴백
+  #   - base   ~145MB   한국어 양호    CPU 빠른 응답 (~1-2초)
+  #   - small  ~480MB   한국어 우수    균형 (RTX 3070 + gemma4 와 공존 가능)
+  #   - medium ~1.5GB   한국어 매우 우수  GPU 환경
+  #   - large-v3 ~3GB   한국어 최고     GPU + 충분한 VRAM
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: teamworks-whisper
+    expose:
+      - "9000"
+    environment:
+      ASR_MODEL: ${WHISPER_MODEL:-small}
+      ASR_ENGINE: openai_whisper
+    volumes:
+      - whisper_cache:/root/.cache/whisper
+    networks:
+      - teamworks-net
+    restart: unless-stopped
+
 volumes:
   backend_node_modules:
   frontend_node_modules:
   open_webui_data:
+  whisper_cache:
 
 networks:
   teamworks-net:
