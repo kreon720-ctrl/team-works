@@ -57,9 +57,11 @@ services:
       # 일반 질문 경로 — Open WebUI (컨테이너 네트워크 내부)
       OPEN_WEBUI_BASE_URL: http://open-webui:8080
       OPEN_WEBUI_API_KEY: ${OPEN_WEBUI_API_KEY:-}
-      # OPEN_WEBUI_MODEL: 미설정 시 frontend 가 Open WebUI /api/models 로
-      # 등록된 모델 중 chat 가능한 첫 번째를 자동 선택 (lib/openWebUiModel.ts).
-      # 강제 override 가 필요할 때만 .env 에 OPEN_WEBUI_MODEL=... 명시.
+      # 채팅 모델 자동 해석은 Ollama /api/ps (메모리 로드된 모델) 기준.
+      # 운영자는 ollama run <모델> 로 1개만 띄우면 그 모델이 Open WebUI 호출에 사용됨.
+      # 디스크에 여러 모델 설치돼 있어도 OK — 메모리 로드 1개 룰만 지키면 됨.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # OPEN_WEBUI_MODEL: 강제 override (escape hatch). 명시 시 자동 해석 우회.
       OPEN_WEBUI_MODEL: ${OPEN_WEBUI_MODEL:-}
       # Open WebUI 응답엔 URL 이 빠져 있어 SearxNG 를 직접 호출해 sources 보강
       SEARXNG_BASE_URL: http://searxng:8080
