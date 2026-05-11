@@ -22,8 +22,19 @@ async function postJson(pathname, body) {
   return res.json();
 }
 
+// 임베딩 모델은 CPU 로 분리 — VRAM 절약 (gemma4 + Whisper turbo 와 공존).
+// num_gpu: 0 → Ollama 가 모든 layer 를 CPU 에 로드 (GPU 미사용).
+// 작은 모델(nomic-embed-text 137M) 이라 CPU 추론도 200-500ms 로 실용 범위.
+// 자세한 배경·검증·롤백은 docs/embeding-cpu.md 참조.
+const EMBED_OPTIONS = { num_gpu: 0 };
+
 export async function embed(model, input) {
-  const data = await postJson("/api/embed", { model, input, keep_alive: KEEP_ALIVE_FOREVER });
+  const data = await postJson("/api/embed", {
+    model,
+    input,
+    keep_alive: KEEP_ALIVE_FOREVER,
+    options: EMBED_OPTIONS,
+  });
   const vec = data.embeddings?.[0];
   if (!Array.isArray(vec)) {
     throw new Error(`embed: invalid response for model ${model}`);
