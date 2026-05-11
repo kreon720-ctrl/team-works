@@ -89,26 +89,20 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
         <div className="flex flex-col gap-2">
           {/* Send + Mic — 한 줄에 아이콘 버튼 2개 */}
           <div className="flex gap-1">
-            {/* Send button — 아이콘만, 컴팩트 */}
+            {/* Send button — '전송' 텍스트, 컴팩트 */}
             <button
               type="button"
               onClick={handleSend}
               disabled={!isValidContent || isPending}
               aria-label="전송"
-              title="전송"
-              className="inline-flex items-center justify-center rounded-lg p-1.5 transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
+              className="inline-flex items-center justify-center gap-1 rounded-lg py-1.5 px-3 text-xs font-medium transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
             >
               {isPending ? (
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-              ) : (
-                // heroicons paper-airplane
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" />
-                </svg>
-              )}
+              ) : '전송'}
             </button>
 
             {/* Mic button — 음성 입력 토글 (비지원 환경에선 숨김) */}
