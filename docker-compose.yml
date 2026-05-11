@@ -152,20 +152,32 @@ services:
   # 자체 호스팅 Whisper (OpenAI 오픈소스 STT) — 모바일/데스크톱 STT 엔진 통일.
   # 첫 부팅 시 ASR_MODEL 자동 다운로드 → whisper_cache 볼륨에 영속 저장 (재기동 시 재다운로드 X).
   # 기본은 CPU 이미지 (Mac dev 호환) — 운영 GPU 환경은 image 를 :latest-gpu 로 swap + nvidia runtime 설정.
-  # 모델 선택 가이드:
-  #   - tiny   ~75MB    한국어 보통    초저사양 폴백
-  #   - base   ~145MB   한국어 양호    CPU 빠른 응답 (~1-2초)
-  #   - small  ~480MB   한국어 우수    균형 (RTX 3070 + gemma4 와 공존 가능)
-  #   - medium ~1.5GB   한국어 매우 우수  GPU 환경
-  #   - large-v3 ~3GB   한국어 최고     GPU + 충분한 VRAM
+  # 모델 선택 가이드 (faster_whisper 엔진 + CT2 양자화 기준):
+  #   - tiny           ~120MB   한국어 보통       초저사양 폴백
+  #   - base           ~250MB   한국어 양호       CPU 빠른 응답 (~1-2초)
+  #   - small          ~600MB   한국어 우수       균형
+  #   - medium         ~1.5GB   한국어 매우 우수
+  #   - large-v3-turbo ~1GB     한국어 최고       large-v3 와 동급 정확도, 5배 빠름 ★권장
+  #   - large-v3       ~3GB     한국어 최고       정확도는 turbo 와 비슷
+  #
+  # 한국어 특화: 위 표준 모델 외에 HuggingFace 의 한국어 fine-tuned 모델 사용 가능.
+  # 예: ASR_MODEL=ghost613/whisper-large-v3-turbo-korean (Zeroth-Korean·KsponSpeech 학습)
+  # 단, 모델이 CT2 (CTranslate2) 형식이어야 faster_whisper 가 직접 로드 가능.
   whisper:
     image: onerahmet/openai-whisper-asr-webservice:latest
     container_name: teamworks-whisper
     expose:
       - "9000"
     environment:
+      # small + faster_whisper — 다운로드 안정성 우선 (회선 이슈로 large/medium 1GB+ 받기 실패 빈번).
+      # CT2 양자화로 이전 openai_whisper small 대비 메모리 절반 + 미세하게 빠름.
+      # 회선·HF mirror 안정한 환경에선 .env 의 WHISPER_MODEL 로 large-v3-turbo / medium 으로 업그레이드.
       ASR_MODEL: ${WHISPER_MODEL:-small}
-      ASR_ENGINE: openai_whisper
+      ASR_ENGINE: ${WHISPER_ENGINE:-faster_whisper}
+      # HF Hub 의 새 xet storage backend 가 일부 환경에서 TLS 연결 끊김 → 모델 다운로드 실패.
+      # 안정적인 git-LFS 방식으로 폴백.
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+      HF_HUB_DISABLE_XET: "1"
     volumes:
       - whisper_cache:/root/.cache/whisper
     networks:
