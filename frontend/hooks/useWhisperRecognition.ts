@@ -20,7 +20,7 @@ interface UseSpeechRecognitionResult {
 // (Google Web Speech API 의 단일 발화 모드와 유사한 UX)
 
 const SILENCE_THRESHOLD_RMS = 0.015; // 0~1 normalized — 모바일 노이즈 고려한 보수적 값
-const SILENCE_DURATION_MS = 1000; // 발화 후 이 시간 침묵 지속 시 auto-stop
+const SILENCE_DURATION_MS = 2000; // 발화 후 이 시간 침묵 지속 시 auto-stop
 const MAX_RECORDING_MS = 30000; // 안전망 — 침묵 감지 실패해도 30초 후 강제 stop
 const VAD_TICK_MS = 100; // RMS 측정 주기
 
