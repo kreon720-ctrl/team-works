@@ -8,6 +8,7 @@ import type { ScheduleColor } from '@/types/schedule';
 import { CalendarMonthView } from './CalendarMonthView';
 import { CalendarWeekView } from './CalendarWeekView';
 import { CalendarDayView } from './CalendarDayView';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { PostItColorPalette } from './PostItColorPalette';
 import { ProjectGanttView } from '@/components/project/ProjectGanttView';
 import { useProjectStore } from '@/store/projectStore';
@@ -71,6 +72,14 @@ export function CalendarView({
 
     onDateChange?.(newDate);
   };
+
+  // 모바일 swipe — 오른쪽 swipe = 이전(prev), 왼쪽 swipe = 다음(next).
+  // month → 이전/다음 달, week → 이전/다음 주, day → 이전/다음 날 (navigateDate 가 view 에 따라 자동 처리).
+  // 가로 이동 ≥50px 만 인식 → 수직 스크롤 방해 X. 터치만 동작이라 PC 마우스는 영향 없음.
+  const swipeHandlers = useSwipeGesture({
+    onSwipeRight: () => navigateDate('prev'),
+    onSwipeLeft: () => navigateDate('next'),
+  });
 
   const formatDateRange = (): string => {
     const year = currentDate.getUTCFullYear();
@@ -276,7 +285,10 @@ export function CalendarView({
           />
         </div>
       ) : (
-        <div className={`px-2 ${view === 'month' ? 'overflow-y-auto flex-1 min-h-0' : 'flex-1 min-h-0'}`}>
+        <div
+          className={`px-2 ${view === 'month' ? 'overflow-y-auto flex-1 min-h-0' : 'flex-1 min-h-0'}`}
+          {...swipeHandlers}
+        >
           {view === 'month' && (
             <CalendarMonthView
               currentDate={currentDate}

@@ -249,8 +249,12 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
   }, [messages, isLoading]);
 
   useEffect(() => {
+    // 모바일(enableVoiceInput=true)에선 auto-focus 스킵 — 키보드 자동 팝업으로
+    // 화면이 가려지는 문제 방지. 사용자가 직접 입력창을 탭하면 그때 포커스됨.
+    // (음성 입력 모드 진입·split view 전환 시도 다 해당.)
+    if (enableVoiceInput) return;
     inputRef.current?.focus();
-  }, []);
+  }, [enableVoiceInput]);
 
   // STT (음성 입력) — 모바일 컨텍스트(enableVoiceInput=true) 에서만 활성.
   // hook 자체는 항상 호출 (Rules of Hooks). 비지원 브라우저는 isSupported=false 로 자체 차단.
@@ -533,7 +537,11 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
       ]);
     } finally {
       setIsLoading(false);
-      requestAnimationFrame(() => inputRef.current?.focus());
+      // 모바일에선 응답 직후 auto-focus 스킵 — 키보드 팝업으로 결과가 가려짐.
+      // PC 에선 다음 질문 위해 자동 포커스 유지.
+      if (!enableVoiceInput) {
+        requestAnimationFrame(() => inputRef.current?.focus());
+      }
     }
   }
 

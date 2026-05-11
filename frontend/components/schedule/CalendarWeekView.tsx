@@ -102,7 +102,9 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
 
   // ─── 상수 ────────────────────────────────────────────────────────────────────
   const weekdays   = ['일', '월', '화', '수', '목', '금', '토'];
-  const TIME_COL_W = 'w-14';
+  // 시간 표시 컬럼 — "08:00" 5자 + 좌우 padding 이 들어갈 최소 폭.
+  // 모바일 w-10 (40px) 빠듯하지만 가능, PC w-12 (48px) 여유. 요일 컬럼은 flex-1 라 자동 확장.
+  const TIME_COL_W = 'w-10 md:w-12';
 
   return (
     <div className="w-full">
@@ -143,10 +145,10 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
               return (
                 <div key={schedule.id} className="grid grid-cols-[auto_repeat(7,1fr)] border-b border-gray-100 dark:border-dark-border last:border-b-0">
                   <div className={TIME_COL_W} />
-                  <div className="px-1 py-0.5" style={{ gridColumn: `${colStart} / ${colEnd}` }}>
+                  <div className="px-0 md:px-1 py-0 md:py-0.5" style={{ gridColumn: `${colStart} / ${colEnd}` }}>
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className={`text-[11px] md:text-xs ${COLOR_CLASSES[schedule.color ?? 'indigo'].bgDarker} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-1 py-0.5 rounded truncate cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors`}
+                      className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bgDarker} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1 py-0 md:py-0.5 rounded-none md:rounded truncate cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors`}
                       title={schedule.title}
                     >
                       {schedule.title}
@@ -204,7 +206,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
               className="absolute left-0 right-0 flex border-b border-gray-100 dark:border-dark-border pointer-events-none"
               style={{ top: `${hour * HOUR_PX}px`, height: `${HOUR_PX}px` }}
             >
-              <div className={`${TIME_COL_W} flex-shrink-0 border-r border-gray-200 dark:border-dark-border px-1 pt-1 text-xs text-gray-400 dark:text-dark-text-disabled`}>
+              <div className={`${TIME_COL_W} flex-shrink-0 border-r border-gray-200 dark:border-dark-border px-0.5 md:px-1 pt-0.5 md:pt-1 text-[10px] md:text-xs text-gray-400 dark:text-dark-text-disabled text-center md:text-left`}>
                 {String(hour).padStart(2, '0')}:00
               </div>
               {weekDays.map(date => (
@@ -234,7 +236,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                     return (
                       <div
                         key={schedule.id}
-                        className="absolute px-0.5"
+                        className="absolute px-0 md:px-0.5"
                         style={{ top: `${top}px`, height: `${durationH}px`, left: `${leftPct}%`, width: `${colWPct}%` }}
                       >
                         <div
@@ -242,10 +244,10 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                           onMouseLeave={() => setTooltip(null)}
-                          className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-1.5 py-0.5 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
+                          className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
                         >
-                          <div className="font-medium text-[11px] md:text-xs break-words leading-tight">{schedule.title}</div>
-                          <div className="opacity-75 text-[10px] truncate">
+                          <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words">{schedule.title}</div>
+                          <div className="opacity-75 text-[9px] md:text-[10px] leading-[1.1] md:leading-normal truncate">
                             {formatTime(start)} ~ {formatTime(end)}
                           </div>
                         </div>
