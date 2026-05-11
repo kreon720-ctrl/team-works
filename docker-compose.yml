@@ -225,14 +225,13 @@ services:
     restart: unless-stopped
     # NVIDIA GPU 1개 할당 — Ollama 와 같은 GPU 공유.
     # 전제: NVIDIA Container Toolkit 설치 (Windows: Docker Desktop GPU 지원 활성화).
-    # 측정 중 CPU 강제 — 원복: 아래 deploy 블록 주석 해제.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 volumes:
   backend_node_modules:
