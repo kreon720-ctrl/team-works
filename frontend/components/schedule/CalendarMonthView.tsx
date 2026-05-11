@@ -18,6 +18,8 @@ interface CalendarMonthViewProps {
   currentUserId?: string;
   onPostitDelete?: (id: string, date: string) => void;
   onPostitContentChange?: (id: string, content: string) => void;
+  // 모바일 모드 — 일정 밴드 글자폭·줄높이 계산을 모바일 스타일(text-[10px] leading-[1.1]) 기준으로.
+  compact?: boolean;
 }
 
 const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string }> = {
@@ -29,7 +31,9 @@ const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: 
 };
 
 const AVG_CHAR_WIDTH_PX = 13;
+const AVG_CHAR_WIDTH_PX_MOBILE = 11; // text-[10px] 한국어 한 글자 ≈ 11px
 const BAR_LINE_HEIGHT_PX = 16;
+const BAR_LINE_HEIGHT_PX_MOBILE = 11; // leading-[1.1] × 10px font
 const BAR_PADDING_V_PX = 4;
 const MIN_BAR_HEIGHT = 20;
 const SCHEDULE_ROW_GAP = 2;
@@ -46,6 +50,7 @@ export function CalendarMonthView({
   currentUserId = '',
   onPostitDelete,
   onPostitContentChange,
+  compact = false,
 }: CalendarMonthViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -121,12 +126,21 @@ export function CalendarMonthView({
       : `(${sm}월${sd}일~${em}월${ed}일)`;
   };
 
+  // 모바일/PC 분기 — text-[10px] leading-[1.1] vs text-xs leading-tight 차이로
+  // 글자폭·줄높이가 다름. PC 값만 쓰면 모바일에서 height 과대 산출 → 멀티데이 밴드
+  // 아래 빈 여백 발생. compact prop 으로 직접 결정 (containerWidth 임계값은 갤럭시
+  // 플립 가로 모드 같은 케이스 오판할 수 있어 명시적 prop 채택).
+  const charWidthPx = compact ? AVG_CHAR_WIDTH_PX_MOBILE : AVG_CHAR_WIDTH_PX;
+  const lineHeightPx = compact ? BAR_LINE_HEIGHT_PX_MOBILE : BAR_LINE_HEIGHT_PX;
+
   const getBarHeight = (text: string, spanCols: number): number => {
     if (containerWidth <= 0) return MIN_BAR_HEIGHT;
-    const barWidthPx = (spanCols / 7) * containerWidth - 16;
-    const charsPerLine = Math.max(1, Math.floor(barWidthPx / AVG_CHAR_WIDTH_PX));
+    // 모바일은 셀 padding 0 (-mx-0.5 로 밴드가 셀 경계까지), PC 는 양쪽 8px = 16px.
+    const cellPadPx = compact ? 0 : 16;
+    const barWidthPx = (spanCols / 7) * containerWidth - cellPadPx;
+    const charsPerLine = Math.max(1, Math.floor(barWidthPx / charWidthPx));
     const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-    return Math.max(MIN_BAR_HEIGHT, lines * BAR_LINE_HEIGHT_PX + BAR_PADDING_V_PX);
+    return Math.max(MIN_BAR_HEIGHT, lines * lineHeightPx + BAR_PADDING_V_PX);
   };
 
   const getMultiDaySchedulesForWeek = (weekDays: Date[]): {

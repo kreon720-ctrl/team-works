@@ -86,23 +86,23 @@ export function PostItCard({ postit, currentUserId, onDelete, onContentChange }:
               : `2px 3px 8px ${style.shadow}, inset 0 -2px 4px rgba(0,0,0,0.04)`,
         }}
       >
-        {/* 상단 여백(색상 줄) — 모바일은 X 버튼 들어가도록 h-4 (16px), PC 는 기존 h-1.5 (6px) */}
+        {/* 상단 여백(색상 줄) — 모바일은 X 들어가는 최소 높이 h-2.5 (10px), PC 는 기존 h-1.5 (6px) */}
         <div
-          className="relative w-full h-4 md:h-1.5 flex-shrink-0 flex items-center justify-end"
+          className="relative w-full h-2.5 md:h-1.5 flex-shrink-0 flex items-center justify-end"
           style={{ background: activeBorder, opacity: isDark ? 0.8 : 0.6 }}
         >
-          {/* 모바일 X 삭제 버튼 — 상단 여백 우측. PC 는 휴지통(아래) 으로 분기 */}
+          {/* 모바일 X 삭제 버튼 — 상단 여백 우측. PC 는 휴지통(아래) 으로 분기. */}
           {isCreator && (
             <button
               type="button"
               onClick={() => onDelete(postit.id, postit.date)}
-              className="md:hidden absolute right-0.5 top-1/2 -translate-y-1/2 p-0.5 leading-none opacity-80 hover:opacity-100"
+              className="md:hidden absolute right-0 top-1/2 -translate-y-1/2 p-0 leading-none opacity-80 hover:opacity-100"
               style={{ color: activeText }}
               title="포스트잇 삭제"
               aria-label="포스트잇 삭제"
             >
-              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              <svg className="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}

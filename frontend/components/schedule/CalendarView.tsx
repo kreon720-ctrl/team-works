@@ -326,6 +326,7 @@ export function CalendarView({
               currentUserId={currentUserId}
               onPostitDelete={onPostitDelete}
               onPostitContentChange={onPostitContentChange}
+              compact={compact}
             />
           )}
           {view === 'week' && (
