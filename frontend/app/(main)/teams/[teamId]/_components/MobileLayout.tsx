@@ -5,7 +5,8 @@ import { ChatPanel } from '@/components/chat/ChatPanel';
 import { AIAssistantPanel } from '@/components/ai-assistant/AIAssistantPanel';
 import { ResizableSplit } from '@/components/common/ResizableSplit';
 import { CalendarSection } from './CalendarSection';
-import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType } from '@/types/schedule';
+import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType, ScheduleColor } from '@/types/schedule';
+import type { PostIt } from '@/types/postit';
 
 type MobileTab = 'calendar' | 'chat' | 'ai-assistant';
 
@@ -20,6 +21,12 @@ interface MobileLayoutProps {
   // 일정 상세 모달의 수정/삭제 버튼 표시용 — schedule.createdBy 와 비교해
   // 자기가 만든 일정만 수정·삭제 가능. PC 와 동일하게 부모(team page)에서 전달.
   currentUserId: string | undefined;
+  // 포스트잇 — PC 와 동일하게 월간뷰에서 사용. 색상 팔레트는 view tabs 줄 아래 별도 행으로 표시.
+  postits: PostIt[];
+  selectedPostitColor: ScheduleColor | null;
+  onPostitColorSelect: (color: ScheduleColor | null) => void;
+  onPostitDelete: (id: string, date: string) => void;
+  onPostitContentChange: (id: string, content: string) => void;
   activeTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
   onViewChange: (view: 'month' | 'week' | 'day' | 'project') => void;
@@ -55,6 +62,11 @@ export function MobileLayout({
   schedules,
   isLeader,
   currentUserId,
+  postits,
+  selectedPostitColor,
+  onPostitColorSelect,
+  onPostitDelete,
+  onPostitContentChange,
   activeTab,
   onTabChange,
   onViewChange,
@@ -91,11 +103,11 @@ export function MobileLayout({
       selectedDate={selectedDate}
       calendarView={calendarView}
       schedules={schedules}
-      postits={[]}
+      postits={postits}
       currentUserId={currentUserId}
       isLeader={isLeader}
       compact={true}
-      selectedPostitColor={null}
+      selectedPostitColor={selectedPostitColor}
       showCreateModal={showCreateModal}
       showEditModal={showEditModal}
       showDetailModal={showDetailModal}
@@ -106,9 +118,9 @@ export function MobileLayout({
       updateScheduleIsPending={updateScheduleIsPending}
       updateScheduleError={updateScheduleError}
       deleteScheduleIsPending={deleteScheduleIsPending}
-      onPostitColorSelect={() => {}}
-      onPostitDelete={() => {}}
-      onPostitContentChange={() => {}}
+      onPostitColorSelect={onPostitColorSelect}
+      onPostitDelete={onPostitDelete}
+      onPostitContentChange={onPostitContentChange}
       onViewChange={onViewChange}
       onDateChange={onDateChange}
       onDateClick={onDateClick}

@@ -324,6 +324,11 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         schedules={schedules}
         isLeader={isLeader}
         currentUserId={currentUser?.id}
+        postits={postits}
+        selectedPostitColor={postitActions.selectedPostitColor}
+        onPostitColorSelect={postitActions.setSelectedPostitColor}
+        onPostitDelete={postitActions.handlePostitDelete}
+        onPostitContentChange={postitActions.handlePostitContentChange}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onViewChange={handleViewChange}

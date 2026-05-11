@@ -152,8 +152,8 @@ export function CalendarView({
 
   return (
     <div className="w-full bg-white dark:bg-dark-surface flex flex-col flex-1 min-h-0">
-      {/* Navigation header */}
-      <div className="flex items-center justify-between mb-4 px-2">
+      {/* Navigation header — 모바일은 mb-1, PC 는 mb-4 (모바일 팔레트 위 회색 여백 축소) */}
+      <div className="flex items-center justify-between mb-1 md:mb-4 px-2">
         {/* Navigation buttons (hidden in project view) */}
         <div className="flex items-center gap-2">
           {!isProjectView && (
@@ -284,6 +284,17 @@ export function CalendarView({
           )}
         </div>
       </div>
+
+      {/* 모바일 월간뷰 포스트잇 색상 팔레트 — view tabs 줄 아래 별도 row, 우측 정렬.
+         상하 마진 최소화로 회색 띠를 얇게. */}
+      {compact && view === 'month' && !!onPostitColorSelect && (
+        <div className="flex justify-end mb-0.5 px-2">
+          <PostItColorPalette
+            selectedColor={selectedPostitColor ?? null}
+            onSelect={onPostitColorSelect}
+          />
+        </div>
+      )}
 
       {/* Calendar / Project content */}
       {isProjectView ? (

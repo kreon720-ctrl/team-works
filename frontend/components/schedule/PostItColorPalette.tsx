@@ -27,8 +27,8 @@ const COLOR_BORDER: Record<ScheduleColor, string> = {
 
 export function PostItColorPalette({ selectedColor, onSelect }: PostItColorPaletteProps) {
   return (
-    <div className="flex items-center gap-1">
-      <span className="text-sm text-gray-500 dark:text-dark-text-muted mr-0.5 whitespace-nowrap">
+    <div className="flex items-center gap-0.5 md:gap-1">
+      <span className="text-xs md:text-sm text-gray-500 dark:text-dark-text-muted mr-0.5 whitespace-nowrap">
         {selectedColor ? '날짜클릭' : '포스트잇'}
       </span>
       {SCHEDULE_COLORS.map(color => (
@@ -37,7 +37,7 @@ export function PostItColorPalette({ selectedColor, onSelect }: PostItColorPalet
           type="button"
           title={`${color} 포스트잇 추가`}
           onClick={() => onSelect(selectedColor === color ? null : color)}
-          className="w-4 h-4 rounded-sm transition-transform hover:scale-110 flex-shrink-0"
+          className="w-3 h-3 md:w-4 md:h-4 rounded-sm transition-transform hover:scale-110 flex-shrink-0"
           style={{
             background: COLOR_BG[color],
             border: selectedColor === color

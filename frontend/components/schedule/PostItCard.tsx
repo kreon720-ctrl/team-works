@@ -67,40 +67,38 @@ export function PostItCard({ postit, currentUserId, onDelete, onContentChange }:
 
   return (
     <div
-      className="relative w-[90%] mx-auto mt-1 flex-shrink-0"
-      style={{ minHeight: '72px' }}
+      className="relative w-[95%] md:w-[90%] mx-auto mt-0.5 md:mt-1 flex-shrink-0 min-h-[36px] md:min-h-[72px]"
       onClick={e => e.stopPropagation()}
     >
       {/* 카드 본체 */}
       <div
-        className="relative w-full rounded-sm overflow-hidden"
+        className="relative w-full rounded-sm overflow-hidden min-h-[36px] md:min-h-[72px]"
         style={{
           background: activeBg,
           border: isDark ? `1px solid ${activeBorder}` : undefined,
           boxShadow: isDark
             ? `0 0 0 1px ${activeBorder}, 2px 3px 8px ${activeShadow}`
             : `2px 3px 8px ${style.shadow}, inset 0 -2px 4px rgba(0,0,0,0.04)`,
-          minHeight: '72px',
         }}
       >
         {/* 상단 색상 줄 (포스트잇 접착 부분 느낌) */}
         <div
-          className="w-full h-1.5 flex-shrink-0"
+          className="w-full h-1 md:h-1.5 flex-shrink-0"
           style={{ background: activeBorder, opacity: isDark ? 0.8 : 0.6 }}
         />
 
         {/* 내용 영역 */}
-        <div className="relative px-2 pt-1.5 pb-2">
+        <div className="relative px-1 md:px-2 pt-0.5 md:pt-1.5 pb-0.5 md:pb-2">
           {/* 삭제 버튼 (생성자만) — absolute, 텍스트 영역 오른쪽 패딩으로 겹침 방지 */}
           {isCreator && (
             <button
               type="button"
               onClick={() => onDelete(postit.id, postit.date)}
-              className="absolute top-1 right-1 p-0.5 rounded opacity-40 hover:opacity-90 transition-opacity"
+              className="absolute top-0.5 md:top-1 right-0.5 md:right-1 p-0.5 rounded opacity-40 hover:opacity-90 transition-opacity"
               style={{ color: activeText }}
               title="포스트잇 삭제"
             >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
@@ -113,14 +111,12 @@ export function PostItCard({ postit, currentUserId, onDelete, onContentChange }:
             onBlur={handleBlur}
             readOnly={!isCreator}
             placeholder={isCreator ? '메모를 입력하세요...' : ''}
-            rows={3}
+            rows={2}
             maxLength={MAX_LENGTH}
-            className="w-full bg-transparent resize-none overflow-hidden leading-relaxed outline-none border-none placeholder-current/40"
+            className="w-full bg-transparent resize-none overflow-hidden leading-[1.15] md:leading-relaxed outline-none border-none placeholder-current/40 text-[10px] md:text-xs min-h-[20px] md:min-h-[52px]"
             style={{
               color: activeText,
-              fontSize: '12px',
-              minHeight: '52px',
-              paddingRight: isCreator ? '18px' : undefined,
+              paddingRight: isCreator ? '14px' : undefined,
               cursor: isCreator ? 'text' : 'default',
             }}
           />
