@@ -3,6 +3,7 @@
 import React from 'react';
 import { Schedule } from '@/types/schedule';
 import { Button } from '@/components/common/Button';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface ScheduleDetailModalProps {
   isOpen: boolean;
@@ -23,10 +24,13 @@ export function ScheduleDetailModal({
   onDelete,
   isDeleting = false,
 }: ScheduleDetailModalProps) {
+  const { isMobile } = useBreakpoint();
   if (!isOpen || !schedule) return null;
 
   // 일정을 등록한 사람만 수정/삭제 가능
   const canEditOrDelete = currentUserId === schedule.createdBy;
+  // 모바일은 sm 사이즈로 축소. PC 는 기존 md 유지.
+  const btnSize = isMobile ? 'sm' : 'md';
 
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr);
@@ -56,10 +60,10 @@ export function ScheduleDetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors duration-150"
+            className="rounded-full p-1 md:p-1.5 hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors duration-150"
             aria-label="닫기"
           >
-            <svg className="w-5 h-5 text-gray-600 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-600 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -104,7 +108,7 @@ export function ScheduleDetailModal({
               <Button
                 type="button"
                 variant="primary"
-                size="md"
+                size={btnSize}
                 onClick={onEdit}
               >
                 수정
@@ -112,7 +116,7 @@ export function ScheduleDetailModal({
               <Button
                 type="button"
                 variant="danger"
-                size="md"
+                size={btnSize}
                 onClick={onDelete}
                 disabled={isDeleting}
               >
@@ -123,7 +127,7 @@ export function ScheduleDetailModal({
           <Button
             type="button"
             variant="secondary"
-            size="md"
+            size={btnSize}
             onClick={onClose}
           >
             닫기
