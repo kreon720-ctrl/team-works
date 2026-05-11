@@ -56,11 +56,12 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
     date: selectedDate,
   });
 
-  // 포스트잇: 현재 월 (YYYY-MM) 기준 조회 — PC + 월간뷰 전용
+  // 포스트잇: 현재 월 (YYYY-MM) 기준 조회 — 월간뷰일 때 (PC·모바일 공통).
+  // 모바일도 월간뷰 헤더 아래에 색상 팔레트와 포스트잇 카드가 노출되므로 데이터 fetch 필요.
   const postitMonth = selectedDate.slice(0, 7);
   const { data: postitsData } = usePostits(
     teamId,
-    isDesktop && calendarView === 'month' ? postitMonth : ''
+    calendarView === 'month' ? postitMonth : ''
   );
   const { data: myTasksData } = useMyTasks();
   const pendingCount = myTasksData?.totalPendingCount ?? 0;

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import type { PostIt } from '@/types/postit';
 import type { ScheduleColor } from '@/types/schedule';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface PostItCardProps {
   postit: PostIt;
@@ -65,40 +66,60 @@ export function PostItCard({ postit, currentUserId, onDelete, onContentChange }:
   const activeText   = isDark ? style.darkText   : style.text;
   const activeShadow = isDark ? style.darkShadow : style.shadow;
 
+  const { isMobile } = useBreakpoint();
+
   return (
     <div
-      className="relative w-[95%] md:w-[90%] mx-auto mt-0.5 md:mt-1 flex-shrink-0 min-h-[36px] md:min-h-[72px]"
+      className="relative w-full md:w-[90%] md:mx-auto mt-0.5 md:mt-1 flex-shrink-0 min-h-[36px] md:min-h-[72px]"
       onClick={e => e.stopPropagation()}
     >
-      {/* 카드 본체 */}
+      {/* 카드 본체 — 모바일은 테두리·그림자·rounded 모두 제거, PC 만 유지 */}
       <div
-        className="relative w-full rounded-sm overflow-hidden min-h-[36px] md:min-h-[72px]"
+        className="relative w-full rounded-none md:rounded-sm overflow-hidden min-h-[36px] md:min-h-[72px]"
         style={{
           background: activeBg,
-          border: isDark ? `1px solid ${activeBorder}` : undefined,
-          boxShadow: isDark
-            ? `0 0 0 1px ${activeBorder}, 2px 3px 8px ${activeShadow}`
-            : `2px 3px 8px ${style.shadow}, inset 0 -2px 4px rgba(0,0,0,0.04)`,
+          border: !isMobile && isDark ? `1px solid ${activeBorder}` : undefined,
+          boxShadow: isMobile
+            ? undefined
+            : isDark
+              ? `0 0 0 1px ${activeBorder}, 2px 3px 8px ${activeShadow}`
+              : `2px 3px 8px ${style.shadow}, inset 0 -2px 4px rgba(0,0,0,0.04)`,
         }}
       >
-        {/* 상단 색상 줄 (포스트잇 접착 부분 느낌) */}
+        {/* 상단 여백(색상 줄) — 모바일은 X 버튼 들어가도록 h-4 (16px), PC 는 기존 h-1.5 (6px) */}
         <div
-          className="w-full h-1 md:h-1.5 flex-shrink-0"
+          className="relative w-full h-4 md:h-1.5 flex-shrink-0 flex items-center justify-end"
           style={{ background: activeBorder, opacity: isDark ? 0.8 : 0.6 }}
-        />
-
-        {/* 내용 영역 */}
-        <div className="relative px-1 md:px-2 pt-0.5 md:pt-1.5 pb-0.5 md:pb-2">
-          {/* 삭제 버튼 (생성자만) — absolute, 텍스트 영역 오른쪽 패딩으로 겹침 방지 */}
+        >
+          {/* 모바일 X 삭제 버튼 — 상단 여백 우측. PC 는 휴지통(아래) 으로 분기 */}
           {isCreator && (
             <button
               type="button"
               onClick={() => onDelete(postit.id, postit.date)}
-              className="absolute top-0.5 md:top-1 right-0.5 md:right-1 p-0.5 rounded opacity-40 hover:opacity-90 transition-opacity"
+              className="md:hidden absolute right-0.5 top-1/2 -translate-y-1/2 p-0.5 leading-none opacity-80 hover:opacity-100"
+              style={{ color: activeText }}
+              title="포스트잇 삭제"
+              aria-label="포스트잇 삭제"
+            >
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* 내용 영역 — 모바일은 padding 모두 0, PC 는 기존 패딩 */}
+        <div className="relative px-0 md:px-2 pt-0 md:pt-1.5 pb-0 md:pb-2">
+          {/* PC 휴지통 삭제 버튼 — 모바일은 위 X 로 대체 */}
+          {isCreator && (
+            <button
+              type="button"
+              onClick={() => onDelete(postit.id, postit.date)}
+              className="hidden md:block absolute top-1 right-1 p-0.5 rounded opacity-40 hover:opacity-90 transition-opacity"
               style={{ color: activeText }}
               title="포스트잇 삭제"
             >
-              <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
@@ -116,7 +137,8 @@ export function PostItCard({ postit, currentUserId, onDelete, onContentChange }:
             className="w-full bg-transparent resize-none overflow-hidden leading-[1.15] md:leading-relaxed outline-none border-none placeholder-current/40 text-[10px] md:text-xs min-h-[20px] md:min-h-[52px]"
             style={{
               color: activeText,
-              paddingRight: isCreator ? '14px' : undefined,
+              // 모바일은 padding 0 (X 가 상단 헤더에 있어 textarea 폭 가릴 필요 X). PC 는 휴지통 겹침 방지 14px.
+              paddingRight: !isMobile && isCreator ? '14px' : undefined,
               cursor: isCreator ? 'text' : 'default',
             }}
           />
