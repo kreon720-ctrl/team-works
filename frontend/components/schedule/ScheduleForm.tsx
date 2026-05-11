@@ -217,7 +217,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                   newDate.setMonth(newDate.getMonth() - 1);
                   setSelectedDate(newDate);
                 }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                className="p-1.5 rounded-lg text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -233,7 +233,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                   newDate.setMonth(newDate.getMonth() + 1);
                   setSelectedDate(newDate);
                 }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                className="p-1.5 rounded-lg text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -296,7 +296,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('hours', (hours + 1) % 24)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -316,7 +316,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('hours', (hours + 23) % 24)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -333,7 +333,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('minutes', (minutes + 1) % 60)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -353,7 +353,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('minutes', (minutes + 59) % 60)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -364,19 +364,19 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
               </div>
             </div>
 
-            {/* 버튼 — 컴팩트 + 적용 버튼 앰버골드 */}
-            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
+            {/* 버튼 — 가로폭 40% (각 버튼 row 의 1/5), 중앙 정렬 */}
+            <div className="flex justify-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
               <button
                 type="button"
                 onClick={handleApply}
-                className="flex-1 px-3 py-1.5 bg-amber-400 hover:bg-amber-500 text-gray-900 rounded-lg transition-colors text-sm font-medium"
+                className="w-1/5 px-2 py-1.5 bg-amber-400 hover:bg-amber-500 text-gray-900 rounded-lg transition-colors text-sm font-medium"
               >
                 적용
               </button>
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors text-sm font-medium"
+                className="w-1/5 px-2 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors text-sm font-medium"
               >
                 닫기
               </button>
