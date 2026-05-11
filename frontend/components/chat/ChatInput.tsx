@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, useEffect, KeyboardEvent } from 'react';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 export type ChatMessageMode = 'NORMAL' | 'WORK_PERFORMANCE' | 'NOTICE';
 
@@ -14,6 +15,13 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
   const [content, setContent] = useState('');
   const [mode, setMode] = useState<ChatMessageMode>('NORMAL');
 
+  // 음성 입력 (STT) — Galaxy/Samsung 등 quirk 자동 회피하는 hybrid hook
+  const stt = useSpeechRecognition();
+  // transcript 가 들어오면 입력창에 반영 (덮어쓰기)
+  useEffect(() => {
+    if (stt.transcript) setContent(stt.transcript);
+  }, [stt.transcript]);
+
   const isValidContent = content.trim().length > 0 && content.length <= maxContentLength;
 
   const handleSend = () => {
@@ -21,6 +29,9 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
     onSend(content.trim(), mode);
     setContent('');
     setMode('NORMAL');
+    // 음성 잔여 정리
+    if (stt.isListening) stt.stop();
+    stt.reset();
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -76,20 +87,61 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
         />
 
         <div className="flex flex-col gap-2">
-          {/* Send button */}
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!isValidContent || isPending}
-            className="inline-flex items-center justify-center gap-1 rounded-lg py-1.5 px-3 text-xs font-medium transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
-          >
-            {isPending ? (
-              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : '전송'}
-          </button>
+          {/* Send + Mic — 한 줄에 아이콘 버튼 2개 */}
+          <div className="flex gap-1">
+            {/* Send button — 아이콘만, 컴팩트 */}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!isValidContent || isPending}
+              aria-label="전송"
+              title="전송"
+              className="inline-flex items-center justify-center rounded-lg p-1.5 transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
+            >
+              {isPending ? (
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                // heroicons paper-airplane
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.993.993 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z" />
+                </svg>
+              )}
+            </button>
+
+            {/* Mic button — 음성 입력 토글 (비지원 환경에선 숨김) */}
+            {stt.isSupported && (
+              <button
+                type="button"
+                onClick={stt.isListening ? stt.stop : stt.start}
+                disabled={stt.isTranscribing || isPending}
+                aria-label={stt.isListening ? '음성 입력 중지' : stt.isTranscribing ? '음성 변환 중' : '음성 입력 시작'}
+                aria-pressed={stt.isListening}
+                title={stt.isListening ? '음성 입력 중지' : '음성 입력'}
+                className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors duration-150 ${
+                  stt.isListening
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : stt.isTranscribing
+                      ? 'bg-amber-400 text-white cursor-wait'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:text-dark-text-muted dark:hover:bg-dark-elevated'
+                }`}
+              >
+                {stt.isTranscribing ? (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  // heroicons microphone
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 3a4 4 0 014 4v4a4 4 0 01-8 0V7a4 4 0 014-4z" />
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
 
           {/* 업무보고 toggle */}
           <button
