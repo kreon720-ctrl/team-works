@@ -364,19 +364,19 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
               </div>
             </div>
 
-            {/* 버튼 */}
-            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
+            {/* 버튼 — 컴팩트 + 적용 버튼 앰버골드 */}
+            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
               <button
                 type="button"
                 onClick={handleApply}
-                className="flex-1 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors font-medium"
+                className="flex-1 px-3 py-1.5 bg-amber-400 hover:bg-amber-500 text-gray-900 rounded-lg transition-colors text-sm font-medium"
               >
                 적용
               </button>
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-dark-border rounded-xl text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors font-medium"
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors text-sm font-medium"
               >
                 닫기
               </button>
