@@ -58,6 +58,10 @@ export function CalendarView({
   teamId,
   isLeader = false,
 }: CalendarViewProps) {
+  // 마지막 네비게이션 방향 — slide 애니메이션 방향 결정에 사용.
+  // next: 새 콘텐츠가 오른쪽에서 슬라이드 인. prev: 왼쪽에서 슬라이드 인.
+  const [slideDirection, setSlideDirection] = React.useState<'next' | 'prev'>('next');
+
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
     newDate.setUTCDate(1);
@@ -70,6 +74,7 @@ export function CalendarView({
       newDate.setUTCDate(currentDate.getUTCDate() + (direction === 'next' ? 1 : -1));
     }
 
+    setSlideDirection(direction);
     onDateChange?.(newDate);
   };
 
@@ -80,6 +85,11 @@ export function CalendarView({
     onSwipeRight: () => navigateDate('prev'),
     onSwipeLeft: () => navigateDate('next'),
   });
+
+  // 콘텐츠 wrapper 의 key — date 가 바뀌면 remount 되어 keyframe 애니메이션 트리거.
+  // view 도 키에 포함 — 탭 전환 시(month↔week 등) 도 새 슬라이드 인 효과.
+  const contentAnimKey = `${view}-${currentDate.toISOString()}`;
+  const slideClassName = slideDirection === 'next' ? 'calendar-slide-next' : 'calendar-slide-prev';
 
   const formatDateRange = (): string => {
     const year = currentDate.getUTCFullYear();
@@ -286,9 +296,10 @@ export function CalendarView({
         </div>
       ) : (
         <div
-          className={`px-2 ${view === 'month' ? 'overflow-y-auto flex-1 min-h-0' : 'flex-1 min-h-0'}`}
+          className={`px-2 ${view === 'month' ? 'overflow-y-auto flex-1 min-h-0' : 'flex-1 min-h-0'} overflow-x-hidden`}
           {...swipeHandlers}
         >
+          <div key={contentAnimKey} className={slideClassName}>
           {view === 'month' && (
             <CalendarMonthView
               currentDate={currentDate}
@@ -320,6 +331,7 @@ export function CalendarView({
               onScheduleClick={onScheduleClick}
             />
           )}
+          </div>
         </div>
       )}
     </div>
