@@ -80,8 +80,8 @@ export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPan
 
   return (
     <div className="flex flex-col h-full">
-      {/* sub-tab — 채팅 / 자료실 */}
-      <div className="flex border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
+      {/* sub-tab — 채팅 / 자료실 + 우측에 현재 날짜 표시 (팀 일자별 채팅에 한해) */}
+      <div className="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
         <button
           type="button"
           onClick={() => setSubTab('chat')}
@@ -104,6 +104,12 @@ export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPan
         >
           자료실
         </button>
+        {/* 팀 일자별 채팅 — 현재 채팅창의 날짜 표시. 프로젝트 채팅(projectId 있는 경우)엔 표시 안 함. */}
+        {date && !projectId && (
+          <span className="ml-auto px-3 text-xs font-medium text-gray-600 dark:text-dark-text-muted">
+            {date.length === 10 ? `${date.slice(0, 4)}년 ${date.slice(5, 7)}월 ${date.slice(8, 10)}일` : date}
+          </span>
+        )}
       </div>
 
       {/*

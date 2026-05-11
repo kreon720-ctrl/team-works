@@ -61,6 +61,9 @@ export function CalendarView({
   // 마지막 네비게이션 방향 — slide 애니메이션 방향 결정에 사용.
   // next: 새 콘텐츠가 오른쪽에서 슬라이드 인. prev: 왼쪽에서 슬라이드 인.
   const [slideDirection, setSlideDirection] = React.useState<'next' | 'prev'>('next');
+  // 네비게이션 시퀀스 — navigateDate (좌우 swipe / < > 버튼) 호출 시에만 증가.
+  // 단순 날짜 클릭(onDateClick) 이나 외부 currentDate 변경으로는 증가 X → 애니메이션 트리거 X.
+  const [navAnimSeq, setNavAnimSeq] = React.useState(0);
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -75,6 +78,7 @@ export function CalendarView({
     }
 
     setSlideDirection(direction);
+    setNavAnimSeq(n => n + 1);
     onDateChange?.(newDate);
   };
 
@@ -86,9 +90,9 @@ export function CalendarView({
     onSwipeLeft: () => navigateDate('next'),
   });
 
-  // 콘텐츠 wrapper 의 key — date 가 바뀌면 remount 되어 keyframe 애니메이션 트리거.
-  // view 도 키에 포함 — 탭 전환 시(month↔week 등) 도 새 슬라이드 인 효과.
-  const contentAnimKey = `${view}-${currentDate.toISOString()}`;
+  // 콘텐츠 wrapper 의 key — view 또는 navAnimSeq 변경 시 remount 되어 keyframe 애니메이션 트리거.
+  // currentDate 는 키에서 제외 — onDateClick 같은 부수적 날짜 변경은 애니메이션을 일으키지 않음.
+  const contentAnimKey = `${view}-${navAnimSeq}`;
   const slideClassName = slideDirection === 'next' ? 'calendar-slide-next' : 'calendar-slide-prev';
 
   const formatDateRange = (): string => {

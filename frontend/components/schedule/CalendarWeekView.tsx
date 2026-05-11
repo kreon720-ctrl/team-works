@@ -39,11 +39,11 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
   }, [currentDate]);
 
   // ─── 날짜 비교 헬퍼 ─────────────────────────────────────────────────────────
+  // 앰버 마커(원래 today) — 활성 currentDate 를 따라 이동 (CalendarMonthView 와 동일 패턴).
   const isToday = (date: Date): boolean => {
-    const kstNow = new Date(Date.now() + 9 * 3600_000);
-    return date.getUTCFullYear() === kstNow.getUTCFullYear() &&
-           date.getUTCMonth()    === kstNow.getUTCMonth() &&
-           date.getUTCDate()     === kstNow.getUTCDate();
+    return date.getUTCFullYear() === currentDate.getUTCFullYear() &&
+           date.getUTCMonth()    === currentDate.getUTCMonth() &&
+           date.getUTCDate()     === currentDate.getUTCDate();
   };
 
   const isSelected = (date: Date): boolean => {

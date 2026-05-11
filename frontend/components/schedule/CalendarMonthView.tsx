@@ -82,11 +82,13 @@ export function CalendarMonthView({
     if (cur > lastDay) break;
   }
 
+  // 앰버 테두리(원래 today 마커) — 사용자가 navigate / swipe / 날짜 클릭 등으로 변경한
+  // currentDate 를 따라 이동. 초기 마운트엔 currentDate = 오늘이라 today 위치에 표시되고,
+  // 그 후엔 활성(선택) 날짜를 추적하는 focus indicator 역할.
   const isToday = (date: Date): boolean => {
-    const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
-    return date.getUTCFullYear() === kstNow.getUTCFullYear() &&
-      date.getUTCMonth() === kstNow.getUTCMonth() &&
-      date.getUTCDate() === kstNow.getUTCDate();
+    return date.getUTCFullYear() === currentDate.getUTCFullYear() &&
+      date.getUTCMonth() === currentDate.getUTCMonth() &&
+      date.getUTCDate() === currentDate.getUTCDate();
   };
 
   const isSelected = (date: Date): boolean => {
