@@ -323,6 +323,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         calendarView={calendarView}
         schedules={schedules}
         isLeader={isLeader}
+        currentUserId={currentUser?.id}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onViewChange={handleViewChange}

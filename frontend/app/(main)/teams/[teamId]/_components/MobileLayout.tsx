@@ -17,6 +17,9 @@ interface MobileLayoutProps {
   calendarView: CalendarViewType;
   schedules: Schedule[];
   isLeader: boolean;
+  // 일정 상세 모달의 수정/삭제 버튼 표시용 — schedule.createdBy 와 비교해
+  // 자기가 만든 일정만 수정·삭제 가능. PC 와 동일하게 부모(team page)에서 전달.
+  currentUserId: string | undefined;
   activeTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
   onViewChange: (view: 'month' | 'week' | 'day' | 'project') => void;
@@ -51,6 +54,7 @@ export function MobileLayout({
   calendarView,
   schedules,
   isLeader,
+  currentUserId,
   activeTab,
   onTabChange,
   onViewChange,
@@ -88,7 +92,7 @@ export function MobileLayout({
       calendarView={calendarView}
       schedules={schedules}
       postits={[]}
-      currentUserId={undefined}
+      currentUserId={currentUserId}
       isLeader={isLeader}
       compact={true}
       selectedPostitColor={null}
