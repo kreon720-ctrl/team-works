@@ -158,8 +158,8 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
         {label} <span className="text-error-500">*</span>
       </label>
 
-      {/* 표시 필드 */}
-      <div className="flex gap-1.5 md:gap-2">
+      {/* 표시 필드 — 모바일은 가로폭 80%, PC 는 full */}
+      <div className="flex gap-1.5 md:gap-2 w-4/5 md:w-full">
         <input
           type="text"
           value={displayValue}
@@ -270,7 +270,14 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                       onClick={() => handleDateClick(date)}
                       className={`
                         p-1.5 text-sm rounded-lg transition-all duration-150
-                        ${!currentMonth ? 'text-gray-300' : today ? 'ring-2 ring-orange-500 font-semibold' : selected ? 'bg-primary-100 text-primary-800 font-semibold' : 'text-gray-700 hover:bg-gray-100'}
+                        ${!currentMonth
+                          ? 'text-gray-400 dark:text-gray-500'
+                          : today
+                            ? 'text-amber-500 dark:text-amber-400 font-semibold'
+                            : selected
+                              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-800 dark:text-primary-200 font-semibold'
+                              : 'text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface'
+                        }
                       `}
                     >
                       {date.getDate()}
