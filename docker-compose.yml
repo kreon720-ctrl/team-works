@@ -1,3 +1,29 @@
+# ============================================================================
+# 운영 환경 (Windows + RTX 3070) 전용 docker-compose.yml — GPU 가속 적용판
+# ============================================================================
+#
+# 본 파일은 docs/ 의 *백업·참조용* 사본입니다. 실제 docker-compose.yml 은 dev/prod
+# 공용으로 CPU 기본 (Mac dev 호환) 이 default 이고, 운영 환경 적용 시 본 파일의
+# whisper 섹션 (image / deploy 블록 / WHISPER_MODEL default) 을 참조해 운영 PC 의
+# 루트 docker-compose.yml 을 수정하면 됩니다.
+#
+# 주된 차이점 (vs 루트 docker-compose.yml):
+#   1. whisper.image:  :latest → :latest-gpu  (CUDA GPU 지원)
+#   2. whisper.deploy: NVIDIA GPU 1개 reservation 추가
+#   3. WHISPER_MODEL default: small → large-v3-turbo (한국어 정확도 ★최고)
+#
+# 적용 순서 (Windows PowerShell):
+#   cd C:\TeamWorks\team-works
+#   git pull origin gemma4-adjust
+#   notepad docker-compose.yml             # 본 파일 참고해 whisper 섹션 수정
+#   docker compose down whisper
+#   docker volume rm team-works_whisper_cache    # 새 모델 다운로드 위해 캐시 비움
+#   docker compose up -d whisper
+#   docker logs -f teamworks-whisper       # 다운로드 진행·ready 확인 (Ctrl+C 종료)
+#
+# 전제: NVIDIA Container Toolkit 설치 (Ollama 가 이미 GPU 쓰고 있으면 설치됨)
+# ============================================================================
+
 services:
   db:
     image: postgres:18
@@ -149,9 +175,22 @@ services:
       - teamworks-net
     restart: unless-stopped
 
-  # 자체 호스팅 Whisper (OpenAI 오픈소스 STT) — 모바일/데스크톱 STT 엔진 통일.
-  # 첫 부팅 시 ASR_MODEL 자동 다운로드 → whisper_cache 볼륨에 영속 저장 (재기동 시 재다운로드 X).
-  # 기본은 CPU 이미지 (Mac dev 호환) — 운영 GPU 환경은 image 를 :latest-gpu 로 swap + nvidia runtime 설정.
+  # ──────────────────────────────────────────────────────────────────────────
+  # Whisper STT — 운영 GPU 환경 (RTX 3070) 적용판
+  # ──────────────────────────────────────────────────────────────────────────
+  # 변경점 (vs 루트 docker-compose.yml):
+  #   1. image: ...:latest → ...:latest-gpu      (CUDA 가속)
+  #   2. WHISPER_MODEL default: small → large-v3-turbo  (한국어 정확도 최상)
+  #   3. deploy.resources.reservations.devices: NVIDIA GPU 1개 할당
+  #
+  # 메모리 점유 (RTX 3070 8GB VRAM):
+  #   - gemma4-e4b-pure-q4: ~6.5GB
+  #   - nomic-embed-text:    ~0.55GB
+  #   - whisper large-v3-turbo (faster_whisper, GPU): ~1GB
+  #   - 합계: ~8GB (빠듯, 헤드룸 0.5GB 정도)
+  #
+  # OOM 시 fallback: WHISPER_MODEL=medium (1.5GB → 어쩌면 OOM) 또는 small (0.6GB)
+  #
   # 모델 선택 가이드 (faster_whisper 엔진 + CT2 양자화 기준):
   #   - tiny           ~120MB   한국어 보통       초저사양 폴백
   #   - base           ~250MB   한국어 양호       CPU 빠른 응답 (~1-2초)
@@ -164,25 +203,36 @@ services:
   # 예: ASR_MODEL=ghost613/whisper-large-v3-turbo-korean (Zeroth-Korean·KsponSpeech 학습)
   # 단, 모델이 CT2 (CTranslate2) 형식이어야 faster_whisper 가 직접 로드 가능.
   whisper:
-    image: onerahmet/openai-whisper-asr-webservice:latest
+    image: onerahmet/openai-whisper-asr-webservice:latest-gpu
     container_name: teamworks-whisper
     expose:
       - "9000"
     environment:
-      # small + faster_whisper — 다운로드 안정성 우선 (회선 이슈로 large/medium 1GB+ 받기 실패 빈번).
-      # CT2 양자화로 이전 openai_whisper small 대비 메모리 절반 + 미세하게 빠름.
-      # 회선·HF mirror 안정한 환경에선 .env 의 WHISPER_MODEL 로 large-v3-turbo / medium 으로 업그레이드.
-      ASR_MODEL: ${WHISPER_MODEL:-small}
+      # 운영 GPU 환경 default — 한국어 정확도 ★최고. 회선 안정 + GPU 가속 환경에서 권장.
+      # OOM 또는 다운로드 실패 시 .env 에서 WHISPER_MODEL=medium / small 로 다운그레이드.
+      ASR_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
       ASR_ENGINE: ${WHISPER_ENGINE:-faster_whisper}
       # HF Hub 의 새 xet storage backend 가 일부 환경에서 TLS 연결 끊김 → 모델 다운로드 실패.
       # 안정적인 git-LFS 방식으로 폴백.
       HF_HUB_ENABLE_HF_TRANSFER: "0"
       HF_HUB_DISABLE_XET: "1"
+      # CPU 모드에서 INT8 양자화 강제 (FP16/FP32 모델도 메모리는 INT8 로 적재).
+      ASR_QUANTIZATION: "int8"
     volumes:
       - whisper_cache:/root/.cache/whisper
     networks:
       - teamworks-net
     restart: unless-stopped
+    # NVIDIA GPU 1개 할당 — Ollama 와 같은 GPU 공유.
+    # 전제: NVIDIA Container Toolkit 설치 (Windows: Docker Desktop GPU 지원 활성화).
+    # 측정 중 CPU 강제 — 원복: 아래 deploy 블록 주석 해제.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
 volumes:
   backend_node_modules:
