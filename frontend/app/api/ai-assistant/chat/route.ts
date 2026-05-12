@@ -429,10 +429,11 @@ const KEYWORD_STOPWORDS = new Set([
   '등록', '추가', '만들', '잡아', '예약', '넣어', '생성',
   // 필드명 — "회의 제목 변경" / "회의 색깔 바꿔줘" 류에서 의미 없는 필드명이 keyword 로 들어감.
   '제목', '시간', '시각', '색깔', '색상', '색', '설명', '메모',
-  // 시간대 단어 — detectTimeBand 가 band 필터로 처리. keyword 추출까지 같이 되면
-  // band×keyword AND 결합으로 검색이 너무 좁아짐 (예: '점심' 키워드 + 점심 시간대 →
-  // 제목에 '점심' 들어간 점심시간 일정만). band 만 적용되도록 stopword 처리.
-  '오전', '오후', '새벽', '아침', '점심', '저녁', '밤', '야식',
+  // 순수 시간대 단어 — detectTimeBand 가 band 필터로 처리. keyword 추출 안 함.
+  // (아침/점심/저녁/야식 같은 식사·이벤트성 단어는 stopword 에서 제외 — 제목/설명 keyword
+  // 매치 우선. 실제 사용자 일정의 30%+ 가 '점심 약속' 같은 식사 약속이라 시간대보다
+  // 이벤트 명사로 검색하는 게 자연스러움. OBJECTIVE_BANDS 에서도 함께 제거.)
+  '오전', '오후', '새벽', '밤',
   // 양 한정사 — "전체 회의 정리해줘" 류에서 "전체" 단독은 keyword 가 아니라 양 표현.
   '전체', '전부', '모두', '모든', '다',
 ]);
@@ -721,15 +722,15 @@ const OBJECTIVE_BANDS: Record<string, TimeBand> = {
   오전: { start: 0, end: 12, label: '오전' },
   오후: { start: 12, end: 24, label: '오후' },
   // 일상 시간대 — 한국어 관습 기반 합리 범위. 칼같이 맞을 필요 없음 (조회는 약간 넓게 잡혀도 OK).
+  // 아침/점심/저녁/야식 은 시간대보다 식사·이벤트 명사로 쓰이는 비율이 압도적이라 band 에서 제외.
+  // (예: '직원 점심 일정 조회' 는 11~14시 startAt 필터가 아니라 제목/설명에 '점심' 들어간 일정 검색.)
+  // KEYWORD_STOPWORDS 에서도 함께 제거되어 keyword 추출 대상이 됨.
   새벽: { start: 0, end: 6, label: '새벽' },
-  아침: { start: 6, end: 11, label: '아침' },
-  점심: { start: 11, end: 14, label: '점심' },
-  저녁: { start: 18, end: 21, label: '저녁' },
   밤: { start: 21, end: 24, label: '밤' },
 };
 
-// 야식 (22~02시) 같이 자정을 가로지르는 표현은 단일 [start, end) band 로 표현 불가 → 사용자에게 구체 시각 요청.
-const AMBIGUOUS_BANDS = ['야식'];
+// 자정 가로지르는 식의 모호 시간대 — 현재 없음. 야식은 keyword 로 이동.
+const AMBIGUOUS_BANDS: string[] = [];
 
 const HAS_SPECIFIC_TIME = /\d+\s*시|\d+\s*[:：]\s*\d+/;
 
