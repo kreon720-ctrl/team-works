@@ -156,12 +156,30 @@ const USAGE_LAW_RE = /(?:^|\s)[가-힣]+\s*법(?=\s|[?!.,]|$)/;
 function classifyIntent(question) {
   const q = question.trim().toLowerCase();
 
-  // 0) 사용법 질문 시그널 우선 — "프로젝트 등록하는 법" 같은 사용법 질의가 blocked 로 빠지는 걸 방지.
+  // 0) 사용법 시그널 우선 — 단, TEAM WORKS 도메인 명사가 함께 있어야 usage 로 인정.
+  //    도메인 명사 없이 "만드는 법" 류만 있으면 일반 질문 가능성 ("돈까스 만드는 법",
+  //    "Python 리스트 정렬하는 법") → general 로 분기해 SearxNG 웹 검색 답변.
   const usage = findMatch(q, USAGE_KEYWORDS);
-  if (usage) return { intent: "usage", reason: "usage-keyword", matched: usage };
-  // 0b) 'X법' / 'X 법' 단독 어휘 — 예: '일정등록 법 알려줘', '조회법 알려줘'.
-  const usageLaw = q.match(USAGE_LAW_RE);
-  if (usageLaw) return { intent: "usage", reason: "usage-pattern", matched: usageLaw[0].trim() };
+  const usageLawMatch = q.match(USAGE_LAW_RE);
+  if (usage || usageLawMatch) {
+    const teamWorksNoun =
+      findMatch(q, HARD_KEYWORDS) ||
+      findMatch(q, SCHEDULE_NOUNS) ||
+      findMatch(q, BLOCKED_DOMAINS);
+    if (teamWorksNoun) {
+      return {
+        intent: "usage",
+        reason: usage ? "usage-keyword" : "usage-pattern",
+        matched: usage || usageLawMatch[0].trim(),
+      };
+    }
+    // 사용법 시그널은 있지만 TEAM WORKS 도메인 명사 없음 → 일반 질문 → 웹 검색.
+    return {
+      intent: "general",
+      reason: "usage-signal-without-teamworks-noun",
+      matched: usage || usageLawMatch[0].trim(),
+    };
+  }
 
   const noun = findMatch(q, SCHEDULE_NOUNS);
   const blockedVerb = findMatch(q, BLOCKED_VERBS);
