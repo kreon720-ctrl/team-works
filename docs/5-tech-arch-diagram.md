@@ -10,6 +10,8 @@
 | 1.3 | 2026-04-20 | 앱명 Team CalTalk → TEAM WORKS 반영. 신규 기능(포스트잇/공지사항/업무보고 권한/프로젝트 관리) 전체 반영: 다이어그램 4(프론트엔드 컴포넌트·스토어·훅), 다이어그램 5(백엔드 Routes·Queries) 전면 갱신. 다이어그램 6(권한 흐름) 신규 추가 |
 | 1.4 | 2026-04-28 | 다이어그램 7(AI 비서 흐름 — RAG·Agent·MCP·Ollama, gemma4:26b) 신규 추가 |
 | 1.5 | 2026-04-29 | docs/4 v1.9 동기화 — Vercel 가정 폐기 → Docker Compose 단일 호스트 운영. 다이어그램 1 재작성(컨테이너 토폴로지). 다이어그램 4 갱신(ai-assistant/board 컴포넌트, useBoard/useProjectMessages 훅, boardApi/aiAssistantApi, types/board·ai, lib/sse). 다이어그램 5 갱신(board·files·project messages/notices 라우트, boardQueries, lib/files StorageAdapter, lib/ai 4-way 분기). 다이어그램 7 파일 경로 갱신(`backend/lib/ai/`). pg Pool max 5→10 |
+| 1.6 | 2026-05-12 | docs/1 v2.1·docs/2 v1.7·docs/4 v1.10 동기화. **다이어그램 1** — Whisper STT 컨테이너 추가(:9000, `faster_whisper`, `whisper_cache` volume), Ollama 임베딩 CPU 분리(`ollama-embed`) 표기. **다이어그램 4** — STT hook trio(`useSpeechRecognition` hybrid · `useWebSpeechRecognition` · `useWhisperRecognition`) + `useSwipeGesture` 추가. AI Assistant 컴포넌트가 마이크 버튼 보유. **다이어그램 5** — AI 로직 위치 정정: `backend/lib/ai/` 폐기, 실제는 `frontend/lib/mcp/` + `frontend/app/api/{ai-assistant,stt}/`. 4-way → 6-way 분류. **다이어그램 7** — 6-way intent + `schedule_update`/`schedule_delete` confirm 흐름, STT 분기 추가(Web Speech 직접 ↔ Whisper backend 분기). |
+| 1.7 | 2026-05-12 | Ghost file 정정 (docs/4 v1.11 동기) — 다이어그램 4 의 `AIAssistantPanel` 노드가 ConfirmCard·AwaitingInputForm 을 inline 으로 가짐을 명시. `BoardPanel` 도 단일 파일임을 명시. `aiAssistantApi` 노드 제거(미존재), `frontend/lib/mcp/` + `openWebUiModel.ts` 노드 추가. |
 
 ---
 
@@ -17,17 +19,19 @@
 
 ```mermaid
 graph TB
-    Browser["브라우저\nReact 19 + TypeScript\nZustand 5 / TanStack Query 5"]
+    Browser["브라우저 (PC · 모바일)\nReact 19 + TypeScript\nZustand 5 / TanStack Query 5\nWeb Speech API (in-browser STT)"]
 
     subgraph Compose["Docker Compose 네트워크 (단일 호스트)"]
         Nginx["nginx (운영)\n:80 / :443\nLet's Encrypt"]
-        Frontend["frontend 컨테이너\nNext.js 16 (Turbopack)\n:3000\nBFF: /api/ai-assistant/*"]
+        Frontend["frontend 컨테이너\nNext.js 16 (Turbopack)\n:3000\nBFF: /api/ai-assistant/* · /api/stt"]
         Backend["backend 컨테이너\nNext.js 16 API Routes\n:3001\nJWT · 팀권한 · StorageAdapter"]
         Postgres[("postgres-db\nPostgreSQL 18\nvolume: postgres_data")]
-        Ollama[("ollama\n:11434\ngemma4:26b · nomic-embed-text\nvolume: ./ollama")]
-        RAG["rag 컨테이너\n:8787\n/classify · /retrieve\n/parse-schedule-*\nvolume: ./rag/vectorstore"]
+        Ollama[("ollama (GPU)\n:11434\ngemma4:26b 채팅\nvolume: ./ollama")]
+        OllamaEmbed[("ollama-embed (CPU)\nnomic-embed-text 임베딩\n(채팅 모델 VRAM 보존)")]
+        RAG["rag 컨테이너\n:8787 (Express)\n/classify · /chat\n/parse-schedule-{args,query,update,delete}\nvolume: ./rag/vectorstore"]
         SearxNG["searxng\n:8080\n메타검색 (general intent)"]
         OpenWebUI["open-webui\n:8081\nOpenAI 호환 게이트웨이"]
+        Whisper["whisper 컨테이너\n:9000\nonerahmet/openai-whisper-asr-webservice\nfaster_whisper (CPU INT8)\nvolume: whisper_cache"]
         Files[("호스트 ./files\n→ backend:/app/files\n자료실 첨부파일")]
     end
 
@@ -35,20 +39,22 @@ graph TB
     Nginx --> Frontend
     Nginx --> Backend
     Frontend -- "Server-side fetch\n(BFF for SSE)" --> Backend
+    Frontend -- "multipart audio\n(Galaxy/Samsung quirk 분기)" --> Whisper
     Backend -- "SQL (pg Pool max:10)" --> Postgres
-    Backend -- "AI 호출\n(lib/ai/*)" --> Ollama
-    Backend -- "/retrieve\n/parse-schedule-*" --> RAG
-    Backend -- "검색 결과" --> SearxNG
-    Backend -- "OpenAI 호환" --> OpenWebUI
+    Frontend -- "AI 호출\n(lib/mcp/* · BFF)" --> Backend
+    Frontend -- "/classify · /chat\n/parse-schedule-*" --> RAG
+    Frontend -- "검색 결과" --> SearxNG
+    Frontend -- "OpenAI 호환" --> OpenWebUI
     Backend -- "save · download · delete" --> Files
-    RAG -- "/api/embed · /api/chat" --> Ollama
+    RAG -- "/api/embed (임베딩)" --> OllamaEmbed
+    RAG -- "/api/chat (think:false)" --> Ollama
     OpenWebUI -- "/api/chat (stream)" --> Ollama
 
     Browser -. "폴링 refetchInterval 3초\n채팅·공지 갱신" .-> Backend
     Browser -. "SSE 스트리밍\nAI 버틀러" .-> Frontend
 ```
 
-> 모든 서비스 간 통신은 docker-compose 네트워크 명(`postgres-db`, `ollama`, `rag`, `searxng`, `open-webui`)으로 라우팅. 자세한 운영 절차는 `docs/19-deploy-guide.md` 참고. AI 흐름 상세는 **다이어그램 7**.
+> 모든 서비스 간 통신은 docker-compose 네트워크 명(`postgres-db`, `ollama`, `ollama-embed`, `rag`, `searxng`, `open-webui`, `whisper`)으로 라우팅. 자세한 운영 절차는 `docs/19-deploy-guide.md` / `docs/20-easy-deploy.md` 참고. AI 흐름 상세는 **다이어그램 7**, STT 상세는 `docs/22-voice-input.md`.
 
 ---
 
@@ -105,9 +111,9 @@ graph TB
 
     subgraph Components["컴포넌트 (frontend/components/)"]
         Schedule["schedule\nCalendarView · ScheduleForm\nPostItCard · PostItColorPalette\nScheduleTooltip"]
-        Chat["chat\nChatPanel(채팅/자료실 sub-tab)\nChatMessageList · ChatInput\nNoticeBanner(projectId 격리)\nWorkPermissionModal · useChatPanel"]
-        AIAsst["ai-assistant\nAIAssistantPanel\nAIAssistantMessageList\nConfirmCard(pending-action)\nAwaitingInputForm"]
-        Board["board (자료실)\nBoardPanel\nPostEditor\nPostDetail"]
+        Chat["chat\nChatPanel(채팅/자료실 sub-tab)\nChatMessageList · ChatInput(마이크 버튼)\nNoticeBanner(projectId 격리)\nWorkPermissionModal · useChatPanel"]
+        AIAsst["ai-assistant\nAIAssistantPanel.tsx (단일 파일)\n· 마이크 버튼 + 캘린더 분할\n· 6-way intent + SSE 핸들러\n· confirm 카드 (create/update/delete) inline\n· awaiting-input 다중 턴 inline"]
+        Board["board (자료실)\nBoardPanel.tsx (단일 파일)\n· 글 목록·작성·수정·삭제·첨부 inline"]
         Project["project\nProjectGanttView · GanttChart\nGanttBar · SubBar\nProjectCreateModal\nProjectScheduleModal\nSubScheduleCreateModal"]
         Team["team\nTeamList · TeamExploreList\nJoinRequestActions"]
         Common["common\nButton · Modal · Input\nResizableSplit · ErrorBoundary"]
@@ -116,14 +122,16 @@ graph TB
     subgraph State["상태 관리"]
         Zustand["Zustand (frontend/store/)\nauthStore · teamStore\nnoticeStore (teamId, projectId? scopeKey)\nprojectStore\nprojectScheduleStore · subScheduleStore"]
         TQ["TanStack Query (frontend/hooks/query/)\nuseSchedules\nuseMessages(팀 일자별, 폴링)\nuseProjectMessages(프로젝트별)\nuseBoard(['board', teamId, projectId??'__team__'])\nuseTeams · useJoinRequests\nusePostits · useWorkPermissions\nuseMyTasks · useRemoveTeamMember\nuseUpdateProfile · useLeaderRole"]
+        UIHooks["UI Hooks (frontend/hooks/)\nuseBreakpoint(isMobile/isDesktop)\nuseSwipeGesture(threshold 50px)\nuseSpeechRecognition hybrid\n  ├ useWebSpeechRecognition\n  └ useWhisperRecognition\n     → POST /api/stt"]
     end
 
     subgraph Lib["라이브러리 (frontend/lib/)"]
         ApiClient["apiClient.ts\nfetch 래퍼 + Authorization 헤더"]
         Interceptor["authInterceptor.ts\n401 시 자동 토큰 갱신"]
         TokenMgr["tokenManager.ts\nAccess/Refresh 인메모리 관리"]
-        DomainApi["api/\nnoticeApi(projectId 옵션)\nprojectApi · boardApi(multipart)\naiAssistantApi(SSE)"]
-        SSE["sse/streamReader.ts\nSSE 라인 파서\n(token · awaiting-input ·\n pending-action · done)"]
+        DomainApi["api/\nnoticeApi(projectId 옵션)\nprojectApi · boardApi(multipart)\n※ AI SSE 클라이언트는 별도 파일 없음 —\n   AIAssistantPanel.tsx 에 inline"]
+        MCP["mcp/\npgClient.ts · scheduleQueries.ts\n(execute 가 호출하는 도구)"]
+        OWUI["openWebUiModel.ts\nOpen WebUI /api/models\n채팅 모델명 동적 해석"]
     end
 
     subgraph Types["타입 (frontend/types/)"]
@@ -134,11 +142,14 @@ graph TB
     BFF -- "SSE 프록시" --> DomainApi
     Components --> Zustand
     Components --> TQ
+    Components --> UIHooks
     TQ --> ApiClient
     ApiClient --> Interceptor
     Interceptor --> TokenMgr
     DomainApi --> ApiClient
-    DomainApi --> SSE
+    BFF -- "execute → 도구 호출" --> MCP
+    MCP --> ApiClient
+    BFF --> OWUI
     Components --> Types
 ```
 
@@ -190,13 +201,12 @@ graph TB
         Validate["validate.ts\nMIME 화이트리스트\nmagic-bytes\n10MB cap"]
     end
 
-    subgraph AI["lib/ai (AI 버틀러)"]
-        Intent["intentClassifier.ts\nusage / general\nschedule_query/_create\nblocked"]
-        OllamaC["ollamaClient.ts\ngemma4:26b\nnum_ctx 32K · think:false"]
-        RAGC["ragClient.ts → :8787"]
-        SearC["searxngClient.ts → :8080"]
-        AIPg["pgClient.ts\nREAD-ONLY 가드\nscheduleQueries.ts"]
-        SSEW["sseStream.ts\ntoken · awaiting-input\npending-action · done"]
+    subgraph AI["AI 버틀러 (frontend BFF)"]
+        BFFChat["frontend/app/api/ai-assistant/chat/route.ts\n6-way intent + SSE 분기"]
+        BFFExec["frontend/app/api/ai-assistant/execute/route.ts\nTOOL_WHITELIST 검증 후\nbackend Schedule CRUD 호출"]
+        BFFStt["frontend/app/api/stt/route.ts\nmultipart audio → Whisper :9000"]
+        MCPQ["frontend/lib/mcp/scheduleQueries.ts\n자연어 → schedule_query 변환"]
+        MCPPg["frontend/lib/mcp/pgClient.ts\n(READ-ONLY 가드 보조 — 실 권한은 backend 미들웨어)"]
     end
 
     Pool["pg Pool\n글로벌 싱글턴\n(backend/lib/db/pool.ts, max: 10)"]
@@ -232,16 +242,12 @@ graph TB
     Local --> HostFiles
     Files --> Validate
 
-    Routes -. "frontend BFF /api/ai-assistant/* 가\n호출" .-> AI
-    Intent --> OllamaC
-    Intent --> RAGC
-    Intent --> SearC
-    Intent --> AIPg
-    AIPg --> Pool
-    OllamaC --> OllamaSvc
-    RAGC --> RAGSvc
-    SearC --> SearXSvc
-    AI --> SSEW
+    AI -. "/classify · /chat\n/parse-schedule-*" .-> RAGSvc
+    AI -. "검색" .-> SearXSvc
+    AI -. "OpenAI 호환" .-> OllamaSvc
+    BFFExec -. "Bearer + teamId 격리" .-> SchedR
+    BFFExec -. "PATCH/DELETE" .-> SchedR
+    BFFStt -. "multipart audio" .-> WhisperSvc[("whisper :9000")]
 ```
 
 ---
@@ -276,41 +282,60 @@ flowchart TD
 
 ---
 
-## 다이어그램 7 — AI 비서 흐름 (안내·실행 모드)
+## 다이어그램 7 — AI 비서 흐름 (6-way intent + STT)
 
-브라우저 헤더의 AI 비서 아이콘을 누르면 480×720 팝업창(`/ai-assistant`)이 열린다. 팝업은 같은 origin 의 Next.js API 라우트(`app/api/ai-assistant/chat`)를 프록시로 호출하고, 라우트가 `mode` 값에 따라 RAG 서버(안내) 또는 Agent 서버(실행)로 분기한다. 두 서버 모두 같은 호스트의 Ollama(`gemma4:26b` + `nomic-embed-text`)를 공유한다.
+팀 페이지 우측 sub-탭 [AI 찰떡이] 의 단일 입력창에서 자연어 또는 음성으로 요청한다. frontend BFF (`frontend/app/api/ai-assistant/chat/route.ts`) 가 RAG `/classify` 결과의 6-way intent 에 따라 분기한다. 음성 입력(STT) 은 디바이스 quirk 에 따라 브라우저 내장 Web Speech 또는 Whisper 컨테이너로 자동 분기된다.
 
 ```mermaid
 flowchart LR
-    User["사용자 브라우저"]
-    Tab["우측 탭 — AI 버틀러\n(팀 페이지 통합)"]
-    Proxy["Next.js API 라우트\n/api/ai-assistant/chat\n4-way intent 분기 + SSE"]
-    RAG["rag/server.js  :8787\nRRF (cosine + BM25)\nParent-Document Retrieval\n/classify · /parse-schedule-args\n/parse-schedule-query"]
-    OpenWebUI["open-webui  :8081\nOpenAI 호환 게이트웨이"]
-    SearxNG["searxng  :8080\n메타검색"]
-    Backend["Backend API\n/api/teams/.../schedules\n/api/me/tasks"]
-    Ollama[("Ollama  :11434\ngemma4:26b  (num_ctx 32768)\nnomic-embed-text")]
-    Chunks["rag/data/chunks.json\n(청크 + 임베딩 + BM25 통계 + parents)"]
+    User["사용자 브라우저\n(PC · 모바일)"]
+    Mic["마이크 버튼\n(AI 찰떡이 + 팀채팅 공통)"]
+    WebSpeech["Web Speech API\n(브라우저 내장)\n노트북 Chrome / iOS Safari /\nAndroid Chrome (Galaxy 외)"]
+    Whisper["whisper :9000\nfaster_whisper CPU INT8\nGalaxy/SM-XXXX/\nSamsung Internet/Firefox"]
+    SttRoute["frontend/app/api/stt\n(multipart 프록시)"]
+    Tab["우측 탭 — AI 찰떡이"]
+    Proxy["frontend/app/api/ai-assistant/chat\n6-way intent + SSE"]
+    RAG["rag/server.js :8787\nRRF (cosine + BM25)\n/classify · /chat\n/parse-schedule-{args,query,update,delete}"]
+    OpenWebUI["open-webui :8081\nOpenAI 호환 게이트웨이"]
+    SearxNG["searxng :8080\n메타검색"]
+    Exec["frontend/app/api/ai-assistant/execute\nTOOL_WHITELIST 검증\n{createSchedule, updateSchedule, deleteSchedule}"]
+    Backend["Backend API\n/api/teams/.../schedules\nPOST · PATCH · DELETE\n(withAuth + withTeamRole)"]
+    Ollama[("Ollama :11434 (GPU)\ngemma4:26b 채팅")]
+    OllamaEmbed[("ollama-embed (CPU)\nnomic-embed-text")]
+    Chunks["rag/data/chunks.json\n(청크 + 임베딩 + BM25 + parents)"]
 
+    User --> Mic
+    Mic -- "UA 분기\n(useSpeechRecognition)" --> WebSpeech
+    Mic -- "UA 분기\n(Galaxy quirk)" --> SttRoute
+    SttRoute -- "audio blob" --> Whisper
+    Whisper -- "{text}" --> User
+    WebSpeech -- "{text}" --> User
     User --> Tab --> Proxy
     Proxy -- "intent=usage" --> RAG
-    Proxy -- "intent=general (SearxNG inline)" --> OpenWebUI
-    Proxy -- "intent=schedule_query / _create" --> Backend
+    Proxy -- "intent=general\n(SearxNG inline)" --> OpenWebUI
+    Proxy -- "intent=schedule_query" --> Backend
+    Proxy -- "intent=schedule_{create,update,delete}\n→ pending-action SSE" --> User
+    User -- "✓ 승인" --> Exec
+    Exec -- "Bearer + teamId" --> Backend
     Proxy -- "intent=blocked → 거절 안내" --> User
     Proxy -- "/classify · /parse-schedule-*" --> RAG
-    Proxy -- "검색 결과 직접 가져오기" --> SearxNG
-    RAG -- "/api/embed (search_query:)\n/api/chat (think:false)" --> Ollama
+    Proxy -- "검색 결과 inline" --> SearxNG
+    RAG -- "/api/embed (search_query:)" --> OllamaEmbed
+    RAG -- "/api/chat (think:false)" --> Ollama
     OpenWebUI -- "/api/chat (stream)" --> Ollama
     RAG -. "오프라인: rag/index.js" .-> Chunks
     RAG -- "load index" --> Chunks
 ```
 
 흐름 핵심:
-- **단일 진입점** — 모드 토글 없이 사용자 자연어를 RAG `/classify` 가 4-way 로 분류 (`usage` / `general` / `schedule_query` / `schedule_create` / `blocked`). 자세한 설계는 `docs/16-mcp-server-plan.md`.
-- **사용법(`usage`)** — `ollama/*.md` 공식 문서를 RAG 로 검색해 답변. 인증 불필요.
+- **단일 진입점** — 모드 토글 없이 사용자 자연어를 RAG `/classify` 가 6-way 로 분류 (`usage` / `general` / `schedule_query` / `schedule_create` / `schedule_update` / `schedule_delete` / `blocked`). 자세한 설계는 `docs/16-mcp-server-plan.md`.
+- **음성 입력(STT)** — 마이크 버튼 클릭 시 `useSpeechRecognition` hybrid hook 이 UA 검사로 자동 분기. Web Speech 분기는 브라우저 내부에서 변환 → 텍스트만 입력창에 채워짐 (서버 호출 없음). Whisper 분기는 `MediaRecorder` 로 녹음 → `/api/stt` → Whisper 컨테이너. 오디오는 DB 영구 저장 없음. 자세한 흐름은 `docs/22-voice-input.md`.
+- **사용법(`usage`)** — `ollama/*.md` 공식 문서를 RAG 로 검색해 답변.
 - **일반 질문(`general`)** — frontend 가 SearxNG 직접 호출해 결과를 system prompt 에 inline 주입, Open WebUI 모델이 답변 생성 (web_search 비활성).
-- **일정 조회·등록(`schedule_query`/`schedule_create`)** — `backend/lib/ai/scheduleQueries.ts` 가 자연어를 일정 조회/등록 SQL 로 매핑하고, `backend/lib/ai/pgClient.ts` 의 READ-ONLY 가드를 거쳐 실행. frontend BFF(`frontend/app/api/ai-assistant/chat/route.ts`)는 SSE 스트림 프록시 역할만 수행 (Bearer 토큰 필수, withAuth/withTeamRole 미들웨어가 권한 검증). 등록은 `pending-action` SSE 이벤트로 confirm 카드 → 사용자 승인 시 `/api/ai-assistant/execute` 가 실제 INSERT, 정보 부족 시 `awaiting-input` 으로 다중 턴.
-- **거절(`blocked`)** — 일정 수정/삭제·프로젝트·채팅 요청은 정중한 안내 (찰떡이는 일정 조회·등록만).
+- **일정 조회(`schedule_query`)** — `frontend/lib/mcp/scheduleQueries.ts` 가 자연어를 view+date+keyword 로 변환 후 backend Schedule API 직접 호출. 코드가 한국어로 즉시 포맷.
+- **일정 등록·수정·삭제(`schedule_create/update/delete`)** — `pending-action` SSE 로 confirm 카드 → 사용자 ✓ 클릭 → `/api/ai-assistant/execute` → TOOL_WHITELIST 검증 후 backend POST/PATCH/DELETE. `created_by`/생성자 검증은 backend `withAuth`/`withTeamRole` 미들웨어. 정보 부족 시 `awaiting-input` 으로 다중 턴.
+- **거절(`blocked`)** — 일정 외 도메인(프로젝트·채팅·공지·포스트잇·자료실) 요청은 정중한 안내. (일정 수정·삭제는 더 이상 blocked 아님 — schedule_update/delete 로 지원)
+- **임베딩 CPU 분리** — `ollama-embed` 컨테이너에서 `nomic-embed-text` 만 돌려 채팅 모델(GPU) VRAM 점유 최소화. 자세한 운영은 `docs/embeding-cpu.md`.
 - **호출 옵션** — `rag/ollamaClient.js` 의 `DEFAULT_CHAT_OPTIONS = { num_ctx: 32768, num_predict: 1024 }` + `think: false` (gemma4:26b thinking-mode 비활성).
 - **인덱스 산출물** — `rag/data/chunks.json` 은 `rag/index.js` 가 1회 생성. `ollama/*.md` 가 변경되면 재인덱싱 후 RAG 서버 재기동 필요(`docs/13-RAG-pipeline-guide.md §6.3·§6.4`).
 
@@ -325,4 +350,6 @@ flowchart LR
 - **파일 시스템 쓰기** — 자료실 첨부파일은 호스트 `./files:/app/files` mount. 운영 클라우드 전환 시 `STORAGE_BACKEND=s3` 토글만으로 swap (`docs/18-board-guide.md` §6, 호출처 코드 0건 변경)
 - **DB 연결** — pg Pool 글로벌 싱글턴(max: 10). 컨테이너 네트워크 안에서 `postgres-db:5432` 직결. 멀티 backend 인스턴스 시 PgBouncer 권장
 - **AI 인프라** — Ollama 모델 캐시는 `./ollama:/root/.ollama` 호스트 mount 로 영속화. RAG vectorstore 는 `./rag/vectorstore` 에 저장. 첫 부팅 시 `ollama pull gemma4:26b` + `ollama pull nomic-embed-text` 자동 실행
-- **운영 절차 / GPU 사양 / 백업 정책** — `docs/19-deploy-guide.md` 참고
+- **임베딩 모델 CPU 분리** — `ollama-embed` 별도 컨테이너로 분리해 채팅 모델(GPU) VRAM 보존. `nomic-embed-text` 만 적재 (`docs/embeding-cpu.md`)
+- **음성 입력(STT) 인프라** — `whisper` 컨테이너(`onerahmet/openai-whisper-asr-webservice:latest`, `faster_whisper`, CPU INT8 default). `whisper_cache` volume 으로 모델 캐시 영속. env `WHISPER_MODEL`(small/medium/large-v3-turbo), `WHISPER_ENGINE`. HF xet storage TLS 회피 (`HF_HUB_DISABLE_XET=1`)
+- **운영 절차 / GPU 사양 / 백업 정책** — `docs/19-deploy-guide.md`, `docs/20-easy-deploy.md`(STT 챕터 포함) 참고

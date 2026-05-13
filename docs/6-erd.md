@@ -10,6 +10,7 @@
 | 1.3 | 2026-04-18 | 앱명 Team CalTalk → TEAM WORKS 반영. chat_messages.type 값 SCHEDULE_REQUEST → WORK_PERFORMANCE 변경 (실제 구현 반영). work_performance_permissions 테이블 추가 |
 | 1.4 | 2026-04-19 | postits, projects, project_schedules, sub_schedules, notices 테이블 추가 (DB 영구저장 구현 반영) |
 | 1.5 | 2026-04-29 | 자료실(board)·프로젝트 채팅/공지 격리 반영 — chat_messages·notices 에 project_id 컬럼 추가(NULL=팀 일자별, NOT NULL=프로젝트 격리), board_posts·board_attachments 테이블 신규, 관련 인덱스(partial WHERE project_id NOT NULL)·CHECK·FK ON DELETE 매트릭스 갱신, BR-08~11 추가(자료실 작성자 권한·첨부 검증·격리·다운로드 멤버십 검증). §3.2 누락 CHECK(chk_schedules_color, chk_chat_messages_type) 보강 |
+| 1.6 | 2026-05-12 | docs/1 v2.1·docs/2 v1.7 동기화: **스키마 변경 없음 — 신기능 모두 기존 테이블 재사용**. AI 4-way → 6-way 분류(`schedule_update`/`schedule_delete` 추가) 는 기존 `schedules` 테이블 UPDATE/DELETE 로 처리(created_by 검증). 음성 입력(STT) 은 텍스트로 변환 후 일반 입력 흐름 — 오디오 영구 저장 없음. 모바일 UX 최적화·RAG 자연어 보강(X시 반 정규화·식사 단어 키워드) 은 프론트엔드·RAG 서버 변경만. BR-12(AI 가 일정 CRUD 시 기존 schedules 테이블 사용)·BR-13(STT 오디오 미저장) 추가. §4 관련 문서에 STT 가이드 등 링크 추가 |
 
 ---
 
@@ -587,18 +588,25 @@ erDiagram
 | BR-09 | 첨부파일 업로드는 MIME 화이트리스트 + magic-bytes 헤더 검증 + 10MB cap. SVG·실행파일 거부 | backend multipart 핸들러 + `lib/files/validate.ts` |
 | BR-10 | 채팅·공지·자료실은 `(team_id, project_id NULL)` / `(team_id, project_id NOT NULL)` 으로 격리. 동일 컨텍스트 외 조회·작성 불가 | chatQueries / noticeQueries / boardQueries WHERE 조건 필수 |
 | BR-11 | 첨부파일 다운로드는 attachment → post → team_id 조인 후 호출자 팀 멤버십 검증. `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` 강제 | `/api/files/[fileId]` 핸들러 |
+| BR-12 | AI 어시스턴트(찰떡) 가 `schedule_create`/`update`/`delete` 의도를 처리할 때 **별도 테이블 없이 기존 `schedules` 테이블** INSERT/UPDATE/DELETE 사용. `created_by` 는 JWT 의 userId 로 강제 설정(AI args 위조 방지). 수정·삭제는 `created_by === JWT.userId` 일치 시에만 허용 (BR-01 과 동일 정책, 미들웨어 통과만 가능 — 자유 SQL 금지) | `/api/ai-assistant/execute` + TOOL_WHITELIST + `withAuth`·`withTeamRole` 미들웨어 |
+| BR-13 | 음성 입력(STT) 의 오디오 바이너리는 **DB 영구 저장 없음**. Whisper 분기에서 `MediaRecorder` blob 을 `/api/stt` 에 multipart 로 전송 → Whisper 컨테이너가 텍스트 반환 후 메모리에서 폐기. 변환된 텍스트는 일반 메시지/명령 흐름(`chat_messages` 또는 AI 입력) 으로 진입 | `/api/stt` 핸들러 (memory 처리, persist 없음) |
 
 ---
 
 ## 4. 관련 문서
 
-| 문서 | 경로 |
-|------|------|
-| 도메인 정의서 | docs/1-domain-definition.md |
-| PRD | docs/2-prd.md |
-| 유저 시나리오 | docs/3-user-scenarios.md |
-| 프로젝트 구조 | docs/4-project-structure.md |
-| 기술 아키텍처 | docs/5-tech-arch-diagram.md |
-| API 명세 | docs/7-api-spec.md |
-| 자료실 가이드 | docs/18-board-guide.md |
-| 운영 배포 가이드 | docs/19-deploy-guide.md |
+| 문서 | 경로 | 비고 |
+|------|------|------|
+| 도메인 정의서 | docs/1-domain-definition.md | 엔티티·BR·UC 정의 (v2.1: AI 6-way·STT·모바일 UX) |
+| PRD | docs/2-prd.md | 기능 요구사항·비기능 (v1.7: FR-13 6-way·FR-14 STT·FR-15 모바일) |
+| 유저 시나리오 | docs/3-user-scenarios.md | SC-01~28 + SC-M1~M6 (모바일 전용) |
+| 프로젝트 구조 | docs/4-project-structure.md | - |
+| 기술 아키텍처 | docs/5-tech-arch-diagram.md | - |
+| API 명세 | docs/7-api-spec.md | - |
+| RAG 파이프라인 | docs/13-RAG-pipeline-guide.md | RAG 인덱스·검색 |
+| AI 모델 DB 접근 흐름 | docs/17-ai-db-guide.md | BR-12 의 자세한 안전장치·trust boundary |
+| 자료실 가이드 | docs/18-board-guide.md | board_posts / board_attachments 모델 |
+| 운영 배포 가이드 | docs/19-deploy-guide.md | Docker → 운영 호스트 절차 |
+| 배포 가이드 (STT 포함) | docs/20-easy-deploy.md | STEP 7 Whisper STT 컨테이너 운영 |
+| 음성 입력(STT) 가이드 | docs/22-voice-input.md | BR-13 의 자세한 흐름 (Web Speech / Whisper 분기) |
+| 임베딩 모델 CPU 분리 | docs/embeding-cpu.md | nomic-embed-text CPU 분리 — 채팅 모델 VRAM 최적화 |

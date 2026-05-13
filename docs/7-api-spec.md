@@ -12,6 +12,7 @@
 | 1.5 | 2026-04-28 | 백엔드 구현 일치화: GET /api/auth/me, PATCH /api/me, PATCH/DELETE /api/teams/:teamId, DELETE /api/teams/:teamId/members/:userId, Notices/Postits/Projects/ProjectSchedules/SubSchedules 섹션 추가. 섹션 번호 재정렬 |
 | 1.6 | 2026-04-29 | 신규: 프로젝트 채팅(§12), 프로젝트 공지(§13), 자료실 Board(§14), 파일 다운로드(§15). Messages/Notices 응답에 `projectId` 필드 추가 반영. AI 버틀러 SSE 참고 섹션(§16) 추가. 엔드포인트 요약 테이블 갱신. |
 | 1.7 | 2026-04-30 | docs/1 v2.0 · docs/2 v1.6 동기화: §1 인증에 Refresh Token 7일 만료 + 갱신 실패 시 401 정책 명시. backend route 점검 — 프로젝트 일정/서브 일정 단건 GET 은 backend 미구현(PATCH·DELETE만)임을 §10 에 명시. swagger.json v1.7.1 동기 (없는 GET 2건 제거) |
+| 1.8 | 2026-05-12 | backend route 정밀 재점검 결과 누락·오기 반영. **POST /api/teams** body 에 `description`(≤500자) · `isPublic`(boolean) 추가. **POST·PATCH /api/teams/:teamId/schedules** body 에 `color` 추가 (코드는 검증 없이 기본 `indigo` — 알려진 갭). **POST /api/teams/:teamId/projects** body 에 `progress`(0~100) · `manager`(≤100자) · `phases`(JSONB 배열) 명시. **POST /api/teams/:teamId/projects/:projectId/schedules** body 에 `phaseId`(UUID, nullable) 명시. **GET /api/teams/:teamId/messages** 쿼리에 `limit` · `before` 추가. **GET /api/me/tasks** 권한 표현 정정 — 인증 사용자 누구나 호출 가능, LEADER 외엔 빈 배열 반환. **§16 AI 버틀러** — 6-way 분류 + STT 엔드포인트(`POST /api/stt`, frontend BFF) 참조 추가. swagger.json v1.8.0 동기 (schedule CRUD 권한 description·403 메시지 정정, color 필드 보강, files 응답 헤더 명시) |
 
 ---
 
@@ -401,13 +402,17 @@ Authorization: Bearer <accessToken>
 
 ```json
 {
-  "name": "개발팀"
+  "name": "개발팀",
+  "description": "백엔드·프론트엔드 개발팀",
+  "isPublic": true
 }
 ```
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | name | string | O | 팀 이름, 최대 100자 |
+| description | string | X | 팀 설명, 최대 500자. 생략 또는 빈 문자열이면 null 저장 |
+| isPublic | boolean | X | 공개 팀 목록 노출 여부. 기본 `false`. true 면 `/api/teams/public` 에 노출되어 가입 신청 가능 |
 
 **Response**
 
@@ -431,6 +436,7 @@ Authorization: Bearer <accessToken>
 |-----------|-------------|------|
 | 400 | "팀 이름은 필수입니다." | name 누락 |
 | 400 | "팀 이름은 최대 100자까지 입력 가능합니다." | name 길이 초과 |
+| 400 | "팀 설명은 최대 500자까지 입력 가능합니다." | description 길이 초과 |
 | 401 | "인증이 필요합니다." | Access Token 없음 또는 만료 |
 
 **비즈니스 규칙**: BR-01, FR-02-1
@@ -1118,6 +1124,7 @@ Authorization: Bearer <accessToken>
 {
   "title": "주간 팀 미팅",
   "description": "이번 주 진행 상황 공유 및 다음 주 계획 수립",
+  "color": "indigo",
   "startAt": "2026-04-07T01:00:00.000Z",
   "endAt": "2026-04-07T02:00:00.000Z"
 }
@@ -1127,6 +1134,7 @@ Authorization: Bearer <accessToken>
 |------|------|------|------|
 | title | string | O | 일정 제목, 최대 200자 |
 | description | string | X | 일정 상세 설명, 선택 입력 |
+| color | string | X | 일정 색상. `indigo` / `blue` / `emerald` / `amber` / `rose` 중 하나. 기본 `indigo`. ⚠ 현재 backend 에서 enum 검증을 하지 않아 임의 문자열을 받으면 그대로 저장됨 — frontend 선에서 enum 강제 권장 |
 | startAt | string | O | 시작 일시 (UTC ISO 8601) |
 | endAt | string | O | 종료 일시 (UTC ISO 8601), `startAt`보다 이후여야 함 |
 
@@ -1253,6 +1261,7 @@ Authorization: Bearer <accessToken>
 {
   "title": "주간 팀 미팅 (일정 변경)",
   "description": "장소: 회의실 A",
+  "color": "amber",
   "startAt": "2026-04-07T02:00:00.000Z",
   "endAt": "2026-04-07T03:00:00.000Z"
 }
@@ -1262,6 +1271,7 @@ Authorization: Bearer <accessToken>
 |------|------|------|------|
 | title | string | X | 일정 제목, 최대 200자 |
 | description | string \| null | X | 일정 상세 설명 (`null` 전달 시 비워짐) |
+| color | string | X | `indigo`/`blue`/`emerald`/`amber`/`rose`. ⚠ 현재 backend enum 검증 미적용 |
 | startAt | string | X | 변경할 시작 일시 (UTC ISO 8601) |
 | endAt | string | X | 변경할 종료 일시 (UTC ISO 8601) |
 
@@ -3145,29 +3155,41 @@ fetch(`/api/teams/${teamId}/board`, {
 
 ---
 
-## 16. AI 버틀러 SSE — Frontend BFF (참고)
+## 16. AI 버틀러 SSE · STT — Frontend BFF (참고)
 
-> 이 섹션은 **참고 목적**으로만 기술합니다. AI 버틀러는 Next.js Frontend BFF route(`frontend/app/api/ai-assistant/`)로 구현되어 있으며, 별도의 백엔드 라우트나 Swagger 정의가 없습니다.
+> 이 섹션은 **참고 목적**으로만 기술합니다. AI 버틀러·음성 입력(STT) 은 Next.js Frontend BFF route(`frontend/app/api/ai-assistant/`, `frontend/app/api/stt/`)로 구현되어 있으며, 별도의 백엔드 라우트나 Swagger 정의가 없습니다. 실제 데이터 변경은 본 문서의 `/api/teams/...` 엔드포인트를 BFF 에서 호출합니다.
 
 ### POST /api/ai-assistant/chat (Frontend BFF)
 
 SSE(Server-Sent Events) 스트리밍으로 AI 응답을 반환합니다.
 
-**4-way 의도 분류**: `usage` (앱 사용법) / `general` (일반 질답) / `schedule_query` (일정 조회) / `schedule_create` (일정 등록) / `blocked` (비적절 요청)
+**6-way 의도 분류**: `usage` (앱 사용법, RAG) / `general` (일반 질답, SearxNG + Open WebUI) / `schedule_query` (일정 조회) / `schedule_create` (일정 등록) / `schedule_update` (일정 수정) / `schedule_delete` (일정 삭제) / `blocked` (일정 외 도메인 거절)
 
 **SSE 이벤트 종류**:
 
 | 이벤트명 | 설명 |
 |----------|------|
+| `meta` | 분류 결과·source(`rag`/`web`/`schedule`/`blocked`)·model 메타 |
 | `token` | AI 응답 토큰 스트림 |
-| `awaiting-input` | 다중 턴 — 추가 입력 필요 |
-| `pending-action` | 일정 등록 confirm 카드 데이터 |
+| `awaiting-input` | 다중 턴 — `needs: 'time' / 'date' / 'datetime' / 'title' / 'target'` 등 추가 입력 요청 |
+| `pending-action` | 일정 등록·수정·삭제 confirm 카드 데이터 (tool: `createSchedule` / `updateSchedule` / `deleteSchedule`) |
+| `sources` | 일반 질문 답변의 출처 URL 5건 (SearxNG) 또는 사용법 답변의 RAG 문서 N건 |
 | `done` | 응답 완료 |
 | `error` | 오류 발생 |
 
 ### POST /api/ai-assistant/execute (Frontend BFF)
 
-`pending-action` 이벤트의 confirm 카드 승인 후 일정 등록을 실행합니다.
+`pending-action` 이벤트의 confirm 카드 ✓ 승인 후 도구를 실행합니다. TOOL_WHITELIST = `{createSchedule, updateSchedule, deleteSchedule}`. backend `withAuth`/`withTeamRole` 미들웨어 통과만 허용 (`created_by` 는 JWT userId 로 강제 — args 위조 무시).
+
+### POST /api/stt (Frontend BFF) — 음성 입력
+
+브라우저 `MediaRecorder` blob 을 multipart 로 업로드하면 Whisper 컨테이너(`onerahmet/openai-whisper-asr-webservice`, `faster_whisper`) 가 한국어 텍스트로 변환하여 반환합니다. 노트북 Chrome·iOS Safari·일반 Android Chrome 은 브라우저 내장 Web Speech API 를 사용하므로 이 endpoint 호출 없음. Galaxy/Samsung Internet/Firefox 등 quirk 환경에서만 `useWhisperRecognition` 분기로 호출됩니다.
+
+| 항목 | 내용 |
+|---|---|
+| 요청 | `multipart/form-data` 의 `audio` 필드 (audio/webm 또는 audio/wav) |
+| 응답 | `{ text: "변환된 한국어 텍스트" }` |
+| 오디오 영구 저장 | 없음 — Whisper 처리 후 메모리에서 폐기 (BR-13, ERD §3.4) |
 
 ---
 
@@ -3180,7 +3202,7 @@ SSE(Server-Sent Events) 스트리밍으로 AI 응답을 반환합니다.
 | POST | /api/auth/refresh | Access Token 재발급 | 불필요 | 없음 |
 | GET | /api/auth/me | 내 정보 조회 (세션 복구) | 필요 | 인증 사용자 |
 | PATCH | /api/me | 내 프로필(이름) 수정 | 필요 | 본인 |
-| GET | /api/me/tasks | 나의 할 일 목록 (전체 팀 PENDING 신청) | 필요 | LEADER만 |
+| GET | /api/me/tasks | 나의 할 일 목록 (내가 LEADER 인 팀의 PENDING 신청 집계) | 필요 | 인증 사용자 (LEADER 인 팀의 항목만 반환, 없으면 빈 배열) |
 | GET | /api/teams | 내 팀 목록 조회 | 필요 | LEADER·MEMBER |
 | POST | /api/teams | 팀 생성 | 필요 | LEADER·MEMBER |
 | GET | /api/teams/public | 공개 팀 목록 조회 (탐색) | 필요 | LEADER·MEMBER |

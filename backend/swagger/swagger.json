@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "TEAM WORKS API",
-    "description": "팀 단위 캘린더 기반 일정관리 + 채팅 애플리케이션 API. API Route 소스 위치: backend/app/api/. v1.7.0 — Postits/Notices/Projects/ProjectSchedules/SubSchedules/Me/Refresh paths 보강",
-    "version": "1.7.1",
+    "description": "팀 단위 캘린더 기반 일정관리 + 채팅 애플리케이션 API. API Route 소스 위치: backend/app/api/. v1.8.0 — 일정 CRUD 권한 description·403 메시지 정정(실제: 생성·조회는 withTeamRole, 수정·삭제는 생성자 본인만). POST·PATCH 일정 body 에 color 필드 보강. files 응답 헤더 명시. AI 버틀러 6-way 분류 + STT 는 frontend BFF 이라 본 Swagger 에 포함 안 함 (docs/7-api-spec §16 참고).",
+    "version": "1.8.0",
     "x-source-directory": "backend/app/api"
   },
   "servers": [
@@ -2866,7 +2866,7 @@
           "Schedules"
         ],
         "summary": "팀 일정 생성",
-        "description": "팀 일정을 생성합니다. 팀장(LEADER)만 실행할 수 있습니다.",
+        "description": "팀 일정을 생성합니다. 팀 구성원(LEADER/MEMBER) 모두 실행할 수 있습니다 (BR-02, FR-04-1). created_by 는 JWT userId 로 자동 설정.",
         "security": [
           {
             "BearerAuth": []
@@ -2905,6 +2905,13 @@
                     "type": "string",
                     "nullable": true,
                     "example": "이번 주 진행 상황 공유 및 다음 주 계획 수립"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": ["indigo", "blue", "emerald", "amber", "rose"],
+                    "default": "indigo",
+                    "description": "일정 색상. ⚠ 현재 backend 에서 enum 검증 미적용 — 임의 문자열도 통과하므로 frontend 선에서 강제 권장",
+                    "example": "indigo"
                   },
                   "startAt": {
                     "type": "string",
@@ -2990,7 +2997,7 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "팀장만 일정을 생성할 수 있습니다."
+                  "error": "해당 팀에 접근 권한이 없습니다."
                 }
               }
             }
@@ -3111,7 +3118,7 @@
           "Schedules"
         ],
         "summary": "팀 일정 수정",
-        "description": "기존 팀 일정을 수정합니다. 팀장(LEADER)만 실행할 수 있습니다. 최소 1개 이상의 필드를 포함해야 합니다.",
+        "description": "기존 팀 일정을 수정합니다. 일정 생성자 본인만 실행할 수 있습니다 (BR-02, FR-04-2). 최소 1개 이상의 필드를 포함해야 합니다.",
         "security": [
           {
             "BearerAuth": []
@@ -3155,6 +3162,12 @@
                     "type": "string",
                     "nullable": true,
                     "example": "장소: 회의실 A"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": ["indigo", "blue", "emerald", "amber", "rose"],
+                    "description": "일정 색상. ⚠ backend enum 검증 미적용",
+                    "example": "amber"
                   },
                   "startAt": {
                     "type": "string",
@@ -3235,7 +3248,7 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "팀장만 일정을 수정할 수 있습니다."
+                  "error": "일정 수정 권한이 없습니다."
                 }
               }
             }
@@ -3269,7 +3282,7 @@
           "Schedules"
         ],
         "summary": "팀 일정 삭제",
-        "description": "팀 일정을 삭제합니다. 팀장(LEADER)만 실행할 수 있습니다.",
+        "description": "팀 일정을 삭제합니다. 일정 생성자 본인만 실행할 수 있습니다 (BR-02, FR-04-3).",
         "security": [
           {
             "BearerAuth": []
@@ -3338,7 +3351,7 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "팀장만 일정을 삭제할 수 있습니다."
+                  "error": "일정 삭제 권한이 없습니다."
                 }
               }
             }

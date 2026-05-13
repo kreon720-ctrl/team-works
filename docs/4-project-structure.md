@@ -14,6 +14,8 @@
 | 1.7 | 2026-04-18 | 앱명 Team CalTalk → TEAM WORKS 반영. SCHEDULE_REQUEST → WORK_PERFORMANCE 변경. postits/work-permissions 엔드포인트 추가 |
 | 1.8 | 2026-04-20 | 실제 구현 반영: 백엔드 API Routes(notices/postits/projects/sub-schedules/work-permissions/members/auth/me), 쿼리 파일(notice/permission/postit/project/projectSchedule/subSchedule), 에러 모듈, 테스트 파일 추가. 프론트엔드 app/_components·_hooks 코-로케이션 패턴, project 컴포넌트 전체, chat(NoticeBanner·WorkPermissionModal·useChatPanel), schedule(PostItCard·PostItColorPalette·ScheduleTooltip), common(ResizableSplit), store(noticeStore/projectStore/projectScheduleStore/subScheduleStore), hooks/query(usePostits·useWorkPermissions·useRemoveTeamMember 등), lib/api(noticeApi/projectApi), lib/authInterceptor·tokenManager, types(postit·project) 추가 |
 | 1.9 | 2026-04-29 | docs/1 v2.0·docs/2 v1.6 동기화 — Vercel 가정 폐기 → Docker Compose 단일 호스트 운영 반영. P-06 갱신. 신규 디렉토리: 자료실(`backend/app/api/teams/.../board`, `app/api/files/[fileId]`, `lib/files/`, `frontend/components/board/`, `lib/api/boardApi.ts`, `types/board.ts`), 프로젝트 컨텍스트 격리(`projects/[projectId]/messages`, `/notices`), AI 버틀러(`frontend/app/api/ai-assistant/chat·execute/route.ts`, `components/ai-assistant/AIAssistantPanel.tsx`, `lib/mcp/{pgClient,scheduleQueries}.ts`). 프로젝트 루트에 `docker-compose.yml`·`docker/`·`rag/`·`ollama/`·`files/` 추가. §10 신규(Docker/AI/RAG 인프라). §부록 핵심 제약 갱신, 관련 문서에 docs/13~19 링크 |
+| 1.10 | 2026-05-12 | docs/1 v2.1·docs/2 v1.7 동기화. AI 4-way → 6-way 분류(`schedule_update`/`schedule_delete` 추가). **음성 입력(STT)** 추가: `frontend/hooks/useSpeechRecognition.ts`(hybrid wrapper) + `useWebSpeechRecognition.ts`(브라우저 내장) + `useWhisperRecognition.ts`(자체 호스팅 분기), `frontend/app/api/stt/route.ts`(multipart → Whisper 컨테이너 프록시). **Whisper 컨테이너** (`onerahmet/openai-whisper-asr-webservice` :9000, `faster_whisper` 엔진, CPU INT8, `whisper_cache` volume) docker-compose 추가. **모바일 UX**: `frontend/hooks/useSwipeGesture.ts`(좌우 swipe), `MobileLayout.tsx`(이미 있음, 음성 입력·분할 화면 키보드 억제 책임 보강). RAG 실구현 경로 정정 — `rag/server.js`(Express, 6-way 분류기 + `/parse-schedule-args`·`/parse-schedule-query` + `/chat`). schedule_update/delete 는 별도 RAG endpoint 없이 frontend `chat/route.ts` 가 `/parse-schedule-query` 재활용 + `tryParseDirectDatetime` + LLM fallback 으로 직접 처리. **AI 로직 실 위치 정정** — `backend/lib/ai/`(미존재) 표기 폐기, 실제는 `frontend/lib/mcp/{pgClient,scheduleQueries}.ts` + `frontend/app/api/ai-assistant/{chat,execute}/route.ts`(BFF). 임베딩 CPU 분리(별도 ollama 인스턴스) `docs/embeding-cpu.md` 참조 |
+| 1.11 | 2026-05-12 | Ghost file 정정 — 실제 코드에 없는 파일 표기 제거. `frontend/components/ai-assistant/` 는 `AIAssistantPanel.tsx` 단일 파일이며 `AIAssistantMessageList`·`ConfirmCard`·`AwaitingInputForm` 은 inline 구현임을 명시. `frontend/components/board/` 는 `BoardPanel.tsx` 단일 파일(PostEditor·PostDetail inline). `frontend/lib/api/aiAssistantApi.ts` 와 `frontend/lib/sse/streamReader.ts` 는 미존재 — AI SSE 클라이언트는 `AIAssistantPanel.tsx` 에 inline. 누락 추가: `frontend/lib/openWebUiModel.ts` (Open WebUI `/api/models` 동적 해석), `frontend/lib/mcp/` 명시. docs/5 다이어그램 4 도 동일 정정 |
 
 ---
 
@@ -181,9 +183,17 @@ DELETE /api/teams/[teamId]/board/[postId]       # 작성자만
 # 첨부파일 다운로드 (StorageAdapter 분기)
 GET    /api/files/[fileId]                      # Local: stream, S3: 302 redirect
 
-# AI 버틀러 (SSE 스트리밍)
-POST   /api/ai-assistant/chat                   # 4-way intent + RAG/검색/일정 분기
-POST   /api/ai-assistant/execute                # confirm card 승인 후 일정 실제 등록
+# AI 버틀러 (SSE 스트리밍) — frontend BFF
+POST   /api/ai-assistant/chat                   # 6-way intent + RAG/검색/일정 CRUD 분기
+                                                #   usage / general / schedule_query
+                                                #   schedule_create / schedule_update / schedule_delete / blocked
+POST   /api/ai-assistant/execute                # confirm card 승인 후 도구 실행
+                                                #   TOOL_WHITELIST = {createSchedule, updateSchedule, deleteSchedule}
+
+# 음성 입력 STT (multipart → Whisper 컨테이너) — frontend BFF
+POST   /api/stt                                 # MediaRecorder blob → Whisper :9000 → { text }
+                                                #   브라우저 내장 Web Speech API 분기는 호출 없음
+                                                #   (Galaxy/SM-XXXX/Samsung Internet/Firefox 만 이 endpoint 사용)
 ```
 
 ### DB 테이블/컬럼 네이밍
@@ -244,12 +254,18 @@ STORAGE_LOCAL_DIR=/app/files           # backend 컨테이너 내부 경로. hos
 # STORAGE_S3_PRESIGN_TTL_SEC=300
 
 # AI 버틀러 — Ollama / RAG / Open WebUI / SearxNG (모두 docker-compose 서비스명)
-OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_BASE_URL=http://ollama:11434          # 채팅 모델용 (GPU)
+OLLAMA_EMBED_URL=http://ollama-embed:11434   # 임베딩 모델용 (CPU 분리, docs/embeding-cpu.md)
 OLLAMA_MODEL=gemma4:26b
 OLLAMA_NUM_CTX=32768
 RAG_BASE_URL=http://rag:8787
 SEARXNG_BASE_URL=http://searxng:8080
 OPEN_WEBUI_BASE_URL=http://open-webui:8080
+
+# 음성 입력 STT — Whisper 컨테이너 (faster_whisper, CPU INT8 default)
+WHISPER_URL=http://whisper:9000              # frontend BFF /api/stt 가 이 URL 로 multipart 전달
+WHISPER_MODEL=small                          # small | medium | large-v3-turbo (VRAM/RAM 기준 선택)
+WHISPER_ENGINE=faster_whisper                # 엔진 토글 (openai_whisper / faster_whisper)
 ```
 
 ```bash
@@ -370,12 +386,16 @@ frontend/
 ├── app/
 │   ├── globals.css                    # Tailwind CSS v4 + 커스텀 컬러 시스템
 │   ├── layout.tsx                     # 루트 레이아웃 (Providers 포함)
-│   ├── api/                           # 프론트엔드 BFF 라우트 (AI 버틀러 SSE 프록시 등)
-│   │   └── ai-assistant/
-│   │       ├── chat/route.ts          # POST /api/ai-assistant/chat — SSE 스트리밍, 4-way intent 분기
-│   │       │                          #   (usage / general / schedule_query / schedule_create / blocked)
-│   │       │                          #   awaiting-input · pending-action 이벤트 처리
-│   │       └── execute/route.ts       # POST /api/ai-assistant/execute — confirm card 승인 후 일정 등록
+│   ├── api/                           # 프론트엔드 BFF 라우트 (AI 버틀러 SSE 프록시, STT 등)
+│   │   ├── ai-assistant/
+│   │   │   ├── chat/route.ts          # POST /api/ai-assistant/chat — SSE 스트리밍, 6-way intent 분기
+│   │   │   │                          #   (usage / general / schedule_query / schedule_create
+│   │   │   │                          #    schedule_update / schedule_delete / blocked)
+│   │   │   │                          #   awaiting-input · pending-action 이벤트 처리
+│   │   │   └── execute/route.ts       # POST /api/ai-assistant/execute — confirm card 승인 후
+│   │   │                              #   TOOL_WHITELIST {createSchedule, updateSchedule, deleteSchedule}
+│   │   └── stt/route.ts               # POST /api/stt — multipart 오디오 blob → Whisper :9000 → {text}
+│   │                                  #   (Galaxy/SM-XXXX/Samsung Internet/Firefox 분기만 호출)
 │   ├── (auth)/                        # 인증 불필요 라우트 그룹
 │   │   ├── layout.tsx
 │   │   ├── login/
@@ -439,16 +459,13 @@ frontend/
 │   │   ├── WorkPermissionModal.tsx    # 업무보고 조회 권한 설정 모달
 │   │   ├── useChatPanel.ts            # 채팅 패널 로직 훅
 │   │   └── __tests__/
-│   ├── ai-assistant/
-│   │   ├── AIAssistantPanel.tsx       # AI 버틀러 메인 패널 (우측 sub-tab)
-│   │   ├── AIAssistantMessageList.tsx # SSE 토큰 스트리밍 렌더
-│   │   ├── ConfirmCard.tsx            # 일정 등록 확인 카드 (pending-action 이벤트)
-│   │   ├── AwaitingInputForm.tsx      # 다중 턴 일정 등록 보충 입력
+│   ├── ai-assistant/                  # AI 찰떡이 — 단일 컴포넌트 + inline 서브 UI
+│   │   ├── AIAssistantPanel.tsx       # 메인 패널 — 6-way intent SSE 핸들러, ConfirmCard·AwaitingInputForm·메시지 리스트 모두 inline 구현
+│   │   │                              #   STT 마이크 버튼·캘린더 분할 화면·키보드 억제 책임 보유
+│   │   │                              #   (분리 컴포넌트로 추출은 향후 리팩터링 시점에)
 │   │   └── __tests__/
-│   ├── board/                         # 자료실 (게시판)
-│   │   ├── BoardPanel.tsx             # 글 목록 + 등록 버튼
-│   │   ├── PostEditor.tsx             # 신규/수정 공용 (제목·본문·첨부)
-│   │   ├── PostDetail.tsx             # 상세 보기 + 작성자 본인 수정/삭제 버튼
+│   ├── board/                         # 자료실 (게시판) — 단일 컴포넌트 + inline 폼/상세
+│   │   ├── BoardPanel.tsx             # 글 목록 + 등록·수정·삭제 액션·첨부 처리 모두 inline 구현
 │   │   └── __tests__/
 │   ├── project/
 │   │   ├── ProjectGanttView.tsx       # 프로젝트 목록 + 간트차트 컨테이너
@@ -491,8 +508,17 @@ frontend/
 │   │   ├── useRemoveTeamMember.ts     # 팀원 강제 탈퇴
 │   │   ├── useUpdateProfile.ts        # 내 프로필 수정
 │   │   └── useUpdateJoinRequestFromTasks.ts  # 나의 할 일에서 가입 신청 처리
-│   ├── useBreakpoint.ts               # 반응형 분기 훅
+│   ├── useBreakpoint.ts               # 반응형 분기 훅 — isMobile(<640px) / isDesktop(>=1024px)
 │   ├── useLeaderRole.ts               # 팀장 여부 확인 훅
+│   ├── useSwipeGesture.ts             # 좌우/상하 swipe 감지 (threshold 50px). 캘린더 페이지 네비게이션용
+│   ├── useSpeechRecognition.ts        # STT hybrid wrapper — UA 검사로 webspeech / whisper 자동 분기
+│   │                                  #   Samsung Galaxy(SM-XXXX) / Samsung Internet / Web Speech 미지원
+│   │                                  #   → whisper, 그 외 → webspeech
+│   ├── useWebSpeechRecognition.ts     # 브라우저 내장 Web Speech API hook
+│   │                                  #   continuous=false, lang=ko-KR, interimResults=true
+│   │                                  #   confidence==0 무시(Android Chrome 중복 emit), cumulative 패턴 감지
+│   ├── useWhisperRecognition.ts       # 자체 호스팅 Whisper hook
+│   │                                  #   MediaRecorder → AudioContext VAD (1초 침묵) → POST /api/stt
 │   └── __tests__/
 │
 ├── store/                             # Zustand 스토어 (클라이언트 전역 상태)
@@ -518,15 +544,18 @@ frontend/
     ├── apiClient.ts                   # fetch 래퍼 (Authorization 헤더 자동 주입)
     ├── authInterceptor.ts             # 401 응답 시 토큰 자동 갱신 인터셉터
     ├── tokenManager.ts                # Access/Refresh Token 인메모리 관리
+    ├── openWebUiModel.ts              # Open WebUI `/api/models` 동적 해석 (채팅 모델명 자동 감지)
     ├── api/                           # 도메인별 API 호출 모듈
     │   ├── noticeApi.ts               # 공지사항 API 함수 (projectId 옵션)
     │   ├── projectApi.ts              # 프로젝트/일정/세부일정 API 함수
-    │   ├── boardApi.ts                # 자료실 CRUD (multipart FormData 업로드)
-    │   └── aiAssistantApi.ts          # AI 버틀러 SSE 스트림 클라이언트
-    ├── sse/
-    │   └── streamReader.ts            # SSE 라인 파서 (event: data: 분리)
+    │   └── boardApi.ts                # 자료실 CRUD (multipart FormData 업로드)
+    │                                  # ※ AI 버틀러 SSE 클라이언트는 별도 파일 없이
+    │                                  #   `AIAssistantPanel.tsx` 안에 inline 으로 구현됨
+    ├── mcp/                           # AI 버틀러 도구 (frontend BFF execute 가 호출)
+    │   ├── pgClient.ts                # backend Schedule API 호출 래퍼 (READ 가드)
+    │   └── scheduleQueries.ts         # createSchedule / updateSchedule / deleteSchedule 함수
     ├── utils/
-    │   └── timezone.ts               # UTC ↔ KST 변환 (클라이언트용)
+    │   └── timezone.ts                # UTC ↔ KST 변환 (클라이언트용)
     └── __tests__/
 ```
 
@@ -645,14 +674,11 @@ backend/
     │   ├── s3Storage.ts               # S3StorageAdapter (운영 전환 시 구현, 1단계는 placeholder throw)
     │   └── validate.ts                # MIME 화이트리스트 + 크기 cap(10MB) + magic-bytes 검증
     │                                  #   허용: jpg/png/gif/webp/pdf/docx/xlsx/pptx/txt/md/zip
-    ├── ai/                            # AI 버틀러 — 4-way intent + RAG/Open WebUI/SearxNG 분기
-    │   ├── ollamaClient.ts            # Ollama HTTP API 래퍼 (gemma4:26b, num_ctx 32K, think:false)
-    │   ├── intentClassifier.ts        # 4-way: usage / general / schedule_query / schedule_create / blocked
-    │   ├── ragClient.ts               # RAG 서버(:8787) /retrieve 호출 (사용 가이드용)
-    │   ├── searxngClient.ts           # SearxNG(:8080) JSON API 검색 (general intent)
-    │   ├── scheduleQueries.ts         # 자연어 → 일정 조회/등록 SQL 매핑 (LLM tool-use)
-    │   ├── pgClient.ts                # AI SQL 실행 화이트리스트 가드 (READ-ONLY 강제 등)
-    │   └── sseStream.ts               # SSE writer (token / awaiting-input / pending-action / done)
+    │
+    │   # ⚠ 주의: AI 버틀러 로직은 backend 가 아닌 frontend BFF + frontend/lib/mcp/ 에 있음.
+    │   # backend/lib/ai/ 디렉토리는 현재 코드에 존재하지 않으며, 향후 추가될 수도 있음.
+    │   # 실제 위치 — frontend/lib/mcp/{pgClient,scheduleQueries}.ts +
+    │   #              frontend/app/api/ai-assistant/{chat,execute}/route.ts
     ├── auth/
     │   ├── jwt.ts                     # Access/Refresh Token 발급·검증
     │   ├── jwt.test.ts
@@ -712,9 +738,10 @@ database/
 | `backend` | 자체 빌드 (`backend/Dockerfile`) | `:3001` | `./files:/app/files` | 자료실 첨부파일 영속 |
 | `postgres-db` | `postgres:18-alpine` | `:5432` (개발 시) | `postgres_data:/var/lib/postgresql/data` | PostgreSQL 18 |
 | `ollama` | `ollama/ollama:latest` | `:11434` (내부) | `./ollama:/root/.ollama` | gemma4:26b, nomic-embed-text |
-| `rag` | 자체 빌드 (`rag/Dockerfile`) | `:8787` (내부) | `./rag/vectorstore:/app/vectorstore` | RAG 서버 |
+| `rag` | 자체 빌드 (`rag/Dockerfile`) | `:8787` (내부) | `./rag/vectorstore:/app/vectorstore` | RAG 서버 (Express, `server.js`) |
 | `searxng` | `searxng/searxng:latest` | `:8080` (내부) | `./searxng:/etc/searxng` | 메타 검색 |
 | `open-webui` | `ghcr.io/open-webui/open-webui:main` | `:8081` (내부, 옵션) | `open_webui_data:/app/backend/data` | 관리자 콘솔 |
+| `whisper` | `onerahmet/openai-whisper-asr-webservice:latest` | `:9000` (내부) | `whisper_cache:/root/.cache/whisper` | 음성 입력 STT. `faster_whisper` 엔진, CPU INT8 default. env `WHISPER_MODEL`(small/medium/large-v3-turbo), `WHISPER_ENGINE`. HF xet storage TLS 회피용 `HF_HUB_DISABLE_XET=1` 강제 |
 | `nginx` (운영 시) | `nginx:alpine` | `:80`, `:443` | `./docker/nginx.conf:ro`, `./certbot/conf` | Let's Encrypt + reverse proxy |
 
 ### docker/ 디렉토리
@@ -726,17 +753,25 @@ docker/
 └── healthcheck.sh            # 컨테이너 헬스체크 공용 스크립트
 ```
 
-### rag/ 디렉토리
+### rag/ 디렉토리 (실제 구현)
 
 ```
 rag/
 ├── Dockerfile
-├── server.py                 # FastAPI — POST /retrieve, /index
-├── chunker.ts                # 사용 가이드 문서 chunk 분할 정책
-├── embedder.py               # nomic-embed-text 호출 (Ollama 경유)
-├── vectorstore/              # Chroma/pgvector 인덱스 (host mount, .gitignore)
-└── corpus/                   # docs/13~19 등 RAG 학습 원본
+├── server.js                 # Express — POST /classify, /parse-schedule-args,
+│                             #   /parse-schedule-query, /parse-schedule-update,
+│                             #   /parse-schedule-delete, /chat (RAG SSE)
+├── index.js                  # 인덱스 빌드 (1회) — chunks.json 생성
+├── ask.js                    # CLI 검색 (개발용)
+├── bm25.js                   # BM25 통계 계산
+├── chunker.js                # ollama/*.md 문서 chunk 분할
+├── modelResolver.js          # Open WebUI /api/models 로 채팅 모델명 자동 해석
+├── config.js                 # SERVER_PORT(8787) 등 환경 설정
+├── data/chunks.json          # 인덱스 산출물 (chunk + 임베딩 + BM25 + parents)
+└── docs/                     # README 등
 ```
+
+> **주의**: 이전 문서엔 `server.py`(FastAPI) 로 표기되어 있었으나, 실제 구현은 Node.js Express(`server.js`)임. 임베딩은 Ollama `/api/embed` 호출로 위임.
 
 ### 운영 전환 체크포인트
 - `STORAGE_BACKEND=local` → `s3` 토글 시 `backend/lib/files/s3Storage.ts` 구현 + `scripts/migrate-files-to-s3.ts` 1회 실행. 호출처 코드 0건 변경.
@@ -777,4 +812,7 @@ rag/
 | 다중 턴 일정 등록 가이드 | docs/17-multi-turn-schedule.md |
 | 자료실 가이드 | docs/18-board-guide.md |
 | 운영 배포 가이드 | docs/19-deploy-guide.md |
+| 배포 가이드 (STT 포함) | docs/20-easy-deploy.md |
+| 음성 입력(STT) 가이드 | docs/22-voice-input.md |
+| 임베딩 모델 CPU 분리 | docs/embeding-cpu.md |
 | Docker 컨테이너 구성 가이드 | docs/30-docker-container-gen.md |
