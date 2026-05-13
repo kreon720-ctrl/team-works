@@ -6,6 +6,10 @@ services:
       POSTGRES_USER: teamworks-manager
       POSTGRES_PASSWORD: 'Nts123!@#'
       POSTGRES_DB: teamworks
+      TZ: Asia/Seoul
+    # PostgreSQL 세션 timezone — OS TZ 와 별개로 postgresql.conf 의 timezone 설정.
+    # 기본은 UTC 라 now() 도 UTC. 시작 옵션으로 Asia/Seoul 강제.
+    command: postgres -c timezone=Asia/Seoul -c log_timezone=Asia/Seoul
     volumes:
       - ~/postgres_data:/var/lib/postgresql
     ports:
@@ -33,7 +37,8 @@ services:
       # 자료실 storage 어댑터 — 1단계 local, 운영 전환 시 's3' 로 변경.
       STORAGE_BACKEND: local
       STORAGE_LOCAL_DIR: /app/files
-    command: sh -c "npm install && npm run dev"
+      TZ: Asia/Seoul
+    command: sh -c "apk add --no-cache tzdata && npm install && npm run dev"
     networks:
       - teamworks-net
     expose:
@@ -70,9 +75,10 @@ services:
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
       NODE_ENV: development
+      TZ: Asia/Seoul
     # Turbopack dev 캐시(.next) 가 컨테이너 재시작에서 살아남아 라우트 매니페스트가
     # 깨진 채 부팅되는 사례 발견 — 매 부팅마다 .next 를 비워 클린 컴파일 강제.
-    command: sh -c "npm install && rm -rf .next && npm run dev"
+    command: sh -c "apk add --no-cache tzdata && npm install && rm -rf .next && npm run dev"
     networks:
       - teamworks-net
     expose:
@@ -87,6 +93,8 @@ services:
       - "8080:80"
     volumes:
       - ./docker/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    environment:
+      TZ: Asia/Seoul
     depends_on:
       - frontend
       - backend
@@ -101,6 +109,7 @@ services:
     environment:
       BASE_URL: http://searxng:8080/
       INSTANCE_NAME: teamworks-searxng
+      TZ: Asia/Seoul
     expose:
       - "8080"
     networks:
@@ -141,6 +150,7 @@ services:
       RAG_EMBEDDING_ENGINE: ollama
       RAG_OLLAMA_BASE_URL: http://host.docker.internal:11434
       RAG_EMBEDDING_MODEL: nomic-embed-text:latest
+      TZ: Asia/Seoul
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -179,6 +189,7 @@ services:
       HF_HUB_DISABLE_XET: "1"
       # CPU 모드에서 INT8 양자화 강제 (FP16/FP32 모델도 메모리는 INT8 로 적재).
       ASR_QUANTIZATION: "int8"
+      TZ: Asia/Seoul
     volumes:
       - whisper_cache:/root/.cache/whisper
     networks:
