@@ -1844,8 +1844,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 //   → search="디자인 리뷰 일정", newDT="25일 오후 2시"
                 let searchQuestion = question;
                 let initialNewDateTimeHint: string | null = null;
+                // 날짜 단서 — "다음 주 화요일" 같은 "주 + 요일" 결합 패턴을 alternation 첫 자리에
+                // 배치해 우선 매치 (regex alternation 은 좌측 우선). 단순 "다음 주" 만 잡혀
+                // 요일이 검색 쪽으로 빠지는 케이스 방지.
                 const UPDATE_TO_PATTERN_RE =
-                  /^([\s\S]+?)\s+((?:(?:\d+\s*월\s*)?\d+\s*일|오늘|내일|모레|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주)?\s*(?:오전|오후|새벽)?\s*\d+\s*시(?:\s*(?:반|\d+\s*분))?)\s*(?:로|으로)\s+(?:수정|변경|바꿔|바꿔줘|고쳐|고쳐줘)/;
+                  /^([\s\S]+?)\s+((?:(?:이번|다음|지난)\s*주\s+(?:월요일|화요일|수요일|목요일|금요일|토요일|일요일)|(?:\d+\s*월\s*)?\d+\s*일|오늘|내일|모레|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주)?\s*(?:오전|오후|새벽)?\s*\d+\s*시(?:\s*(?:반|\d+\s*분))?)\s*(?:로|으로)\s+(?:수정|변경|바꿔|바꿔줘|고쳐|고쳐줘)/;
                 const splitMatch = question.match(UPDATE_TO_PATTERN_RE);
                 if (splitMatch) {
                   const newDtPart = splitMatch[2].trim();
@@ -1939,11 +1942,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 };
                 // 첫 발화에 새 일시 힌트 포함 → 즉시 파싱해 new-title 단계로 자동 진입.
                 if (initialNewDateTimeHint) {
-                  const direct = tryParseDirectDatetime(
+                  let direct = tryParseDirectDatetime(
                     initialNewDateTimeHint,
                     s.startAt,
                     s.endAt,
                   );
+                  // LLM fallback — tryParseDirectDatetime 은 요일/주 키워드("다음 주 화요일")
+                  // 를 명시적으로 처리 안 함. parseScheduleArgs(RAG) 로 위임해 상대 날짜
+                  // 매핑 표 기반 정확 변환. 제목 단서가 없으면 needs:'title' 떨어지므로 더미
+                  // 제목 결합 후 호출 — 응답의 시각만 추출.
+                  if (!direct) {
+                    const llm = await parseScheduleArgs(`${initialNewDateTimeHint} 회의`);
+                    if ('ok' in llm && llm.ok) {
+                      direct = { startAt: llm.args.startAt, endAt: llm.args.endAt };
+                    }
+                  }
                   if (direct) {
                     const startMs = new Date(direct.startAt).getTime();
                     if (startMs >= Date.now() - 60_000) {
