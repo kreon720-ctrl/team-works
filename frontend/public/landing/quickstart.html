@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#141313">
+  <title>TEAM WORKS.MY — Quick Start Guide</title>
+  <meta name="description" content="처음 사용자를 위한 5분 가이드. 로그인부터 팀 가입, 일정 등록, AI 비서 찰떡이 활용까지.">
+  <style>
+    :root {
+      --bg: #141313;
+      --surface: #1c1c1d;
+      --surface-2: #252527;
+      --border: #2e2e30;
+      --text: #f5f5f5;
+      --text-muted: #a8a8ad;
+      --gold: #ffb800;
+      --gold-soft: rgba(255, 184, 0, 0.12);
+      --indigo: #818cf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 0 16px 64px;
+    }
+    .container { max-width: 480px; margin: 0 auto; }
+    @media (min-width: 720px) { .container { max-width: 640px; } body { font-size: 16px; } }
+
+    /* Header */
+    header.hero {
+      padding: 48px 0 32px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    header.hero .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: var(--gold-soft);
+      color: var(--gold);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    header.hero h1 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+    header.hero h1 .dot { color: var(--gold); font-size: 1.3em; }
+    header.hero p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Chapter nav */
+    nav.chapters {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 40px;
+    }
+    nav.chapters a {
+      display: block;
+      padding: 12px 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      text-decoration: none;
+      text-align: center;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+    nav.chapters a:hover, nav.chapters a:active {
+      background: var(--surface-2);
+      border-color: var(--gold);
+    }
+    nav.chapters a .num {
+      display: block;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--gold);
+      margin-bottom: 2px;
+    }
+
+    /* Flow diagram (SVG-like in CSS) */
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin: 24px 0 32px;
+      flex-wrap: wrap;
+    }
+    .flow-step {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .flow-arrow {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    /* Chapter */
+    section.chapter {
+      margin-bottom: 56px;
+      padding-top: 16px;
+    }
+    section.chapter h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    section.chapter h2 .chapter-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px; height: 32px;
+      background: var(--gold);
+      color: #000;
+      border-radius: 50%;
+      font-size: 16px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    section.chapter > p.lead {
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      padding-left: 44px;
+    }
+
+    /* Step card */
+    .step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px; height: 28px;
+      background: var(--gold-soft);
+      color: var(--gold);
+      border-radius: 50%;
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step h3 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .step p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .step ul {
+      color: var(--text-muted);
+      font-size: 14px;
+      padding-left: 20px;
+      margin-bottom: 12px;
+    }
+    .step ul li { margin-bottom: 4px; }
+    .step strong { color: var(--text); }
+    .step .img-wrap {
+      margin-top: 12px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #000;
+    }
+    .step img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 480px;
+      object-fit: contain;
+    }
+    .step .tip {
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: var(--gold-soft);
+      border-left: 3px solid var(--gold);
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .step .placeholder {
+      padding: 32px 16px;
+      background: var(--surface-2);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* CTA */
+    .cta {
+      margin-top: 56px;
+      padding: 32px 24px;
+      background: var(--gold-soft);
+      border: 1px solid var(--gold);
+      border-radius: 20px;
+      text-align: center;
+    }
+    .cta h2 {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .cta p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .cta a {
+      display: inline-block;
+      padding: 12px 32px;
+      background: var(--gold);
+      color: #000;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .cta .domain { color: var(--gold); font-weight: 700; }
+
+    /* Footer */
+    footer {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    footer a { color: var(--gold); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="hero">
+      <span class="badge">QUICK START GUIDE</span>
+      <h1>TEAM WORKS<span class="dot">.</span>MY</h1>
+      <p>처음 사용자를 위한 <strong style="color: var(--gold);">5분 가이드</strong></p>
+    </header>
+
+    <nav class="chapters">
+      <a href="#ch1"><span class="num">1</span>팀 만들기·가입</a>
+      <a href="#ch2"><span class="num">2</span>캘린더 일정 등록</a>
+      <a href="#ch3"><span class="num">3</span>찰떡이로 등록</a>
+    </nav>
+
+    <!-- Chapter 1 -->
+    <section class="chapter" id="ch1">
+      <h2><span class="chapter-num">1</span>로그인부터 팀 가입 승인까지</h2>
+      <p class="lead">새 계정을 만들고, 팀을 꾸리거나 기존 팀에 가입하는 전 과정.</p>
+
+      <div class="flow">
+        <span class="flow-step">회원가입</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">팀 만들기</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">팀 검색·가입</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">팀장 승인</span>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">1</span><h3>회원가입 · 로그인</h3></div>
+        <p>웹브라우저로 <strong class="domain" style="color: var(--gold);">teamworks.my</strong> 접속 → <strong>회원가입</strong> 화면에서 이메일·비밀번호 입력 후 가입. 이후 로그인하면 <strong>내 팀 목록</strong> 화면으로 이동합니다.</p>
+        <div class="placeholder">▼ 로그인·회원가입 화면 (도메인 접속 시 자동 표시)</div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">2</span><h3>내 팀 목록 화면</h3></div>
+        <p>로그인 직후 만나는 첫 화면. 내가 속한 팀들이 카드로 나타납니다. 처음이면 비어 있고, 하단 두 버튼으로 시작합니다.</p>
+        <ul>
+          <li><strong>+ 팀 생성</strong> — 직접 새 팀을 만들고 자동으로 팀장이 됨</li>
+          <li><strong>팀 검색</strong> — 기존 공개 팀에 가입 신청</li>
+        </ul>
+        <div class="img-wrap"><img src="imgs/quickstart/ch1-01-teams-list.png" alt="내 팀 목록 화면"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">3</span><h3>+ 팀 생성 — 직접 팀 만들기</h3></div>
+        <p>새 팀을 만들 때 입력:</p>
+        <ul>
+          <li><strong>팀 이름</strong> · <strong>설명</strong> (선택)</li>
+          <li><strong>공개 여부</strong> — 공개(다른 사람이 검색 가능) / 비공개(나만)</li>
+        </ul>
+        <div class="tip"><strong>TIP</strong> · 비공개 팀을 만들어 혼자 쓰면 <strong>개인 일정 관리</strong> 용도로 활용 가능합니다.</div>
+        <div class="img-wrap"><img src="imgs/quickstart/ch1-02-team-create.png" alt="팀 생성 모달"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">4</span><h3>팀 검색 → 가입 신청</h3></div>
+        <p>이미 만들어진 공개 팀에 들어가려면 <strong>팀 검색</strong> 버튼. 팀 이름으로 검색하고 <strong>가입 신청</strong>을 누르면 신청이 팀장에게 전달됩니다.</p>
+        <div class="img-wrap"><img src="imgs/quickstart/ch1-03-team-search.png" alt="팀 검색 모달"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">5</span><h3>팀장의 가입 승인 (LEADER 전용)</h3></div>
+        <p>내가 팀장인 팀에 가입 신청이 들어오면 카드 우측에 <strong>빨간 배지(숫자)</strong>가 표시됩니다. 클릭하면 <strong>나의 할 일</strong> 화면이 열리고, 신청자별로 <strong>승인</strong>·<strong>거절</strong> 버튼이 나옵니다.</p>
+        <div class="tip"><strong>TIP</strong> · 여러 팀을 이끌어도 모든 팀의 가입 신청이 한 화면에 모입니다.</div>
+        <div class="img-wrap"><img src="imgs/quickstart/ch1-04-join-approve.png" alt="가입 승인 화면"></div>
+      </div>
+    </section>
+
+    <!-- Chapter 2 -->
+    <section class="chapter" id="ch2">
+      <h2><span class="chapter-num">2</span>캘린더에서 일정 등록</h2>
+      <p class="lead">팀 화면 → 캘린더에서 직접 입력하는 기본 방법.</p>
+
+      <div class="flow">
+        <span class="flow-step">팀 진입</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">+ 일정 등록</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">필드 입력</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">생성</span>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">1</span><h3>팀 진입 → 캘린더</h3></div>
+        <p>내 팀 목록에서 팀 카드를 누르면 팀 화면이 열립니다. 모바일에서는 상단 탭으로 <strong>캘린더 / 팀채팅 / AI 찰떡이</strong>를 전환합니다.</p>
+        <ul>
+          <li><strong>월·주·일</strong> 뷰 전환</li>
+          <li><strong>이전·다음</strong> 화살표로 월 이동</li>
+          <li><strong>좌우 스와이프</strong> 도 가능 (모바일)</li>
+        </ul>
+        <div class="img-wrap"><img src="imgs/quickstart/ch2-01-calendar.png" alt="캘린더 화면"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">2</span><h3>+ 일정 등록 모달</h3></div>
+        <p>캘린더 상단의 노란색 <strong>+ 일정 등록</strong> 버튼을 누르면 모달이 열립니다. 필수 항목:</p>
+        <ul>
+          <li><strong>제목</strong> (필수, 최대 200자)</li>
+          <li><strong>색상</strong> — indigo · amber · blue · emerald · rose 중 선택</li>
+          <li><strong>설명</strong> (선택)</li>
+          <li><strong>시작 일시</strong> · <strong>종료 일시</strong> (필수, 종료 &gt; 시작)</li>
+        </ul>
+        <div class="img-wrap"><img src="imgs/quickstart/ch2-02-modal-empty.png" alt="일정 등록 모달"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">3</span><h3>생성 → 캘린더 반영</h3></div>
+        <p>하단 <strong>생성</strong> 버튼을 누르면 캘린더에 즉시 표시되고, 팀원 모두에게 보입니다. <strong>내가 만든 일정만 내가 수정·삭제</strong> 가능합니다.</p>
+        <div class="tip"><strong>TIP</strong> · 캘린더 빈 날짜 셀을 직접 클릭해도 그 날짜로 등록 모달이 열립니다.</div>
+      </div>
+    </section>
+
+    <!-- Chapter 3 -->
+    <section class="chapter" id="ch3">
+      <h2><span class="chapter-num">3</span>찰떡이로 자연어 등록</h2>
+      <p class="lead">버튼·필드 안 누르고 <strong style="color: var(--gold);">말 한 줄</strong>로 끝내기.</p>
+
+      <div class="flow">
+        <span class="flow-step">AI 찰떡이 탭</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">자연어 입력</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">미리보기 카드</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">승인 ✓</span>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">1</span><h3>AI 찰떡이 탭 열기</h3></div>
+        <p>팀 화면 상단의 <strong>AI 찰떡이</strong> 탭을 누르면 입력창과 예시 질문이 나옵니다.</p>
+        <div class="img-wrap"><img src="imgs/quickstart/ch3-01-ai-empty.png" alt="AI 찰떡이 초기 화면"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">2</span><h3>자연어 입력 → 미리보기 카드</h3></div>
+        <p>입력창에 일상 한국말로 적기:</p>
+        <ul>
+          <li>"내일 오후 3시 주간회의 등록해줘"</li>
+          <li>"13일 11시 반 직원점심 잡아줘"</li>
+          <li>"5월 14일 회의 삭제해줘"</li>
+        </ul>
+        <p>한 줄로 끝나면 곧바로 미리보기 카드가 표시됩니다. 정보가 부족하면 찰떡이가 되묻습니다 (예: "몇 시에 잡을까요?", "어떤 일정인가요?").</p>
+        <div class="img-wrap"><img src="imgs/quickstart/ch3-02-ai-preview.png" alt="찰떡이 미리보기 카드"></div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">3</span><h3>승인 ✓ → 등록 완료</h3></div>
+        <p>미리보기 내용을 확인하고 <strong style="color: var(--gold);">승인</strong> 버튼을 눌러야 실제로 등록됩니다. 잘못 등록될 일이 없어요. 마음에 안 들면 <strong>취소</strong>.</p>
+        <div class="tip"><strong>TIP</strong> · 입력창 옆 <strong>마이크 버튼</strong>을 누르면 음성으로 입력할 수 있습니다 (Speak &amp; Go). 휴대폰 키보드가 답답할 때 유용합니다.</div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">4</span><h3>찰떡이가 답할 수 있는 다른 질문들</h3></div>
+        <ul>
+          <li><strong>사용법 질문</strong> — "포스트잇 색깔 종류 알려줘", "프로젝트 등록하는 법"</li>
+          <li><strong>일반 질문</strong> — "오늘 서울 날씨 어때?", "오늘 뉴스 검색해줘"</li>
+          <li><strong>일정 조회</strong> — "오늘 일정 알려줘", "내일 회의 언제야?"</li>
+        </ul>
+        <p style="margin-top: 8px;">개떡같이 물어도 찰떡같이 답해줍니다.</p>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta">
+      <h2>이제 시작해 볼까요?</h2>
+      <p>주소창에 <span class="domain">teamworks.my</span> 만 쳐보세요.</p>
+      <a href="/">Just Start It !</a>
+    </div>
+
+    <footer>
+      <p><a href="index.html">About TEAM WORKS</a> · <a href="mobile.html">About (모바일)</a></p>
+      <p style="margin-top: 8px;">© 2026 TEAM WORKS.MY</p>
+    </footer>
+
+  </div>
+</body>
+</html>

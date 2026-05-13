@@ -1487,8 +1487,48 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   });
                   break;
                 }
+                // 시간·일자 시그널 둘 다 없는 매우 모호한 요청 ("일정등록 해줘") 사전 가드.
+                // RAG parseScheduleArgs 가 임의 제목('일정') + 현재시각 환각으로 채워 ok 응답을
+                // 내놓는 케이스 차단. 일시부터 단계적으로 묻기 시작 (update 와 동일 흐름).
+                if (!HAS_TIMING_SIGNAL_RE.test(question) && !HAS_TIME_SIGNAL_RE.test(question)) {
+                  send({
+                    type: 'token',
+                    text: `일시는 언제로 할까요? (예: '내일 오후 3시')`,
+                  });
+                  send({
+                    type: 'awaiting-input',
+                    needs: 'datetime',
+                    previousQuestion: question,
+                  });
+                  break;
+                }
                 const parsed = await parseScheduleArgs(question);
                 if (parsed.ok) {
+                  // 사후 제목 가드 — RAG LLM 이 "일정등록 해줘 내일 오후 2시" 같은 입력에서
+                  // "일정등록"을 제목으로 환각 추출(title="일정") 하는 케이스 차단.
+                  // title 이 generic 키워드 ('일정'/'회의'/'미팅'/'약속'/'스케줄' 단독) 인데
+                  // 사용자 question 에 명시적 일정 명사가 없으면 → needs:'title' 로 재요청.
+                  const titleTrimmed = parsed.args.title.trim();
+                  // generic 단독("일정") + 동사 결합형("일정 등록", "회의 잡아줘", "스케줄 등록해줘") 모두 매칭.
+                  const TITLE_GENERIC_RE =
+                    /^(일정|회의|미팅|약속|스케줄|이벤트)\s*(등록|잡기|잡아|만들기|만들어|생성|추가|예약)?\s*(해줘|해|하기)?$/;
+                  const EXPLICIT_TITLE_NOUN_RE =
+                    /(회의|미팅|약속|점심|저녁|아침|야식|면접|세미나|발표|워크샵|워크숍|교육|상담|리뷰|보고|회식|모임|행사|런칭|런치|디너|컨퍼런스|간담회|MT|티타임)/;
+                  if (
+                    TITLE_GENERIC_RE.test(titleTrimmed) &&
+                    !EXPLICIT_TITLE_NOUN_RE.test(question)
+                  ) {
+                    send({
+                      type: 'token',
+                      text: `어떤 일정인지 제목을 알려주세요. (예: '주간 회의')`,
+                    });
+                    send({
+                      type: 'awaiting-input',
+                      needs: 'title',
+                      previousQuestion: question,
+                    });
+                    break;
+                  }
                   // confirm 카드 — page.tsx 가 pendingAction 으로 처리.
                   send({
                     type: 'pending-action',

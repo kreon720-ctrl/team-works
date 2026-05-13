@@ -887,9 +887,10 @@ Cloudflare 대시보드의 같은 터널 화면에서 **Connector status: Health
 
 1~2 분 후 브라우저에서 `https://teamworks.my` 접속 → TEAM WORKS 로그인 화면이 보이면 성공. HTTPS 인증서는 Cloudflare 가 자동 발급·갱신.
 
-랜딩 페이지는 `https://teamworks.my/landing` 에서 같은 도메인의 **하위 경로**로 서빙됩니다 (Next.js 라우트 `frontend/app/landing/page.tsx`).
+랜딩 페이지는 `https://teamworks.my/landing/index.html` (PC) · `/landing/mobile.html` (모바일) · `/landing/quickstart.html` (Quick Start Guide) 에서 같은 도메인의 **하위 경로**로 서빙됩니다 (Next.js public 정적 자산 `frontend/public/landing/`).
 - 도메인 1 개로 앱 + 랜딩을 모두 커버 → 추가 Public Hostname 불필요.
-- 마케팅 헤더/푸터 등은 Next.js 라우트 그룹 외부 (`(auth)`/`(main)` 와 별개) 라서 앱 글로벌 레이아웃과 자연스럽게 분리됨.
+- 정적 HTML 이라 Next.js 빌드 파이프라인과 무관 — 디자인 수정 시 dev 서버 재시작 없이 즉시 반영.
+- 앱 내 케밥 메뉴(`LandingMenu`)의 *About TEAM WORKS* / *Quick Start Guide* 항목이 이 경로들과 연결됨.
 
 > ⚠️ 로그인은 되는데 일정/팀 등 데이터 호출이 CORS 에러로 막힌다면 → STEP 4.3 의 `PUBLIC_BASE_URL` 을 `https://teamworks.my` 로 바꾸고 `docker compose up -d --force-recreate backend frontend` 로 재기동.
 

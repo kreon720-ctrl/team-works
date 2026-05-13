@@ -10,6 +10,7 @@ import { TeamCreateForm } from '@/components/team/TeamCreateForm';
 import { TeamExplorePanel } from '@/components/team/TeamExplorePanel';
 import { Button } from '@/components/common/Button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { LandingMenu } from '@/components/common/LandingMenu';
 
 export default function HomePage() {
   const router = useRouter();
@@ -113,6 +114,7 @@ export default function HomePage() {
             </span>
           </Button>
           <ThemeToggle />
+          <LandingMenu />
         </div>
       </header>
 
@@ -168,8 +170,9 @@ export default function HomePage() {
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800 dark:border-b-gray-700" />
             </div>
           </div>
-          <div className="flex items-center h-5">
+          <div className="flex items-center gap-2 h-5">
             <ThemeToggle />
+            <LandingMenu />
           </div>
         </div>
       </header>

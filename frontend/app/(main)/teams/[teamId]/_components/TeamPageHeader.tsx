@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/common/Button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { LandingMenu } from '@/components/common/LandingMenu';
 
 interface TeamPageHeaderProps {
   teamId: string;
@@ -107,6 +108,7 @@ export function TeamPageHeader({
             </span>
           </Button>
           <ThemeToggle />
+          <LandingMenu />
         </div>
       </header>
     );
@@ -177,18 +179,10 @@ export function TeamPageHeader({
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800 dark:border-b-gray-700" />
           </div>
         </div>
-        <div className="flex items-center h-5">
+        <div className="flex items-center gap-2 h-5">
           <ThemeToggle />
+          <LandingMenu />
         </div>
-        <button
-          type="button"
-          className="flex items-center justify-center w-5 h-5 rounded-md hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
-          aria-label="메뉴"
-        >
-          <svg className="w-4 h-4 text-gray-700 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-          </svg>
-        </button>
       </div>
     </header>
   );
