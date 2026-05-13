@@ -1839,6 +1839,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 }
 
                 // === 단계 1: 식별 (delete 와 동일 패턴) ===
+                // "X Y로 수정/변경/바꿔" 패턴 사전 분리 — 새 일시(Y) 가 검색을 방해하지 않도록.
+                // 예: "디자인 리뷰 일정 25일 오후 2시로 수정해줘"
+                //   → search="디자인 리뷰 일정", newDT="25일 오후 2시"
+                let searchQuestion = question;
+                let initialNewDateTimeHint: string | null = null;
+                const UPDATE_TO_PATTERN_RE =
+                  /^([\s\S]+?)\s+((?:(?:\d+\s*월\s*)?\d+\s*일|오늘|내일|모레|월요일|화요일|수요일|목요일|금요일|토요일|일요일|이번\s*주|다음\s*주|지난\s*주)?\s*(?:오전|오후|새벽)?\s*\d+\s*시(?:\s*(?:반|\d+\s*분))?)\s*(?:로|으로)\s+(?:수정|변경|바꿔|바꿔줘|고쳐|고쳐줘)/;
+                const splitMatch = question.match(UPDATE_TO_PATTERN_RE);
+                if (splitMatch) {
+                  const newDtPart = splitMatch[2].trim();
+                  if (
+                    newDtPart &&
+                    (HAS_TIMING_SIGNAL_RE.test(newDtPart) || HAS_TIME_SIGNAL_RE.test(newDtPart))
+                  ) {
+                    // "X 일정" 으로 끝나면 "일정" 트림 — RAG 가 검색 키워드를 더 정확히 잡도록.
+                    searchQuestion = splitMatch[1].trim().replace(/\s*일정$/, '').trim();
+                    initialNewDateTimeHint = newDtPart;
+                    console.log(
+                      `[schedule_update split] search="${searchQuestion}" newDT="${initialNewDateTimeHint}"`,
+                    );
+                  }
+                }
                 // 비지원 필드 가드 — 색깔/설명 등은 v1 multi-step 흐름이 처리 못 함.
                 if (UNSUPPORTED_UPDATE_FIELD_RE.test(question)) {
                   send({
@@ -1848,8 +1870,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   break;
                 }
                 // 벌크 가드 — 첫 발화에 "전체/모두/다 수정" 류 → 후보는 보여주되 안내 동시 발송.
-                const bulkUpdate = BULK_INTENT_RE.test(question);
-                const tb = detectTimeBand(question);
+                const bulkUpdate = BULK_INTENT_RE.test(searchQuestion);
+                const tb = detectTimeBand(searchQuestion);
                 if (tb.kind === 'ambiguous') {
                   if (tb.needsAmpm) {
                     send({
@@ -1870,7 +1892,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   break;
                 }
                 const band = tb.kind === 'objective' ? tb.band : null;
-                const { schedules, range } = await runScheduleQuery({ question, teamId, jwt, band });
+                const { schedules, range } = await runScheduleQuery({
+                  question: searchQuestion,
+                  teamId,
+                  jwt,
+                  band,
+                });
                 if (schedules.length === 0) {
                   send({
                     type: 'token',
@@ -1910,6 +1937,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   targetStartAt: s.startAt,
                   targetEndAt: s.endAt,
                 };
+                // 첫 발화에 새 일시 힌트 포함 → 즉시 파싱해 new-title 단계로 자동 진입.
+                if (initialNewDateTimeHint) {
+                  const direct = tryParseDirectDatetime(
+                    initialNewDateTimeHint,
+                    s.startAt,
+                    s.endAt,
+                  );
+                  if (direct) {
+                    const startMs = new Date(direct.startAt).getTime();
+                    if (startMs >= Date.now() - 60_000) {
+                      const nextState: UpdateState = {
+                        ...initState,
+                        needs: 'new-title',
+                        newStartAt: direct.startAt,
+                        newEndAt: direct.endAt,
+                      };
+                      const fmtKst = (iso: string) =>
+                        new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+                      send({
+                        type: 'token',
+                        text: `수정할 일정을 찾았어요.\n• ${formatScheduleLine(s)}\n\n새 일시: ${fmtKst(direct.startAt)} ~ ${fmtKst(direct.endAt)}\n\n제목은 어떻게 할까요? (그대로 유지하려면 '그대로')`,
+                      });
+                      send({
+                        type: 'awaiting-input',
+                        needs: 'new-title',
+                        previousQuestion: question,
+                        updateState: nextState,
+                      });
+                      break;
+                    }
+                  }
+                }
                 send({
                   type: 'token',
                   text: `다음 일정을 수정합니다.\n• ${formatScheduleLine(s)}\n\n새 일시는 언제로 할까요? (예: '내일 오후 3시', 그대로 유지하려면 '그대로')`,
