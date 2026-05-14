@@ -83,13 +83,16 @@ export function computeLayout(schedules: Schedule[]): LayoutItem[] {
   const sorted = [...schedules].sort((a, b) => {
     const diff = new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
     if (diff !== 0) return diff;
-    // 같은 시작 시각 → 긴 일정 먼저
-    return new Date(b.endAt).getTime() - new Date(a.endAt).getTime();
+    // 같은 시작 시각 → 긴 일정 먼저. endAt null(시작만 있는 일정) 은 startAt 과 같은 길이로 간주.
+    const aEnd = a.endAt ?? a.startAt;
+    const bEnd = b.endAt ?? b.startAt;
+    return new Date(bEnd).getTime() - new Date(aEnd).getTime();
   });
 
   const items: LayoutItem[] = sorted.map(schedule => {
     const startMin = getKSTMinutes(schedule.startAt);
-    const rawEnd = getKSTMinutes(schedule.endAt);
+    // endAt null → 시작과 같은 분으로 두면 아래 Math.max 가 최소 15분 보장으로 처리.
+    const rawEnd = schedule.endAt ? getKSTMinutes(schedule.endAt) : startMin;
     const endMin = Math.max(rawEnd, startMin + 15); // 최소 15분 높이 보장
     return { schedule, column: 0, totalColumns: 1, startMin, endMin };
   });
@@ -139,7 +142,8 @@ export function CalendarDayView({
     () =>
       schedules.filter(s => {
         const startDay = scheduleToDay(new Date(s.startAt));
-        const endDay = scheduleToDay(new Date(s.endAt));
+        // endAt null → 시작 당일 일정으로 간주
+        const endDay = scheduleToDay(new Date(s.endAt ?? s.startAt));
         return startDay.getTime() === endDay.getTime() && startDay.getTime() === targetDay.getTime();
       }),
     [schedules, targetDay]
@@ -299,7 +303,9 @@ export function CalendarDayView({
                     >
                       <div className="font-semibold break-words leading-tight">{schedule.title}</div>
                       <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px]`}>
-                        {formatTime(new Date(schedule.startAt))} ~ {formatTime(new Date(schedule.endAt))}
+                        {schedule.endAt
+                          ? `${formatTime(new Date(schedule.startAt))} ~ ${formatTime(new Date(schedule.endAt))}`
+                          : formatTime(new Date(schedule.startAt))}
                       </div>
                       {schedule.description && (
                         <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px] break-words mt-0.5`}>

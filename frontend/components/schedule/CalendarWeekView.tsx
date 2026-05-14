@@ -65,12 +65,15 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
     const target = toDay(date);
     return schedules.filter(s => {
       const startDay = scheduleToDay(new Date(s.startAt));
-      const endDay   = scheduleToDay(new Date(s.endAt));
+      // endAt null → 시작 당일 일정으로 간주.
+      const endDay   = scheduleToDay(new Date(s.endAt ?? s.startAt));
       return target >= startDay && target <= endDay;
     });
   };
 
   const isMultiDay = (schedule: Schedule): boolean => {
+    // endAt null → 단일 일자 일정.
+    if (!schedule.endAt) return false;
     const startDay = scheduleToDay(new Date(schedule.startAt));
     const endDay   = scheduleToDay(new Date(schedule.endAt));
     return startDay.getTime() !== endDay.getTime();
@@ -116,7 +119,8 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
             const aStart = scheduleToDay(new Date(a.startAt)).getTime();
             const bStart = scheduleToDay(new Date(b.startAt)).getTime();
             if (aStart !== bStart) return aStart - bStart;
-            return new Date(a.endAt).getTime() - new Date(b.endAt).getTime();
+            // isMultiDay true 일 때만 들어와서 endAt 무조건 존재.
+            return new Date(a.endAt!).getTime() - new Date(b.endAt!).getTime();
           });
         if (allDaySchedules.length === 0) return null;
 
@@ -137,7 +141,8 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
             </div>
             {allDaySchedules.map(schedule => {
               const startDay  = scheduleToDay(new Date(schedule.startAt));
-              const endDay    = scheduleToDay(new Date(schedule.endAt));
+              // allDaySchedules 는 isMultiDay 만 통과 → endAt 존재 보장.
+              const endDay    = scheduleToDay(new Date(schedule.endAt!));
               const startIdx  = getDayIndex(new Date(Math.max(startDay.getTime(), weekStart.getTime())));
               const endIdx    = getDayIndex(new Date(Math.min(endDay.getTime(), weekDays[6].getTime())));
               const colStart  = startIdx + 2;
@@ -231,7 +236,8 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                     const colWPct   = 100 / totalColumns;
                     const leftPct   = column * colWPct;
                     const start = new Date(schedule.startAt);
-                    const end   = new Date(schedule.endAt);
+                    // endAt null 일정은 시작시각만 표시 (아래 렌더에서 분기).
+                    const end   = schedule.endAt ? new Date(schedule.endAt) : null;
 
                     return (
                       <div
@@ -248,7 +254,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                         >
                           <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words">{schedule.title}</div>
                           <div className="opacity-75 text-[9px] md:text-[10px] leading-[1.1] md:leading-normal truncate">
-                            {formatTime(start)} ~ {formatTime(end)}
+                            {end ? `${formatTime(start)} ~ ${formatTime(end)}` : formatTime(start)}
                           </div>
                         </div>
                       </div>

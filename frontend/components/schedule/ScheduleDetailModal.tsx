@@ -85,11 +85,11 @@ export function ScheduleDetailModal({
           </p>
         </div>
 
-        {/* End Date */}
+        {/* End Date — 선택 입력. null 이면 "미정" 표기 */}
         <div className="mb-4">
           <label className="text-sm font-medium text-gray-500 dark:text-dark-text-muted mb-1 block">종료 일시</label>
           <p className="text-base font-normal text-gray-800 dark:text-dark-text">
-            {formatDate(schedule.endAt)}
+            {schedule.endAt ? formatDate(schedule.endAt) : '미정'}
           </p>
         </div>
 

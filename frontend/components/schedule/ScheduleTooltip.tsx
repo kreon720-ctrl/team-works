@@ -27,7 +27,9 @@ export function ScheduleTooltip({ schedule, x, y }: Props) {
     >
       <p className="font-semibold text-sm text-gray-900 dark:text-dark-text break-words">{schedule.title}</p>
       <p className="text-xs text-gray-500 dark:text-dark-text-muted mt-1">
-        {formatTime(new Date(schedule.startAt))} ~ {formatTime(new Date(schedule.endAt))}
+        {schedule.endAt
+          ? `${formatTime(new Date(schedule.startAt))} ~ ${formatTime(new Date(schedule.endAt))}`
+          : formatTime(new Date(schedule.startAt))}
       </p>
       {schedule.description && (
         <p className="text-xs text-gray-600 dark:text-dark-text-muted mt-1.5 break-words whitespace-pre-wrap">

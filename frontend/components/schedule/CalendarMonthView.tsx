@@ -111,12 +111,16 @@ export function CalendarMonthView({
   };
 
   const isSameDaySchedule = (schedule: Schedule): boolean => {
+    // endAt null → 시작 당일 일정 (멀티데이 아님).
+    if (!schedule.endAt) return true;
     const s = scheduleToDay(new Date(schedule.startAt));
     const e = scheduleToDay(new Date(schedule.endAt));
     return s.getTime() === e.getTime();
   };
 
   const formatDateRange = (schedule: Schedule): string => {
+    // 멀티데이 호출에서만 사용 — endAt null 은 멀티데이가 아니므로 도달 안 함. 안전 가드만.
+    if (!schedule.endAt) return '';
     const s = utcToKST(new Date(schedule.startAt));
     const e = utcToKST(new Date(schedule.endAt));
     const sm = s.getUTCMonth() + 1, sd = s.getUTCDate();
@@ -156,16 +160,17 @@ export function CalendarMonthView({
 
     const multiDay = schedules.filter(s => {
       if (isSameDaySchedule(s)) return false;
+      // isSameDaySchedule false → endAt 무조건 존재.
       const sStart = scheduleToDay(new Date(s.startAt));
-      const sEnd = scheduleToDay(new Date(s.endAt));
+      const sEnd = scheduleToDay(new Date(s.endAt!));
       return sStart <= kstWeekEnd && sEnd >= kstWeekStart;
     });
 
     multiDay.sort((a, b) => {
       const aStart = scheduleToDay(new Date(a.startAt)).getTime();
       const bStart = scheduleToDay(new Date(b.startAt)).getTime();
-      const aEnd = scheduleToDay(new Date(a.endAt)).getTime();
-      const bEnd = scheduleToDay(new Date(b.endAt)).getTime();
+      const aEnd = scheduleToDay(new Date(a.endAt!)).getTime();
+      const bEnd = scheduleToDay(new Date(b.endAt!)).getTime();
       if (aStart !== bStart) return aStart - bStart;
       return (bEnd - bStart) - (aEnd - aStart);
     });
@@ -175,7 +180,7 @@ export function CalendarMonthView({
 
     for (const schedule of multiDay) {
       const sStart = scheduleToDay(new Date(schedule.startAt));
-      const sEnd = scheduleToDay(new Date(schedule.endAt));
+      const sEnd = scheduleToDay(new Date(schedule.endAt!));
       const clampedStart = sStart < kstWeekStart ? kstWeekStart : sStart;
       const clampedEnd = sEnd > kstWeekEnd ? kstWeekEnd : sEnd;
 
