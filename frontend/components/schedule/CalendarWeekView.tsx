@@ -7,7 +7,8 @@ import { getKSTMinutes, HOUR_PX, computeLayout, estimateTextHeight } from './Cal
 import { ScheduleTooltip } from './ScheduleTooltip';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 
-const GAP_PX = 2;
+// DayView 와 일관 — 카드 위·아래 분리 갭 축소(2 → 1).
+const GAP_PX = 1;
 // 시간 컬럼 폭(px) — TIME_COL_W 클래스(w-10/w-12) 와 일치. 동적 row 알고리즘에서 요일 컬럼 폭 계산용.
 const TIME_COL_W_MOBILE_PX = 40;
 const TIME_COL_W_PC_PX = 48;
@@ -317,7 +318,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                           onMouseLeave={() => setTooltip(null)}
-                          className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
+                          className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1.5 py-0 rounded-none md:rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
                         >
                           <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words">{schedule.title}</div>
                           <div className="opacity-75 text-[9px] md:text-[10px] leading-[1.1] md:leading-normal truncate">

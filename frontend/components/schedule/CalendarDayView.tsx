@@ -4,18 +4,20 @@ import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Schedule } from '@/types/schedule';
 import { utcToKST, formatTime, formatDateKorean } from '@/lib/utils/timezone';
 
-export const HOUR_PX = 56;
+// 1시간 행 기본 높이 — 컨텐츠가 비거나 짧으면 그대로, 길면 동적 확장.
+// 여백 타이트화 위해 56 → 40 (이전엔 빈 시간대도 56px 차지해 화면 절반 이상이 빈 여백).
+export const HOUR_PX = 40;
 const MIN_COL_WIDTH_PCT = 20; // 5개 초과 시 컬럼당 최소 너비(%)
 const MAX_INLINE_COLS = 5;    // 이 수를 초과하면 가로 스크롤 적용
 
 // 텍스트 높이 추정 상수 (한글 기준)
 const TITLE_CHAR_W = 12;  // text-xs 한글 문자 평균 px 너비
 const DESC_CHAR_W  = 10;  // text-[10px] 한글 문자 평균 px 너비
-const TITLE_LINE_H = 16;
-const DESC_LINE_H  = 13;
-const TIME_LINE_H  = 14;
-const BAR_PADDING  = 6;
-const GAP_PX       = 2;
+const TITLE_LINE_H = 15;  // 16 → 15 (leading-tight 와 일치)
+const DESC_LINE_H  = 12;  // 13 → 12
+const TIME_LINE_H  = 12;  // 14 → 12
+const BAR_PADDING  = 4;   // 6 → 4 (카드 내부 상하 padding 축소)
+const GAP_PX       = 1;   // 2 → 1 (카드 위·아래 분리 갭 축소)
 
 export function estimateTextHeight(schedule: Schedule, barWidthPx: number): number {
   const inner = Math.max(1, barWidthPx - 12);
@@ -301,7 +303,7 @@ export function CalendarDayView({
                   >
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-[11px] md:text-xs px-1.5 py-0.5 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
+                      className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-[11px] md:text-xs px-1.5 py-0 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
                       title={schedule.title}
                     >
                       <div className="font-semibold break-words leading-tight">{schedule.title}</div>
