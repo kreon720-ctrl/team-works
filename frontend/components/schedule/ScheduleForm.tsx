@@ -402,14 +402,13 @@ export function ScheduleForm({
   const [description, setDescription] = useState(initialData?.description ?? '');
   const [color, setColor] = useState<ScheduleColor>(initialData?.color ?? 'indigo');
 
-  // KST 기준으로 현재 시간 계산 (컴포넌트 마운트 시 한 번만 계산)
+  // KST 기준으로 현재 시간 계산 (컴포넌트 마운트 시 한 번만 계산).
+  // 종료시각은 선택 입력으로 변경되어 endStr 미사용 — 시작시각만 기본값 채움.
   const defaultDates = useMemo(() => {
     const now = new Date();
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const startStr = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(kstNow.getUTCDate()).padStart(2, '0')}T${String(kstNow.getUTCHours()).padStart(2, '0')}:00`;
-    const kstEnd = new Date(kstNow.getTime() + 60 * 60 * 1000);
-    const endStr = `${kstEnd.getUTCFullYear()}-${String(kstEnd.getUTCMonth() + 1).padStart(2, '0')}-${String(kstEnd.getUTCDate()).padStart(2, '0')}T${String(kstEnd.getUTCHours()).padStart(2, '0')}:00`;
-    return { startStr, endStr };
+    return { startStr };
   }, []);
 
   const [startDate, setStartDate] = useState(() => {
@@ -419,12 +418,14 @@ export function ScheduleForm({
     }
     return defaultDates.startStr;
   });
+  // 종료 일시는 선택 입력. 신규 등록 시 빈 문자열로 시작 (사용자가 채우지 않으면 endAt=null 로 전송).
+  // 편집 시 기존 endAt 가 있으면 채워두고, null 이면 빈 문자열.
   const [endDate, setEndDate] = useState(() => {
     if (initialData?.endAt) {
       const kst = utcToKST(new Date(initialData.endAt));
       return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}T${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
     }
-    return defaultDates.endStr;
+    return '';
   });
   const [errors, setErrors] = useState<FormErrors>(() => (error ? { general: error } : {}));
 
@@ -441,10 +442,7 @@ export function ScheduleForm({
       newErrors.startAt = '시작 일시는 필수입니다.';
     }
 
-    if (!endDate) {
-      newErrors.endAt = '종료 일시는 필수입니다.';
-    }
-
+    // 종료 일시는 선택 — 비워둬도 OK. 입력했을 때만 시작보다 뒤 검증.
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
       newErrors.endAt = '종료 시각은 시작 시각과 같거나 이후여야 합니다.';
     }
@@ -462,7 +460,8 @@ export function ScheduleForm({
       title: title.trim(),
       description: description.trim() || undefined,
       startAt: new Date(startDate).toISOString(),
-      endAt: new Date(endDate).toISOString(),
+      // 빈 값이면 null 로 전송 → 백엔드 NULL 저장.
+      endAt: endDate ? new Date(endDate).toISOString() : null,
       color,
     };
 
@@ -560,15 +559,11 @@ export function ScheduleForm({
           value={startDate}
           onChange={(value) => {
             setStartDate(value);
-            // 시작 일시를 변경하면 종료 일시도 같은 날짜로 설정하고, 시간은 1시간 뒤로 설정
-            const endDateValue = new Date(value);
-            endDateValue.setHours(endDateValue.getHours() + 1);
-            const endYear = endDateValue.getFullYear();
-            const endMonth = String(endDateValue.getMonth() + 1).padStart(2, '0');
-            const endDay = String(endDateValue.getDate()).padStart(2, '0');
-            const endHours = String(endDateValue.getHours()).padStart(2, '0');
-            const endMinutes = String(endDateValue.getMinutes()).padStart(2, '0');
-            setEndDate(`${endYear}-${endMonth}-${endDay}T${endHours}:${endMinutes}`);
+            // 종료 일시 자동 +1시간 채움 제거 — 종료는 사용자 선택. 시작이 종료보다 뒤로 가면
+            // 종료를 자동으로 비워(잘못된 검증 막기) 사용자가 다시 선택하도록 안내.
+            if (endDate && new Date(value) > new Date(endDate)) {
+              setEndDate('');
+            }
             if (errors.startAt) {
               setErrors((prev) => ({ ...prev, startAt: undefined }));
             }
@@ -581,10 +576,10 @@ export function ScheduleForm({
         />
       </div>
 
-      {/* End Date */}
+      {/* End Date — 선택 입력 */}
       <div className="flex flex-col gap-1 md:gap-1.5 mb-2.5 md:mb-5">
         <DateTimePicker
-          label="종료 일시"
+          label="종료 일시 (선택)"
           value={endDate}
           onChange={(value) => {
             setEndDate(value);
@@ -595,6 +590,11 @@ export function ScheduleForm({
           disabled={isPending}
           error={errors.endAt}
         />
+        {!endDate && (
+          <p className="text-[11px] md:text-xs text-gray-500 dark:text-dark-text-muted">
+            비워두면 시작시각만 정해진 일정으로 등록돼요.
+          </p>
+        )}
       </div>
 
       {/* General error */}

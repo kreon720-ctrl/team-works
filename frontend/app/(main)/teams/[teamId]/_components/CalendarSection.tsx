@@ -84,18 +84,13 @@ export function CalendarSection({
   onEditSubmit,
 }: CalendarSectionProps) {
 
-  function getKSTTimeStrings(dateStr: string): { startAt: string; endAt: string } {
+  // 신규 일정 모달 초기값 — 시작시각만 KST 현재 시각으로 채우고 종료는 비워둠 (선택 입력).
+  function getKSTTimeStrings(dateStr: string): { startAt: string; endAt: null } {
     const now = new Date();
     const kstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
-    const endHour = (kstHour + 1) % 24;
-    const endDate = endHour === 0 ? (() => {
-      const d = new Date(dateStr);
-      d.setUTCDate(d.getUTCDate() + 1);
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-    })() : dateStr;
     return {
       startAt: `${dateStr}T${String(kstHour).padStart(2, '0')}:00`,
-      endAt: `${endDate}T${String(endHour).padStart(2, '0')}:00`,
+      endAt: null,
     };
   }
 
