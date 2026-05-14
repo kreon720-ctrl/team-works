@@ -422,7 +422,9 @@ async function classify(question: string): Promise<Classification> {
 //   "이번 주 회의 일정" → keyword="회의" → "%회의%" 부분 매치.
 const KEYWORD_STOPWORDS = new Set([
   '일정', '스케줄',
-  '정리', '알려', '보여', '확인', '조회', '찾아', '있어', '있나', '어떤', '뭐', '무엇',
+  '정리', '알려', '보여', '확인', '조회', '찾아',
+  '있어', '있나', '있는', '있는지', '어떤', '뭐', '뭐가', '무엇',
+  '검색', '검색해', '검색해줘',
   // schedule_update / schedule_delete 메타 동사 — title 에 절대 안 들어가는 동작어.
   // 작은 모델이 "어제 회의 수정" 같이 동사를 keyword 로 추출하는 환각 차단.
   '수정', '변경', '바꿔', '옮겨', '옮기', '삭제', '제거', '지워', '지운',
@@ -456,7 +458,7 @@ function sanitizeKeyword(raw: string): string {
   // 합성 suffix: "조사일정"·"회의일정"·"운동스케줄" 처럼 띄어쓰기 없이 붙은 메타 noun 분리.
   const VIEW_MARKERS = new Set(['주', '주간', '오늘', '내일', '어제', '이번', '다음', '지난']);
   const tokens = t.split(/\s+/)
-    .map((tok) => tok.replace(/(일정|스케줄|뭐있어|뭐있나|있어|있나|뭐)$/, ''))
+    .map((tok) => tok.replace(/(일정|스케줄|뭐있어|뭐있나|있어|있나|있는지|있는|뭐가|뭐|검색해줘|검색해|검색)$/, ''))
     .filter((tok) => {
       if (!tok) return false;
       if (KEYWORD_STOPWORDS.has(tok)) return false;
@@ -492,7 +494,7 @@ function extractKeywordFallback(question: string): string {
   const VIEW_MARKERS = new Set(['주', '주간', '오늘', '내일', '어제', '모레', '글피', '이번', '다음', '지난']);
   // 합성 suffix 제거 후 stopword·view-marker·숫자 토큰 필터.
   const tokens = s.split(/\s+/)
-    .map((tok) => tok.replace(/(일정|스케줄|뭐있어|뭐있나|있어|있나|뭐)$/, ''))
+    .map((tok) => tok.replace(/(일정|스케줄|뭐있어|뭐있나|있어|있나|있는지|있는|뭐가|뭐|검색해줘|검색해|검색)$/, ''))
     .filter((tok) => {
       if (!tok) return false;
       if (KEYWORD_STOPWORDS.has(tok)) return false;
