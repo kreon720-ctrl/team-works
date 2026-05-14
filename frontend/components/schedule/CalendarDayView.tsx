@@ -17,7 +17,7 @@ const TIME_LINE_H  = 14;
 const BAR_PADDING  = 6;
 const GAP_PX       = 2;
 
-function estimateTextHeight(schedule: Schedule, barWidthPx: number): number {
+export function estimateTextHeight(schedule: Schedule, barWidthPx: number): number {
   const inner = Math.max(1, barWidthPx - 12);
   const titleCPL = Math.max(1, Math.floor(inner / TITLE_CHAR_W));
   const titleLines = Math.max(1, Math.ceil(schedule.title.length / titleCPL));
@@ -91,9 +91,12 @@ export function computeLayout(schedules: Schedule[]): LayoutItem[] {
 
   const items: LayoutItem[] = sorted.map(schedule => {
     const startMin = getKSTMinutes(schedule.startAt);
-    // endAt null → 시작과 같은 분으로 두면 아래 Math.max 가 최소 15분 보장으로 처리.
-    const rawEnd = schedule.endAt ? getKSTMinutes(schedule.endAt) : startMin;
-    const endMin = Math.max(rawEnd, startMin + 15); // 최소 15분 높이 보장
+    // endAt null (종료시각 없는 일정) → 시작 시간 row 1시간 점유로 가정.
+    // rowHeights 알고리즘이 텍스트가 1시간(56px) 안에 들어가면 그대로,
+    // 넘치면 그 row 자체를 확장 시키므로 사용자 요구("텍스트 분량만큼 높이 + 넘치면 row 확대") 자연 만족.
+    const endMin = schedule.endAt
+      ? Math.max(getKSTMinutes(schedule.endAt), startMin + 15)
+      : startMin + 60;
     return { schedule, column: 0, totalColumns: 1, startMin, endMin };
   });
 
