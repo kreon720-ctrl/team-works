@@ -188,7 +188,9 @@ CREATE TABLE IF NOT EXISTS project_schedules (
     leader      VARCHAR(100) NOT NULL DEFAULT '',
     progress    INTEGER      NOT NULL DEFAULT 0,
     is_delayed  BOOLEAN      NOT NULL DEFAULT false,
-    phase_id    UUID         NULL,
+    -- phase_id 는 projects.phases (JSONB) 의 id 를 참조 — UUID 일 수도, 시드의 짧은
+    -- id ("p1","p2","리서치") 일 수도 있음. backend PHASE_ID_RE 로 형식 검증.
+    phase_id    VARCHAR(64)  NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
     CONSTRAINT chk_project_schedules_end_after_start CHECK (end_date >= start_date),
