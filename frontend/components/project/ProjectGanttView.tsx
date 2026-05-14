@@ -76,7 +76,7 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
 
   // 액션 버튼 그룹 — 모바일은 아주 작게 (패딩 거의 없음 + 작은 아이콘), 데스크탑은 기존.
   const actionButtons = (
-    <div className="flex items-center gap-0.5 sm:gap-1.5 flex-none">
+    <div className="flex items-center gap-1.5 sm:gap-1.5 flex-none">
       <button
         type="button"
         onClick={modals.openCreateProject}
@@ -200,7 +200,7 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
               />
             </svg>
             <p className="text-sm text-gray-400 dark:text-dark-text-muted">
-              프로젝트를 생성하세요. 우측 상단의{' '}
+              프로젝트를 생성하세요. 좌측 상단의{' '}
               <PlusSquare className="inline w-4 h-4 text-gray-500" /> 아이콘을 클릭하세요.
             </p>
           </div>
