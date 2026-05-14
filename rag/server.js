@@ -413,8 +413,8 @@ app.post("/parse-schedule-args", async (req, res) => {
   // "Y일" 단독 → 가장 가까운 미래 매핑 표 (helper 사용 — query endpoint 와 공유).
   const dayMappingTable = buildDayMappingTable(kstNow);
 
-  const sysPrompt = `당신은 한국어 일정 등록 요청을 JSON 으로 변환합니다.\n현재 KST 날짜: ${kstDateStr} (${kstWeekday})\n사용자는 한국 시간대(KST)로 말한다고 가정. 출력도 KST 그대로 (UTC 변환은 서버가 함 — 절대 빼지 마세요).\n\n반드시 다음 둘 중 하나의 JSON 만 출력 (마크다운 금지):\n\n[A. 정보 충분 — 인자 반환]\n{"ok":true,"title":"...","startKst":"YYYY-MM-DDTHH:MM:SS","endKst":"YYYY-MM-DDTHH:MM:SS","description":""}\n\n[B. 정보 부족 — 후속 질문]\n{"ok":false,"needs":"time"|"date"|"title","hint":"한국어 한 문장 후속 질문"}\n\n날짜 추론 규칙 (오늘=${kstDateStr}(${kstWeekday}) 기준):\n- "오늘" → ${kstDateStr}\n- "내일" → 오늘 + 1일\n- "어제" → 오늘 - 1일\n- "X월 Y일" 연도 미명시 → 가장 가까운 미래 (오늘 이후의 X월 Y일).\n- "Y일" (월 미명시, 단독 일자) → **아래 매핑 표 그대로 사용**. 절대 추론·계산 금지. 과거 날짜 출력 금지.\n- 해당 월에 그 일자가 존재하지 않으면 (예: 4월 31일) 매핑 표대로 다음 달로 점프.\n- **절대 규칙**: "N일" / "Y일" 표기는 **달력 날짜** 입니다. "N일 전/후/뒤" 같은 상대 키워드가 명시되어 있지 않으면 절대 상대 기간으로 해석 금지. 예: "1일 점심 약속" 은 "다음 1일의 점심 약속" 이지 "1일 전 점심" 이 아닙니다 — 매핑 표를 그대로 사용.\n\n[Y일 단독 매핑 표 — 가장 가까운 미래]\n${dayMappingTable}\n\n요일 매핑 — 사용자가 "이번 주/다음 주/지난주 X요일" 이라고 말하면 **아래 표를 그대로 사용**. 추론·계산 금지.\n\n[이번 주 (일~토)]\n${weekMapping}\n\n[다음 주]\n${nextWeekMapping}\n\n[지난주]\n${lastWeekMapping}\n\n시각 표기 규칙 (간단 — 24시간 매핑만):\n- 출력은 한국 시간(KST) 그대로 24시간 형식 \`HH:MM:SS\`. UTC 변환·시차 계산 절대 금지.\n- "오전 N시" → \`0N:00:00\` (1<=N<=11) 또는 \`12:00:00\` (오전 12시 = 자정).\n- "오후 N시" → \`(N+12):00:00\` (1<=N<=11) 또는 \`12:00:00\` (오후 12시 = 정오).\n- "정오" → \`12:00:00\`. "자정" → \`00:00:00\`.\n- 24시간 표기 (13시·14시 등) → 그대로.\n- 예: "내일 오후 3시 회의" (오늘=${kstDateStr}) → startKst="${kstDateStr.slice(0, 8)}${String(kstNow.getUTCDate() + 1).padStart(2, "0")}T15:00:00", endKst=시작+1시간.\n- 예: "오후 1시" → 13:00:00. "오전 9시" → 09:00:00. "오전 11시 30분" → 11:30:00.
-- "반" 은 30분을 의미. 예: "5시 반" → 5시 30분 (= 05:30:00 또는 17:30:00, AM/PM 모호하면 후속 질문). "오후 3시 반" → 15:30:00. 절대 분(分) 정보를 무시하고 0분으로 채우지 말 것.\n\nA(완성) vs B(부족) 결정 규칙 (이 순서대로 검사):\n- 날짜가 명시 안 됨 또는 모호("회의 잡아줘", "다음에", "곧"...) → B, needs="date", hint="언제로 잡을까요?"\n- 시각이 명시 안 됨 또는 모호("오전?", "오후?", "조만간", "아침", "점심", "저녁", "야식") → B, needs="time", hint="몇 시에 잡을까요?" (식사 키워드는 시각이 아니라 이벤트 명사 — 구체 시각이 없으면 후속 질문)\n- **시각 모호 — AM/PM 미명시**: 사용자가 단순히 "1시", "5시" 처럼 12 이하 숫자만 말하고 "오전/오후/새벽/정오/자정" 같은 시간대 표현이 없으면 → B, needs="time", hint="오전/오후 어느 쪽일까요? (예: '오후 1시')". 13시 이상 24시간 표기는 명확하므로 OK.\n- **절대 금지**: 사용자가 시각을 한 글자도 명시 안 했으면 9시·10시·12시 같은 임의 시각을 절대 채우지 말 것. 무조건 needs="time".\n- 예: "5월 1일 주간회의 등록해줘" → {"ok":false,"needs":"time","hint":"몇 시에 잡을까요?"} (절대 9시·10시 등 임의 시각 채우면 안 됨)\n- 제목이 전혀 없으면 → B, needs="title", hint="회의 제목은 무엇으로 할까요?"\n- 위 모두 갖춰지면 → A. 종료 시각 미명시면 시작+1시간 가정 OK.\n- 제목은 사용자 표현 짧게(10자 내외). description 는 명시 안 하면 빈 문자열.\n- "Y일 일정 등록해줘" 처럼 일자만 있고 시각이 없으면 → B, needs="time" (날짜는 매핑 표로 결정 가능하나 시각이 없으므로 후속 질문).\n\n절대 JSON 외 다른 문자 출력 금지.`;
+  const sysPrompt = `당신은 한국어 일정 등록 요청을 JSON 으로 변환합니다.\n현재 KST 날짜: ${kstDateStr} (${kstWeekday})\n사용자는 한국 시간대(KST)로 말한다고 가정. 출력도 KST 그대로 (UTC 변환은 서버가 함 — 절대 빼지 마세요).\n\n반드시 다음 둘 중 하나의 JSON 만 출력 (마크다운 금지):\n\n[A. 정보 충분 — 인자 반환] (endKst 는 선택 — 사용자가 종료시각을 명시한 경우만 포함)\n{"ok":true,"title":"...","startKst":"YYYY-MM-DDTHH:MM:SS","endKst":"YYYY-MM-DDTHH:MM:SS","description":""}\n\n[B. 정보 부족 — 후속 질문]\n{"ok":false,"needs":"time"|"date"|"title","hint":"한국어 한 문장 후속 질문"}\n\n날짜 추론 규칙 (오늘=${kstDateStr}(${kstWeekday}) 기준):\n- "오늘" → ${kstDateStr}\n- "내일" → 오늘 + 1일\n- "어제" → 오늘 - 1일\n- "X월 Y일" 연도 미명시 → 가장 가까운 미래 (오늘 이후의 X월 Y일).\n- "Y일" (월 미명시, 단독 일자) → **아래 매핑 표 그대로 사용**. 절대 추론·계산 금지. 과거 날짜 출력 금지.\n- 해당 월에 그 일자가 존재하지 않으면 (예: 4월 31일) 매핑 표대로 다음 달로 점프.\n- **절대 규칙**: "N일" / "Y일" 표기는 **달력 날짜** 입니다. "N일 전/후/뒤" 같은 상대 키워드가 명시되어 있지 않으면 절대 상대 기간으로 해석 금지. 예: "1일 점심 약속" 은 "다음 1일의 점심 약속" 이지 "1일 전 점심" 이 아닙니다 — 매핑 표를 그대로 사용.\n\n[Y일 단독 매핑 표 — 가장 가까운 미래]\n${dayMappingTable}\n\n요일 매핑 — 사용자가 "이번 주/다음 주/지난주 X요일" 이라고 말하면 **아래 표를 그대로 사용**. 추론·계산 금지.\n\n[이번 주 (일~토)]\n${weekMapping}\n\n[다음 주]\n${nextWeekMapping}\n\n[지난주]\n${lastWeekMapping}\n\n시각 표기 규칙 (간단 — 24시간 매핑만):\n- 출력은 한국 시간(KST) 그대로 24시간 형식 \`HH:MM:SS\`. UTC 변환·시차 계산 절대 금지.\n- "오전 N시" → \`0N:00:00\` (1<=N<=11) 또는 \`12:00:00\` (오전 12시 = 자정).\n- "오후 N시" → \`(N+12):00:00\` (1<=N<=11) 또는 \`12:00:00\` (오후 12시 = 정오).\n- "정오" → \`12:00:00\`. "자정" → \`00:00:00\`.\n- 24시간 표기 (13시·14시 등) → 그대로.\n- 예: "내일 오후 3시 회의" (오늘=${kstDateStr}) → startKst="${kstDateStr.slice(0, 8)}${String(kstNow.getUTCDate() + 1).padStart(2, "0")}T15:00:00" (endKst 생략 — 사용자가 종료시각 미명시).\n- 예 (종료 명시): "내일 오후 3시~5시 회의" → startKst="...T15:00:00", endKst="...T17:00:00".\n- 예: "오후 1시" → 13:00:00. "오전 9시" → 09:00:00. "오전 11시 30분" → 11:30:00.
+- "반" 은 30분을 의미. 예: "5시 반" → 5시 30분 (= 05:30:00 또는 17:30:00, AM/PM 모호하면 후속 질문). "오후 3시 반" → 15:30:00. 절대 분(分) 정보를 무시하고 0분으로 채우지 말 것.\n\nA(완성) vs B(부족) 결정 규칙 (이 순서대로 검사):\n- 날짜가 명시 안 됨 또는 모호("회의 잡아줘", "다음에", "곧"...) → B, needs="date", hint="언제로 잡을까요?"\n- 시각이 명시 안 됨 또는 모호("오전?", "오후?", "조만간", "아침", "점심", "저녁", "야식") → B, needs="time", hint="몇 시에 잡을까요?" (식사 키워드는 시각이 아니라 이벤트 명사 — 구체 시각이 없으면 후속 질문)\n- **시각 모호 — AM/PM 미명시**: 사용자가 단순히 "1시", "5시" 처럼 12 이하 숫자만 말하고 "오전/오후/새벽/정오/자정" 같은 시간대 표현이 없으면 → B, needs="time", hint="오전/오후 어느 쪽일까요? (예: '오후 1시')". 13시 이상 24시간 표기는 명확하므로 OK.\n- **절대 금지**: 사용자가 시각을 한 글자도 명시 안 했으면 9시·10시·12시 같은 임의 시각을 절대 채우지 말 것. 무조건 needs="time".\n- 예: "5월 1일 주간회의 등록해줘" → {"ok":false,"needs":"time","hint":"몇 시에 잡을까요?"} (절대 9시·10시 등 임의 시각 채우면 안 됨)\n- 제목이 전혀 없으면 → B, needs="title", hint="회의 제목은 무엇으로 할까요?"\n- 위 모두 갖춰지면 → A. **종료 시각이 명시되지 않았다면 endKst 를 생략** (선택 입력 — 사용자가 "5시까지/~6시" 처럼 명시한 경우만 endKst 채움).\n- 제목은 사용자 표현 짧게(10자 내외). description 는 명시 안 하면 빈 문자열.\n- "Y일 일정 등록해줘" 처럼 일자만 있고 시각이 없으면 → B, needs="time" (날짜는 매핑 표로 결정 가능하나 시각이 없으므로 후속 질문).\n\n절대 JSON 외 다른 문자 출력 금지.`;
 
   try {
     const model = await resolveChatModel();
@@ -445,13 +445,14 @@ app.post("/parse-schedule-args", async (req, res) => {
     }
     // A — 인자 반환. LLM 은 KST 로 출력 (startKst/endKst). 서버가 UTC 로 변환.
     // 구버전 호환: 옛 LLM 출력 (startAt/endAt UTC) 도 그대로 받아들임.
+    // endKst/endAt 은 선택 입력 — 미전달이면 endAt=null 로 백엔드에 전달 (NULL 저장).
     const startKst = parsed.startKst ?? null;
     const endKst = parsed.endKst ?? null;
     const legacyStartAt = parsed.startAt ?? null;
     const legacyEndAt = parsed.endAt ?? null;
     const title = parsed.title ?? null;
     const description = parsed.description ?? "";
-    if (!title || (!(startKst && endKst) && !(legacyStartAt && legacyEndAt))) {
+    if (!title || (!startKst && !legacyStartAt)) {
       return res.json({ ok: false, needs: "time", hint: "시간을 좀 더 구체적으로 알려주세요. 예: '오후 3시'" });
     }
     // KST 로컬 ISO ("YYYY-MM-DDTHH:MM:SS") → UTC ISO ("...000Z") 결정론적 변환.
@@ -465,29 +466,29 @@ app.post("/parse-schedule-args", async (req, res) => {
       return new Date(ms).toISOString();
     };
     let startAt, endAt;
-    if (startKst && endKst) {
+    if (startKst) {
       startAt = kstToUtc(startKst);
-      endAt = kstToUtc(endKst);
+      endAt = endKst ? kstToUtc(endKst) : null;
     } else {
       startAt = legacyStartAt;
       endAt = legacyEndAt;
     }
-    if (!startAt || !endAt) {
+    if (!startAt) {
       return res.json({ ok: false, needs: "date", hint: "날짜·시각을 다시 알려주세요." });
     }
-    // LLM 의 endKst 환각 (연도/시각 잘못 출력) 자동 보정 — endAt <= startAt 이면 시작 + 1시간.
-    // 작은 모델 (e4b 등) 에서 가끔 "2022 종료" 같은 출력이 나와 backend 400 으로 떨어지는 케이스를 방지.
+    // LLM 의 endKst 환각 자동 보정 — endAt 이 명시됐는데 startAt 이전이면 null 로 폐기.
+    // (이전엔 +1시간 강제 채움 — 종료시각 선택 입력화 이후엔 잘못된 endAt 은 그냥 빼는 게 안전)
     let startMs = new Date(startAt).getTime();
-    let endMs = new Date(endAt).getTime();
+    let endMs = endAt ? new Date(endAt).getTime() : NaN;
     if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs) {
-      endAt = new Date(startMs + 60 * 60 * 1000).toISOString();
-      endMs = new Date(endAt).getTime();
+      endAt = null;
+      endMs = NaN;
     }
     // LLM hour 환각 cross-check — 사용자 입력의 시각 단서가 있는데 LLM 출력 시각이 다르면
     // 사용자 값으로 보정. 작은 모델(e4b)이 "20시"를 "10시" 등으로 오인식하는 케이스 차단.
     // duration 은 유지. 날짜 부분은 LLM 추론(매핑 표 기반) 그대로 신뢰.
     const userTimeMatch = question.match(/(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/);
-    if (userTimeMatch && Number.isFinite(startMs) && Number.isFinite(endMs)) {
+    if (userTimeMatch && Number.isFinite(startMs)) {
       let userHour = parseInt(userTimeMatch[1], 10);
       const userMinute = userTimeMatch[2] ? parseInt(userTimeMatch[2], 10) : 0;
       const ampm = question.match(/(오전|오후|새벽|정오|자정)/)?.[1];
@@ -498,12 +499,15 @@ app.post("/parse-schedule-args", async (req, res) => {
       const llmHour = kstStart.getUTCHours();
       const llmMin = kstStart.getUTCMinutes();
       if (userHour >= 0 && userHour <= 23 && (llmHour !== userHour || llmMin !== userMinute)) {
-        const dur = endMs - startMs;
+        // duration 은 endAt 이 있을 때만 보존 (없으면 null 그대로).
+        const dur = Number.isFinite(endMs) ? endMs - startMs : null;
         kstStart.setUTCHours(userHour, userMinute, 0, 0);
         startMs = kstStart.getTime() - 9 * 60 * 60 * 1000;
         startAt = new Date(startMs).toISOString();
-        endAt = new Date(startMs + dur).toISOString();
-        endMs = startMs + dur;
+        if (dur !== null) {
+          endAt = new Date(startMs + dur).toISOString();
+          endMs = startMs + dur;
+        }
       }
     }
     const args = { title, startAt, endAt, description };
