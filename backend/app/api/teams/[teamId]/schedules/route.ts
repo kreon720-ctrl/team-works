@@ -13,7 +13,8 @@ interface CreateScheduleBody {
   description?: string
   color?: string
   startAt?: string
-  endAt?: string
+  // 종료시각 선택 입력. 미전달/null 이면 시작시각만 정해진 일정으로 등록.
+  endAt?: string | null
 }
 
 /**
@@ -123,25 +124,26 @@ export async function POST(
       )
     }
 
-    if (!startAt || !endAt) {
+    // 시작일은 필수, 종료일은 선택.
+    if (!startAt) {
       return NextResponse.json(
-        { error: '시작일과 종료일은 필수입니다.' },
+        { error: '시작일은 필수입니다.' },
         { status: 400 }
       )
     }
 
     // 날짜 유효성 검증
     const startDate = new Date(startAt)
-    const endDate = new Date(endAt)
+    const endDate = endAt ? new Date(endAt) : null
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    if (isNaN(startDate.getTime()) || (endDate !== null && isNaN(endDate.getTime()))) {
       return NextResponse.json(
         { error: '날짜 형식이 올바르지 않습니다.' },
         { status: 400 }
       )
     }
 
-    if (endDate <= startDate) {
+    if (endDate !== null && endDate <= startDate) {
       return NextResponse.json(
         { error: '종료일은 시작일보다 늦어야 합니다.' },
         { status: 400 }

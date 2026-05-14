@@ -49,7 +49,8 @@ export interface CreateScheduleOptions {
   jwt: string;
   title: string;
   startAt: string; // ISO 8601 (UTC)
-  endAt: string;
+  // 종료시각 선택 입력. null/undefined 면 생략하고 호출 → 백엔드에서 NULL 저장.
+  endAt?: string | null;
   description?: string | null;
   color?: 'indigo' | 'blue' | 'emerald' | 'amber' | 'rose';
 }
@@ -59,8 +60,9 @@ export async function createSchedule(opts: CreateScheduleOptions): Promise<Sched
   const { teamId, jwt, title, startAt, endAt, description, color } = opts;
   if (!teamId) throw new Error('teamId 가 필요합니다.');
   if (!title) throw new Error('title 이 필요합니다.');
-  if (!startAt || !endAt) throw new Error('startAt, endAt 이 필요합니다.');
-  const body: Record<string, unknown> = { title, startAt, endAt };
+  if (!startAt) throw new Error('startAt 이 필요합니다.');
+  const body: Record<string, unknown> = { title, startAt };
+  if (endAt) body.endAt = endAt;
   if (description !== undefined) body.description = description;
   if (color !== undefined) body.color = color;
   const data = await callBackend<Schedule | { schedule: Schedule }>({

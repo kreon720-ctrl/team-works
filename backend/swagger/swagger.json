@@ -376,7 +376,6 @@
           "title",
           "color",
           "startAt",
-          "endAt",
           "createdBy",
           "createdAt",
           "updatedAt"
@@ -422,6 +421,8 @@
           "endAt": {
             "type": "string",
             "format": "date-time",
+            "nullable": true,
+            "description": "선택 입력 — null 이면 시작시각만 정해진 일정",
             "example": "2026-04-07T02:00:00.000Z"
           },
           "createdBy": {
@@ -2892,8 +2893,7 @@
                 "type": "object",
                 "required": [
                   "title",
-                  "startAt",
-                  "endAt"
+                  "startAt"
                 ],
                 "properties": {
                   "title": {
@@ -2921,6 +2921,8 @@
                   "endAt": {
                     "type": "string",
                     "format": "date-time",
+                    "nullable": true,
+                    "description": "선택 입력 — 미전달/null 이면 시작시각만 정해진 일정으로 등록",
                     "example": "2026-04-07T02:00:00.000Z"
                   }
                 }
@@ -3177,6 +3179,8 @@
                   "endAt": {
                     "type": "string",
                     "format": "date-time",
+                    "nullable": true,
+                    "description": "선택 — null/미전달 시 기존 값 유지 (현재 PATCH 는 명시 NULL 변경 미지원)",
                     "example": "2026-04-07T03:00:00.000Z"
                   }
                 }

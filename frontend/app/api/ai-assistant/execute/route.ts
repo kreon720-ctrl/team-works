@@ -29,10 +29,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const teamId = typeof args.teamId === 'string' ? args.teamId : '';
       const title = typeof args.title === 'string' ? args.title : '';
       const startAt = typeof args.startAt === 'string' ? args.startAt : '';
-      const endAt = typeof args.endAt === 'string' ? args.endAt : '';
-      if (!teamId || !title || !startAt || !endAt) {
+      // 종료시각은 선택 입력. 빈 값이면 null 로 백엔드에 전달.
+      const endAt = typeof args.endAt === 'string' && args.endAt ? args.endAt : null;
+      if (!teamId || !title || !startAt) {
         return NextResponse.json(
-          { error: 'teamId, title, startAt, endAt 은 필수입니다.' },
+          { error: 'teamId, title, startAt 는 필수입니다.' },
           { status: 400 }
         );
       }
