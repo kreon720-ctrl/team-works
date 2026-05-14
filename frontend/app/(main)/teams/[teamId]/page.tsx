@@ -41,7 +41,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
     setCalendarView,
   } = useTeamStore();
 
-  const [activeTab, setActiveTab] = useState<'calendar' | 'chat' | 'ai-assistant'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'project' | 'chat' | 'ai-assistant'>('calendar');
   // 데스크탑 우측 패널의 탭 — 팀채팅 / AI 버틀러
   const [rightTab, setRightTab] = useState<'chat' | 'ai-assistant'>('chat');
 
@@ -354,6 +354,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         onDelete={scheduleActions.handleDelete}
         onEditModalClose={() => { scheduleActions.setShowEditModal(false); scheduleActions.setSelectedSchedule(null); }}
         onEditSubmit={scheduleActions.handleEditSubmit}
+        currentUserIdForProject={currentUser?.id ?? ''}
       />
     </div>
   );

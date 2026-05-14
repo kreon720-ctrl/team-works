@@ -82,7 +82,7 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
       {/* Text label — in flow (determines bar height), hidden on hover */}
       <div className="relative z-10 flex items-center justify-center px-1.5 py-1 group-hover:opacity-0 transition-opacity duration-100 pointer-events-none">
         <span
-          className={`text-xs font-medium text-center leading-tight line-clamp-2 ${styles.text} mix-blend-multiply`}
+          className={`text-[10px] font-medium text-center leading-tight ${styles.text} mix-blend-multiply`}
           style={{ textShadow: '0 0 2px rgba(255,255,255,0.8)', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
         >
           {label}

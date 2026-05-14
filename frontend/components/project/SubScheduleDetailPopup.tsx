@@ -82,26 +82,26 @@ export function SubScheduleDetailPopup({ sub, isOwner, onEdit, onDelete, onClose
           </div>
         </div>
 
-        {/* 버튼 */}
-        <div className="flex justify-center gap-2">
+        {/* 버튼 — 기존 대비 약 70% 크기 (가로 max-w-[70%] + 세로 py-1, text-xs) */}
+        <div className="flex justify-center gap-1.5 max-w-[70%] mx-auto w-full">
           {isOwner ? (
             <>
               <button type="button" onClick={onEdit}
-                className="flex-1 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors">
+                className="flex-1 py-1 bg-primary-500 text-white text-xs font-medium rounded-md hover:bg-primary-600 transition-colors">
                 수정
               </button>
               <button type="button" onClick={handleDelete}
-                className="flex-1 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors">
+                className="flex-1 py-1 bg-red-500 text-white text-xs font-medium rounded-md hover:bg-red-600 transition-colors">
                 삭제
               </button>
               <button type="button" onClick={onClose}
-                className="flex-1 py-2 bg-gray-100 dark:bg-dark-surface text-gray-700 dark:text-dark-text-muted text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-dark-elevated transition-colors">
+                className="flex-1 py-1 bg-gray-100 dark:bg-dark-surface text-gray-700 dark:text-dark-text-muted text-xs font-medium rounded-md hover:bg-gray-200 dark:hover:bg-dark-elevated transition-colors">
                 취소
               </button>
             </>
           ) : (
             <button type="button" onClick={onClose}
-              className="flex-1 py-2 bg-gray-100 dark:bg-dark-surface text-gray-700 dark:text-dark-text-muted text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-dark-elevated transition-colors">
+              className="flex-1 py-1 bg-gray-100 dark:bg-dark-surface text-gray-700 dark:text-dark-text-muted text-xs font-medium rounded-md hover:bg-gray-200 dark:hover:bg-dark-elevated transition-colors">
               닫기
             </button>
           )}

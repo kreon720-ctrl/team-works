@@ -125,14 +125,14 @@ export function SubScheduleTimeline({
 
   return (
     <div ref={rightRef} className="flex-1 min-w-0 flex flex-col px-4 pb-5">
-      {/* [+일정] 버튼 */}
-      <div className="flex justify-end mb-2 flex-none">
+      {/* [+] 세부일정 추가 — 아이콘만, 우측 상단, 추가 70% 축소. mt-2 로 상단 구분선과 간격 */}
+      <div className="flex justify-end mt-2 mb-2 flex-none">
         <button type="button" onClick={onAddClick}
-          className="flex items-center gap-1 px-3 py-1 bg-primary-500 text-white text-xs font-medium rounded-lg hover:bg-primary-600 dark:bg-[#FFB800] dark:text-gray-900 dark:hover:bg-[#E6A600] transition-colors">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          title="세부일정 추가"
+          className="flex items-center justify-center p-0.5 bg-primary-500 text-white rounded hover:bg-primary-600 dark:bg-[#FFB800] dark:text-gray-900 dark:hover:bg-[#E6A600] transition-colors">
+          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
           </svg>
-          일정
         </button>
       </div>
 

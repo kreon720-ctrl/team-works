@@ -4,11 +4,12 @@ import React, { useState } from 'react';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { AIAssistantPanel } from '@/components/ai-assistant/AIAssistantPanel';
 import { ResizableSplit } from '@/components/common/ResizableSplit';
+import { ProjectGanttView } from '@/components/project/ProjectGanttView';
 import { CalendarSection } from './CalendarSection';
 import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType, ScheduleColor } from '@/types/schedule';
 import type { PostIt } from '@/types/postit';
 
-type MobileTab = 'calendar' | 'chat' | 'ai-assistant';
+type MobileTab = 'calendar' | 'project' | 'chat' | 'ai-assistant';
 
 interface MobileLayoutProps {
   teamId: string;
@@ -51,6 +52,8 @@ interface MobileLayoutProps {
   onDelete: () => void;
   onEditModalClose: () => void;
   onEditSubmit: (data: ScheduleCreateInput | ScheduleUpdateInput) => void;
+  // 프로젝트 탭 — ProjectGanttView 가 자체적으로 store/액션을 처리하므로 teamId 만 받으면 됨.
+  currentUserIdForProject: string;
 }
 
 export function MobileLayout({
@@ -91,6 +94,7 @@ export function MobileLayout({
   onDelete,
   onEditModalClose,
   onEditSubmit,
+  currentUserIdForProject,
 }: MobileLayoutProps) {
   // AI 버틀러 탭 안에서 일정 아이콘으로 토글하는 split view (상단 캘린더 1/3 + 하단 AI 2/3).
   const [showCalendarSplit, setShowCalendarSplit] = useState(false);
@@ -138,12 +142,13 @@ export function MobileLayout({
 
   return (
     <>
-      {/* Tab navigation */}
+      {/* Tab navigation — 4분할: 캘린더 · 프로젝트 · 팀채팅 · AI 찰떡이.
+          가로 공간이 좁아 텍스트는 더 작게, 패딩도 축소. */}
       <div className="flex border-b border-gray-200 bg-white dark:border-dark-border dark:bg-dark-surface">
         <button
           type="button"
           onClick={() => onTabChange('calendar')}
-          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-sm font-medium border-b-2 transition-colors duration-150 ${
+          className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-1.5 text-xs font-medium border-b-2 transition-colors duration-150 ${
             activeTab === 'calendar'
               ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
@@ -160,8 +165,25 @@ export function MobileLayout({
         </button>
         <button
           type="button"
+          onClick={() => onTabChange('project')}
+          className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-1.5 text-xs font-medium border-b-2 transition-colors duration-150 ${
+            activeTab === 'project'
+              ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
+          }`}
+        >
+          {/* 프로젝트(보드) 아이콘 */}
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 10h18" />
+            <path d="M9 4v16" />
+          </svg>
+          프로젝트
+        </button>
+        <button
+          type="button"
           onClick={() => onTabChange('chat')}
-          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-sm font-medium border-b-2 transition-colors duration-150 ${
+          className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-1.5 text-xs font-medium border-b-2 transition-colors duration-150 ${
             activeTab === 'chat'
               ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
@@ -179,7 +201,7 @@ export function MobileLayout({
         <button
           type="button"
           onClick={() => onTabChange('ai-assistant')}
-          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 text-sm font-medium border-b-2 transition-colors duration-150 ${
+          className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-1.5 text-xs font-medium border-b-2 transition-colors duration-150 ${
             activeTab === 'ai-assistant'
               ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
               : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
@@ -202,6 +224,16 @@ export function MobileLayout({
           <div className="h-full overflow-y-auto bg-white">
             {calendarSectionElement}
           </div>
+        </div>
+
+        {/* Project tab — PC 와 동일한 ProjectGanttView 재사용. 헤더는 ProjectGanttView 가
+            모바일 폭일 때 자체적으로 2줄 (액션바 + 프로젝트 칩) 로 분리. */}
+        <div className={`h-[calc(100vh-6rem)] ${activeTab === 'project' ? 'block' : 'hidden'}`}>
+          <ProjectGanttView
+            teamId={teamId}
+            currentUserId={currentUserIdForProject}
+            isLeader={isLeader}
+          />
         </div>
 
         {/* Chat tab */}
