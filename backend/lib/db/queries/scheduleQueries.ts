@@ -54,15 +54,22 @@ export async function getSchedulesByDateRange(
   endAt: Date
 ): Promise<Schedule[]> {
   try {
-    // end_at IS NULL → 종료시각 없는 일정도 시작시각이 범위 안이면 포함.
-    // (안 그러면 nullable 일정이 "이번 주 일정" 등 범위 조회에서 누락됨)
+    // 범위 조건:
+    //  - end_at 있음: 기존처럼 (start_at < $3 AND end_at > $2) — 범위에 걸치는 일정 포함
+    //  - end_at NULL (종료시각 없는 일정): start_at 자체가 범위 안에 있어야 포함
+    //                                       ($2 <= start_at < $3). 안 그러면 이전 날짜의
+    //                                       endAt null 일정이 다음 날 조회에 잘못 섞임
+    //                                       (예: 14일 14:00 endAt null 이 15일 조회에 포함되던 버그).
     const result = await pool.query<Schedule>(
       `SELECT s.id, s.team_id, s.created_by, u.name AS creator_name, s.title, s.description, s.color, s.start_at, s.end_at, s.created_at, s.updated_at
        FROM schedules s
        LEFT JOIN users u ON u.id = s.created_by
        WHERE s.team_id = $1
          AND s.start_at < $3
-         AND (s.end_at IS NULL OR s.end_at > $2)
+         AND (
+           (s.end_at IS NULL AND s.start_at >= $2)
+           OR (s.end_at IS NOT NULL AND s.end_at > $2)
+         )
        ORDER BY s.start_at ASC`,
       [teamId, startAt, endAt]
     )
