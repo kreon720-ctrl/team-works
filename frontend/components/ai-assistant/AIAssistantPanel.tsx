@@ -32,9 +32,11 @@ interface UpdateState {
   targetScheduleId: string;
   targetTitle: string;
   targetStartAt: string;
-  targetEndAt: string;
+  // 종료시각 없는 일정은 null. 강제 string 으로 두면 chat route 의 parseUpdateState 가
+  // null 을 거부해 fresh classification 으로 빠짐 (multi-step 흐름 깨짐).
+  targetEndAt: string | null;
   newStartAt?: string;
-  newEndAt?: string;
+  newEndAt?: string | null;
   newTitle?: string;
 }
 

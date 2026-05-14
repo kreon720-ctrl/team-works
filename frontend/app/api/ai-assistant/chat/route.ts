@@ -1285,20 +1285,28 @@ function parseUpdateState(raw: unknown): UpdateState | null {
   const r = raw as Record<string, unknown>;
   const needs = r.needs;
   if (needs !== 'new-datetime' && needs !== 'new-title') return null;
+  // targetEndAt 은 nullable — 종료시각 없는 일정의 updateState 도 carry 가능해야 함.
+  // 이전엔 typeof !== 'string' 체크라 null 일정의 updateState 가 거부되어 fresh
+  // classification 으로 빠지는 버그가 있었음.
   if (
     typeof r.targetScheduleId !== 'string' ||
     typeof r.targetTitle !== 'string' ||
     typeof r.targetStartAt !== 'string' ||
-    typeof r.targetEndAt !== 'string'
+    (r.targetEndAt !== null && typeof r.targetEndAt !== 'string')
   ) return null;
   return {
     needs,
     targetScheduleId: r.targetScheduleId,
     targetTitle: r.targetTitle,
     targetStartAt: r.targetStartAt,
-    targetEndAt: r.targetEndAt,
+    targetEndAt: r.targetEndAt as string | null,
     newStartAt: typeof r.newStartAt === 'string' ? r.newStartAt : undefined,
-    newEndAt: typeof r.newEndAt === 'string' ? r.newEndAt : undefined,
+    newEndAt:
+      r.newEndAt === null
+        ? null
+        : typeof r.newEndAt === 'string'
+          ? r.newEndAt
+          : undefined,
     newTitle: typeof r.newTitle === 'string' ? r.newTitle : undefined,
   };
 }
