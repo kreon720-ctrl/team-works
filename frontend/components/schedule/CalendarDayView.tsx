@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Schedule } from '@/types/schedule';
 import { utcToKST, formatTime, formatDateKorean } from '@/lib/utils/timezone';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 // 1시간 행 기본 높이 — 컨텐츠가 비거나 짧으면 그대로, 길면 동적 확장.
 // 여백 타이트화 위해 56 → 40 (이전엔 빈 시간대도 56px 차지해 화면 절반 이상이 빈 여백).
@@ -175,39 +176,44 @@ export function CalendarDayView({
     return () => ro.disconnect();
   }, []);
 
-  // 동적 행 높이 계산 (2-pass)
+  const { isMobile } = useBreakpoint();
+
+  // 동적 행 높이 계산 (2-pass) — 모바일은 폭이 좁아 동적 확장 시 row 가 과도하게 늘어남.
+  // 모바일은 fixed HOUR_PX 만 유지하고 카드 안에서 line-clamp 로 truncate.
   const { rowHeights, rowTops, totalHeight } = useMemo(() => {
     const heights = Array<number>(24).fill(HOUR_PX);
 
-    // Pass 1: 1시간짜리 이벤트
-    for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
-      const startH = Math.floor(startMin / 60);
-      const endH   = Math.ceil(endMin / 60);
-      if (endH - startH === 1) {
+    if (!isMobile) {
+      // Pass 1: 1시간짜리 이벤트
+      for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
+        const startH = Math.floor(startMin / 60);
+        const endH   = Math.ceil(endMin / 60);
+        if (endH - startH === 1) {
+          const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
+          const barW    = eventAreaWidth * colWPct / 100;
+          heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+        }
+      }
+
+      // Pass 2: 여러 시간대에 걸친 이벤트
+      for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
+        const startH = Math.floor(startMin / 60);
+        const endH   = Math.min(23, Math.ceil(endMin / 60) - 1);
+        if (endH <= startH) continue;
+        let available = 0;
+        for (let h = startH; h <= endH; h++) available += heights[h];
         const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
         const barW    = eventAreaWidth * colWPct / 100;
-        heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+        const textH   = estimateTextHeight(schedule, barW);
+        if (textH > available) heights[endH] += textH - available;
       }
-    }
-
-    // Pass 2: 여러 시간대에 걸친 이벤트
-    for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
-      const startH = Math.floor(startMin / 60);
-      const endH   = Math.min(23, Math.ceil(endMin / 60) - 1);
-      if (endH <= startH) continue;
-      let available = 0;
-      for (let h = startH; h <= endH; h++) available += heights[h];
-      const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
-      const barW    = eventAreaWidth * colWPct / 100;
-      const textH   = estimateTextHeight(schedule, barW);
-      if (textH > available) heights[endH] += textH - available;
     }
 
     const tops: number[] = [];
     let acc = 0;
     for (let h = 0; h < 24; h++) { tops.push(acc); acc += heights[h]; }
     return { rowHeights: heights, rowTops: tops, totalHeight: acc };
-  }, [layoutItems, eventAreaWidth]);
+  }, [layoutItems, eventAreaWidth, isMobile]);
 
   // KST 분 → 픽셀 위치
   const minToPixels = (min: number): number => {
@@ -306,7 +312,7 @@ export function CalendarDayView({
                       className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-[11px] md:text-xs px-1.5 py-0 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
                       title={schedule.title}
                     >
-                      <div className="font-semibold break-words leading-tight">{schedule.title}</div>
+                      <div className="font-semibold break-words leading-tight line-clamp-2 md:line-clamp-none">{schedule.title}</div>
                       <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px]`}>
                         {schedule.endAt
                           ? `${formatTime(new Date(schedule.startAt))} ~ ${formatTime(new Date(schedule.endAt))}`

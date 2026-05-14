@@ -116,31 +116,36 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
 
   const { rowHeights, rowTops, totalHeight } = useMemo(() => {
     const heights = Array<number>(24).fill(HOUR_PX);
-    const dayColPx = Math.max(1, (containerWidth - timeColPx) / 7);
 
-    // Pass 1: 1시간짜리 (또는 1시간 점유 endAt null 일정)
-    for (const items of layoutByDay) {
-      for (const { schedule, totalColumns, startMin, endMin } of items) {
-        const startH = Math.floor(startMin / 60);
-        const endH = Math.ceil(endMin / 60);
-        if (endH - startH === 1) {
-          const barW = dayColPx / totalColumns;
-          heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+    // 모바일: 컬럼 폭이 매우 좁아(~90px) 동적 확장 적용 시 row 가 과도하게 늘어남.
+    // 모바일은 fixed HOUR_PX 만 유지하고 카드 안에서 line-clamp 로 truncate.
+    if (!isMobile) {
+      const dayColPx = Math.max(1, (containerWidth - timeColPx) / 7);
+
+      // Pass 1: 1시간짜리 (또는 1시간 점유 endAt null 일정)
+      for (const items of layoutByDay) {
+        for (const { schedule, totalColumns, startMin, endMin } of items) {
+          const startH = Math.floor(startMin / 60);
+          const endH = Math.ceil(endMin / 60);
+          if (endH - startH === 1) {
+            const barW = dayColPx / totalColumns;
+            heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+          }
         }
       }
-    }
 
-    // Pass 2: 다중 시간대 — 마지막 row 에 모자란 높이 추가
-    for (const items of layoutByDay) {
-      for (const { schedule, totalColumns, startMin, endMin } of items) {
-        const startH = Math.floor(startMin / 60);
-        const endH = Math.min(23, Math.ceil(endMin / 60) - 1);
-        if (endH <= startH) continue;
-        let available = 0;
-        for (let h = startH; h <= endH; h++) available += heights[h];
-        const barW = dayColPx / totalColumns;
-        const textH = estimateTextHeight(schedule, barW);
-        if (textH > available) heights[endH] += textH - available;
+      // Pass 2: 다중 시간대 — 마지막 row 에 모자란 높이 추가
+      for (const items of layoutByDay) {
+        for (const { schedule, totalColumns, startMin, endMin } of items) {
+          const startH = Math.floor(startMin / 60);
+          const endH = Math.min(23, Math.ceil(endMin / 60) - 1);
+          if (endH <= startH) continue;
+          let available = 0;
+          for (let h = startH; h <= endH; h++) available += heights[h];
+          const barW = dayColPx / totalColumns;
+          const textH = estimateTextHeight(schedule, barW);
+          if (textH > available) heights[endH] += textH - available;
+        }
       }
     }
 
@@ -148,7 +153,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
     let acc = 0;
     for (let h = 0; h < 24; h++) { tops.push(acc); acc += heights[h]; }
     return { rowHeights: heights, rowTops: tops, totalHeight: acc };
-  }, [layoutByDay, containerWidth, timeColPx]);
+  }, [layoutByDay, containerWidth, timeColPx, isMobile]);
 
   const minToPixels = (min: number): number => {
     const h = Math.min(23, Math.floor(min / 60));
@@ -320,7 +325,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                           onMouseLeave={() => setTooltip(null)}
                           className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1.5 py-0 rounded-none md:rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
                         >
-                          <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words">{schedule.title}</div>
+                          <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words line-clamp-2 md:line-clamp-none">{schedule.title}</div>
                           <div className="opacity-75 text-[9px] md:text-[10px] leading-[1.1] md:leading-normal truncate">
                             {end ? `${formatTime(start)} ~ ${formatTime(end)}` : formatTime(start)}
                           </div>
