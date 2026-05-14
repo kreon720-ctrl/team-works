@@ -49,9 +49,11 @@ interface DateTimePickerProps {
   disabled?: boolean;
   error?: string;
   label: string;
+  // 라벨 옆 빨간 * 표시 여부. 기본 true (시작일시 등 필수). 종료일시처럼 선택 입력이면 false.
+  required?: boolean;
 }
 
-function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePickerProps) {
+function DateTimePicker({ value, onChange, disabled, error, label, required = true }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // 현재 값 파싱
@@ -155,7 +157,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
   return (
     <div className="relative">
       <label className="text-xs md:text-sm font-medium text-gray-700 dark:text-dark-text-muted mb-1 md:mb-1.5 block">
-        {label} <span className="text-error-500">*</span>
+        {label}{required && <> <span className="text-error-500">*</span></>}
       </label>
 
       {/* 표시 필드 — 모바일은 가로폭 80%, PC 는 full */}
@@ -589,6 +591,7 @@ export function ScheduleForm({
           }}
           disabled={isPending}
           error={errors.endAt}
+          required={false}
         />
         {!endDate && (
           <p className="text-[11px] md:text-xs text-gray-500 dark:text-dark-text-muted">
