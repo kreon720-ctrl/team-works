@@ -183,8 +183,9 @@ function ProjectScheduleDetailModalBody({
           </div>
 
           {/* 모달 하단 footer — 수정·삭제·닫기 버튼 (갠트 차트 아래).
-              bg 명시 + 모바일 py 축소 — 뒤 갠트가 비쳐 겹쳐 보이는 문제 차단. */}
-          <div className="flex-none border-t border-gray-100 dark:border-dark-border px-6 py-1.5 sm:py-3 bg-white dark:bg-dark-elevated">
+              relative z-20 + shadow-[0_-2px_4px] 로 갠트가 z 축으로 침범해도 footer 가 위에 보이고
+              위쪽 그림자로 시각적 분리. */}
+          <div className="relative z-20 flex-none border-t border-gray-200 dark:border-dark-border px-6 py-1.5 sm:py-3 bg-white dark:bg-dark-elevated shadow-[0_-2px_4px_rgba(0,0,0,0.08)] dark:shadow-[0_-2px_4px_rgba(0,0,0,0.4)]">
             <div className="flex gap-1.5 max-w-[70%] mx-auto w-full">
               {isOwner ? (
                 <>
