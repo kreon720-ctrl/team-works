@@ -275,11 +275,21 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
   // hook 자체는 항상 호출 (Rules of Hooks). 비지원 브라우저는 isSupported=false 로 자체 차단.
   const stt = useSpeechRecognition();
 
-  // 음성 인식 결과(transcript) 가 들어올 때마다 입력창에 반영.
-  // 빈 문자열일 때는 sync 하지 않음 (사용자가 키보드로 입력 중일 가능성).
+  // 발화 종료 후에만 입력창에 누적 — 발화 중간 휴지로 자동 stop 되어도
+  // 다시 마이크를 누르면 기존 텍스트 뒤에 이어 붙음. interim 결과 중복 누적 방지를 위해
+  // listening / transcribing 모두 종료 + 같은 transcript 재커밋 방지(lastCommittedRef).
+  const lastCommittedTranscriptRef = useRef('');
   useEffect(() => {
-    if (stt.transcript) setInput(stt.transcript);
-  }, [stt.transcript]);
+    if (stt.isListening || stt.isTranscribing) return;
+    const t = stt.transcript;
+    if (!t) return;
+    if (t === lastCommittedTranscriptRef.current) return;
+    setInput((prev) => {
+      const trimmed = prev.trim();
+      return trimmed ? `${trimmed} ${t}` : t;
+    });
+    lastCommittedTranscriptRef.current = t;
+  }, [stt.isListening, stt.isTranscribing, stt.transcript]);
 
   // STT 오류는 채팅 영역에 error 메시지로 노출 (기존 error 메시지 패턴 재사용).
   useEffect(() => {
@@ -703,16 +713,36 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
       {/* Composer */}
       <div className="border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface px-3 pt-3 pb-3 shrink-0">
         <div className="flex items-stretch gap-2">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={4}
-            placeholder="사용법·일반 질문·우리 팀 일정 조회·등록 모두 자유롭게 물어보세요. (Enter 전송, Shift+Enter 줄바꿈)"
-            className="flex-1 resize-none max-h-56 min-h-[88px] rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-base px-4 py-2.5 text-sm font-normal text-gray-800 dark:text-dark-text leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled transition-colors duration-150 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:disabled:bg-dark-elevated dark:disabled:border-dark-border dark:disabled:text-dark-text-disabled"
-            disabled={isLoading}
-          />
+          <div className="relative flex-1">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={4}
+              placeholder="사용법·일반 질문·우리 팀 일정 조회·등록 모두 자유롭게 물어보세요. (Enter 전송, Shift+Enter 줄바꿈)"
+              className="w-full resize-none max-h-56 min-h-[88px] rounded-xl border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-base pl-4 pr-9 py-2.5 text-sm font-normal text-gray-800 dark:text-dark-text leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled transition-colors duration-150 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:disabled:bg-dark-elevated dark:disabled:border-dark-border dark:disabled:text-dark-text-disabled"
+              disabled={isLoading}
+            />
+            {input.trim().length > 0 && !isLoading && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInput('');
+                  if (stt.isListening) stt.stop();
+                  stt.reset();
+                  lastCommittedTranscriptRef.current = '';
+                }}
+                aria-label="입력창 비우기"
+                title="입력창 비우기"
+                className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-dark-text-disabled dark:hover:text-dark-text dark:hover:bg-dark-elevated transition-colors duration-150"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
           <div className="flex flex-col gap-1.5 self-start">
             <button
               type="button"
