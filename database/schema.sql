@@ -61,10 +61,11 @@ CREATE TABLE IF NOT EXISTS schedules (
     description TEXT         NULL,
     color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
     start_at    TIMESTAMP    NOT NULL,
-    end_at      TIMESTAMP    NOT NULL,
+    -- 종료시각 선택 입력. null 이면 시작시각만 정해진 일정.
+    end_at      TIMESTAMP    NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_schedules_end_after_start CHECK (end_at > start_at),
+    CONSTRAINT chk_schedules_end_after_start CHECK (end_at IS NULL OR end_at > start_at),
     CONSTRAINT chk_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 
