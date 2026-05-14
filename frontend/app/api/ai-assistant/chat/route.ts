@@ -1086,10 +1086,10 @@ function formatSchedules(
       return `• ${startStr}  ${s.title}${s.description ? ` — ${s.description}` : ''}`;
     }
     const end = new Date(s.endAt);
-    const endStr = end.toLocaleString('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    });
+    // 다일 일정이면 endStr 에도 month/day 포함 — 사용자가 single-day 로 오해 방지.
+    const endStr = isSameKstDay(start, end)
+      ? end.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false })
+      : end.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
     return `• ${startStr} ~ ${endStr}  ${s.title}${s.description ? ` — ${s.description}` : ''}`;
   });
   return `${teamPrefix}${rangeLabel}${bandLabel}${keywordLabel}일정 ${schedules.length}건:\n${lines.join('\n')}`;
@@ -1109,6 +1109,13 @@ function blockedMessage(subreason?: string): string {
 
 // schedule_delete — 후보 일정을 사람이 알아볼 수 있는 한 줄로 포맷.
 // formatSchedules 와 비슷하지만 confirm 카드 안에 넣을 단일 항목용.
+// KST 기준 같은 날짜인지 — 표시 함수가 다일 일정일 때 endStr 에 month/day 포함하기 위함.
+function isSameKstDay(a: Date, b: Date): boolean {
+  const aK = new Date(a.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const bK = new Date(b.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return aK === bK;
+}
+
 function formatScheduleLine(s: Schedule): string {
   const start = new Date(s.startAt);
   const startStr = start.toLocaleString('ko-KR', {
@@ -1120,10 +1127,10 @@ function formatScheduleLine(s: Schedule): string {
     return `${startStr}  ${s.title}${s.description ? ` — ${s.description}` : ''}`;
   }
   const end = new Date(s.endAt);
-  const endStr = end.toLocaleString('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  });
+  // 다일 일정이면 endStr 에도 month/day 포함 — 사용자가 single-day 로 오해 방지.
+  const endStr = isSameKstDay(start, end)
+    ? end.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false })
+    : end.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   return `${startStr} ~ ${endStr}  ${s.title}${s.description ? ` — ${s.description}` : ''}`;
 }
 
@@ -1329,10 +1336,10 @@ function formatUpdateConfirm(state: {
     });
     if (!endIso) return startStr;
     const end = new Date(endIso);
-    const endStr = end.toLocaleString('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    });
+    // 다일 일정이면 endStr 에도 month/day 포함 — 사용자가 single-day 로 오해 방지.
+    const endStr = isSameKstDay(start, end)
+      ? end.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false })
+      : end.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
     return `${startStr} ~ ${endStr}`;
   };
 
