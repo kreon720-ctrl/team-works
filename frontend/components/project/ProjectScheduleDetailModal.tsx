@@ -126,11 +126,12 @@ function ProjectScheduleDetailModalBody({
             </button>
           </div>
 
-          {/* 본문 — 모바일: 세로 (상세 위 / 타임라인 아래), 데스크탑: 가로 (좌 상세 / 우 타임라인) */}
-          <div className="flex flex-col sm:flex-row flex-1 min-h-0 mt-4">
+          {/* 본문 — 모바일: 세로 (상세 위 / 타임라인 아래), 데스크탑: 가로 (좌 상세 / 우 타임라인).
+              모바일은 mt/pb 를 더 타이트하게 — footer 가 갠트와 겹쳐 보이는 문제 해소. */}
+          <div className="flex flex-col sm:flex-row flex-1 min-h-0 mt-2 sm:mt-4">
 
             {/* 좌측(데스크탑) / 위(모바일): 상세 정보 */}
-            <div className="w-full sm:w-72 flex-none flex flex-col px-6 pb-5">
+            <div className="w-full sm:w-72 flex-none flex flex-col px-6 pb-2 sm:pb-5">
               <div className="flex-1 overflow-y-auto">
                 <DetailRow label="기간" value={`${schedule.startDate} ~ ${schedule.endDate}`} />
                 {phaseName && <DetailRow label="단계" value={phaseName} />}
@@ -181,8 +182,9 @@ function ProjectScheduleDetailModalBody({
             />
           </div>
 
-          {/* 모달 하단 footer — 수정·삭제·닫기 버튼 (갠트 차트 아래) */}
-          <div className="flex-none border-t border-gray-100 dark:border-dark-border px-6 py-3">
+          {/* 모달 하단 footer — 수정·삭제·닫기 버튼 (갠트 차트 아래).
+              bg 명시 + 모바일 py 축소 — 뒤 갠트가 비쳐 겹쳐 보이는 문제 차단. */}
+          <div className="flex-none border-t border-gray-100 dark:border-dark-border px-6 py-1.5 sm:py-3 bg-white dark:bg-dark-elevated">
             <div className="flex gap-1.5 max-w-[70%] mx-auto w-full">
               {isOwner ? (
                 <>

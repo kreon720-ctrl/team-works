@@ -124,7 +124,7 @@ export function SubScheduleTimeline({
   );
 
   return (
-    <div ref={rightRef} className="flex-1 min-w-0 flex flex-col px-4 pb-5">
+    <div ref={rightRef} className="flex-1 min-w-0 flex flex-col px-4 pb-2 sm:pb-5">
       {/* [+] 세부일정 추가 — 아이콘만, 우측 상단, 추가 70% 축소. mt-2 로 상단 구분선과 간격 */}
       <div className="flex justify-end mt-2 mb-2 flex-none">
         <button type="button" onClick={onAddClick}
