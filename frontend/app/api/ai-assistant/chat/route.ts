@@ -1156,7 +1156,8 @@ function tryParseDirectDatetime(
   if (/정오/.test(question)) hour = 12;
   else if (/자정/.test(question)) hour = 0;
   else {
-    const m = question.match(/(오전|오후|새벽)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/);
+    // 한국어 "반" = 30분 처리 — m[3]="N분", m[4]="반" 분리 매치.
+    const m = question.match(/(오전|오후|새벽)?\s*(\d{1,2})\s*시(?:\s*(?:(\d{1,2})\s*분|(반)))?/);
     if (!m) return null;
     let h = parseInt(m[2], 10);
     if (Number.isNaN(h) || h < 0 || h > 23) return null;
@@ -1164,7 +1165,9 @@ function tryParseDirectDatetime(
     if (ampm === '오후' && h >= 1 && h <= 11) h += 12;
     else if ((ampm === '오전' || ampm === '새벽') && h === 12) h = 0;
     hour = h;
-    minute = m[3] ? parseInt(m[3], 10) : 0;
+    if (m[4] === '반') minute = 30;
+    else if (m[3]) minute = parseInt(m[3], 10);
+    else minute = 0;
     if (minute < 0 || minute > 59) return null;
   }
 
