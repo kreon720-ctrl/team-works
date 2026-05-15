@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { PlusSquare, Edit2, Trash2 } from 'lucide-react';
+import { PlusSquare, Edit2, Trash2, Download } from 'lucide-react';
+import { toSvg } from 'html-to-image';
 import { useProjectStore } from '@/store/projectStore';
 import type { Project } from '@/types/project';
 import { GanttChart } from './GanttChart';
@@ -122,6 +123,56 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
     </button>
   );
 
+  // 갠트 영역 ref — [저장] 버튼이 이 DOM 을 SVG 로 변환해 다운로드.
+  const ganttRef = React.useRef<HTMLDivElement | null>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  const handleSaveSvg = async () => {
+    if (!selectedProject || !ganttRef.current || saving) return;
+    setSaving(true);
+    try {
+      // dark mode 배경색 — html-to-image 는 투명 배경이라 명시적 배경 필요
+      const isDark = document.documentElement.classList.contains('dark');
+      const bgColor = isDark ? '#0f0f10' : '#ffffff';
+
+      const dataUrl = await toSvg(ganttRef.current, {
+        backgroundColor: bgColor,
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+
+      // dataUrl(data:image/svg+xml;...) 을 Blob 으로 → 다운로드 링크
+      const blob = await (await fetch(dataUrl)).blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const yyyy = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `${selectedProject.name}_${yyyy}.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('갠트 차트 SVG 저장 실패:', err);
+      alert('갠트 차트 저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveButton = (
+    <button
+      type="button"
+      disabled={!selectedProject || saving}
+      onClick={handleSaveSvg}
+      title="현재 갠트 차트를 SVG 파일로 저장"
+      className="inline-flex items-center gap-1 px-1 py-0 sm:px-2 sm:py-1 rounded sm:rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-muted text-[10px] sm:text-xs font-medium hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-none"
+    >
+      <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+      저장
+    </button>
+  );
+
   // 프로젝트 메타 (이름 · 기간 · 진행률) — 데스크탑 헤더 중앙 / 모바일 2번째 줄에 사용.
   const projectMeta = selectedProject ? (
     <>
@@ -146,7 +197,10 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
         <div className="flex-1 flex items-center justify-center gap-1.5">
           {projectMeta}
         </div>
-        <div className="flex-none">{addScheduleButton}</div>
+        <div className="flex-none flex items-center gap-1.5">
+          {addScheduleButton}
+          {saveButton}
+        </div>
       </div>
 
       {/* 모바일 헤더 — 1행: 액션바.
@@ -155,7 +209,10 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
       <div className="sm:hidden flex flex-col border-b border-gray-200 dark:border-dark-border flex-none">
         <div className="flex items-center justify-between px-2 py-0.5">
           {actionButtons}
-          {addScheduleButton}
+          <div className="flex items-center gap-1">
+            {addScheduleButton}
+            {saveButton}
+          </div>
         </div>
         {projects.length > 0 && (
           <div className="flex items-end overflow-x-auto whitespace-nowrap border-t border-gray-100 dark:border-dark-border">
@@ -180,8 +237,8 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
         )}
       </div>
 
-      {/* Gantt chart or empty state */}
-      <div className="flex-1 overflow-hidden">
+      {/* Gantt chart or empty state — ref 는 [저장] 버튼이 SVG 변환 대상으로 사용 */}
+      <div ref={ganttRef} className="flex-1 overflow-hidden">
         {selectedProject ? (
           <GanttChart
             project={selectedProject}
