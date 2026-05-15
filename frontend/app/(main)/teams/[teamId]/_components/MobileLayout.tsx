@@ -99,6 +99,21 @@ export function MobileLayout({
   // AI 버틀러 탭 안에서 일정 아이콘으로 토글하는 split view (상단 캘린더 1/3 + 하단 AI 2/3).
   const [showCalendarSplit, setShowCalendarSplit] = useState(false);
 
+  // 프로젝트 → [채팅] 버튼으로 진입한 경우 어떤 프로젝트의 채팅을 띄울지.
+  // null 이면 "팀채팅" 탭 진입(일자별 채팅).
+  const [chatProjectId, setChatProjectId] = useState<string | null>(null);
+
+  const handleSwitchToProjectChat = (projectId: string) => {
+    setChatProjectId(projectId);
+    onTabChange('chat');
+  };
+
+  // 사용자가 직접 [팀채팅] 탭 누르면 일자별 채팅으로 reset.
+  const handleTabChangeWithChatReset = (tab: typeof activeTab) => {
+    if (tab === 'chat') setChatProjectId(null);
+    onTabChange(tab);
+  };
+
   // 두 곳(calendar tab, split view)에서 공유하는 CalendarSection element.
   const calendarSectionElement = (
     <CalendarSection
@@ -182,7 +197,7 @@ export function MobileLayout({
         </button>
         <button
           type="button"
-          onClick={() => onTabChange('chat')}
+          onClick={() => handleTabChangeWithChatReset('chat')}
           className={`flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-1.5 text-xs font-medium border-b-2 transition-colors duration-150 ${
             activeTab === 'chat'
               ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
@@ -233,18 +248,29 @@ export function MobileLayout({
             teamId={teamId}
             currentUserId={currentUserIdForProject}
             isLeader={isLeader}
+            onSwitchToChat={handleSwitchToProjectChat}
           />
         </div>
 
-        {/* Chat tab */}
+        {/* Chat tab — chatProjectId 있으면 프로젝트 채팅, 없으면 일자별 팀채팅 */}
         <div
           className={`h-[calc(100vh-6rem)] ${activeTab === 'chat' ? 'flex' : 'hidden'} flex-col`}
         >
-          <ChatPanel
-            teamId={teamId}
-            date={selectedDate}
-            isLeader={isLeader}
-          />
+          {chatProjectId ? (
+            <ChatPanel
+              key={`project-${chatProjectId}`}
+              teamId={teamId}
+              projectId={chatProjectId}
+              isLeader={isLeader}
+            />
+          ) : (
+            <ChatPanel
+              key={`team-${selectedDate}`}
+              teamId={teamId}
+              date={selectedDate}
+              isLeader={isLeader}
+            />
+          )}
         </div>
 
         {/* AI 버틀러 tab — 일정 아이콘 토글 시 상단 캘린더(1/3) + 하단 AI(2/3) split */}

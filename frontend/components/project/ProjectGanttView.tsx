@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { PlusSquare, Edit2, Trash2, Download } from 'lucide-react';
+import { PlusSquare, Edit2, Trash2, Download, MessageCircle } from 'lucide-react';
 import { toSvg } from 'html-to-image';
 import { useProjectStore } from '@/store/projectStore';
 import type { Project } from '@/types/project';
@@ -17,9 +17,11 @@ interface ProjectGanttViewProps {
   teamId: string;
   currentUserId: string;
   isLeader: boolean;
+  // 모바일 전용 — [채팅] 버튼 클릭 시 호출. 부모(MobileLayout)가 chat 탭으로 전환 + projectId 세팅.
+  onSwitchToChat?: (projectId: string) => void;
 }
 
-export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProps) {
+export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: ProjectGanttViewProps) {
   const store = useProjectStore();
 
   const projects = store.getTeamProjects(teamId);
@@ -173,6 +175,20 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
     </button>
   );
 
+  // 모바일 전용 — 프로젝트 채팅으로 이동하는 버튼
+  const chatButton = onSwitchToChat ? (
+    <button
+      type="button"
+      disabled={!selectedProject}
+      onClick={() => selectedProject && onSwitchToChat(selectedProject.id)}
+      title="이 프로젝트의 채팅으로 이동"
+      className="inline-flex items-center gap-1 px-1 py-0 rounded border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-muted text-[10px] font-medium hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-none"
+    >
+      <MessageCircle className="w-3 h-3" />
+      채팅
+    </button>
+  ) : null;
+
   // 프로젝트 메타 (이름 · 기간 · 진행률) — 데스크탑 헤더 중앙 / 모바일 2번째 줄에 사용.
   const projectMeta = selectedProject ? (
     <>
@@ -211,7 +227,7 @@ export function ProjectGanttView({ teamId, currentUserId }: ProjectGanttViewProp
           {actionButtons}
           <div className="flex items-center gap-1">
             {addScheduleButton}
-            {saveButton}
+            {chatButton}
           </div>
         </div>
         {projects.length > 0 && (
