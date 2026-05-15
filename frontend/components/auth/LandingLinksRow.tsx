@@ -22,6 +22,15 @@ export function LandingLinksRow() {
       </a>
       <span className="text-white/30">·</span>
       <a
+        href="/landing/faq.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-white/70 hover:text-amber-400 transition-colors duration-150"
+      >
+        FAQ
+      </a>
+      <span className="text-white/30">·</span>
+      <a
         href="/landing/quickstart.html"
         target="_blank"
         rel="noopener noreferrer"
