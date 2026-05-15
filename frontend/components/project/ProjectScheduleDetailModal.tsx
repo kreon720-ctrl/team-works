@@ -108,10 +108,10 @@ function ProjectScheduleDetailModalBody({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/70 px-4 py-4 sm:py-0">
-        {/* 모바일: 본문이 세로로 쌓이므로 높이 키움. svh 사용 — 안드로이드 크롬에서
-            vh 가 주소창 영역까지 포함해 모달이 화면 밖으로 잘리던 문제 차단.
-            데스크탑: 좌우 분할이라 63vh 유지. */}
-        <div className="w-[90vw] max-w-5xl bg-white dark:bg-dark-elevated dark:border dark:border-dark-border rounded-2xl shadow-xl flex flex-col h-[80svh] sm:h-[63vh] max-h-full overflow-x-hidden">
+        {/* 모바일: 본문이 세로로 쌓이므로 높이 키움 (85svh — 갠트·상세 그대로 두고 상하 여백 확보).
+            svh 사용 — 안드로이드 크롬에서 vh 가 주소창 영역까지 포함해 모달이 화면 밖으로
+            잘리던 문제 차단. 데스크탑: 좌우 분할이라 63vh 유지. */}
+        <div className="w-[90vw] max-w-5xl bg-white dark:bg-dark-elevated dark:border dark:border-dark-border rounded-2xl shadow-xl flex flex-col h-[85svh] sm:h-[63vh] max-h-full overflow-x-hidden">
 
           {/* 타이틀 */}
           <div className="flex items-start justify-between px-6 pt-5 pb-0 flex-none">
