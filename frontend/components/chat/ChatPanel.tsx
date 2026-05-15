@@ -24,9 +24,13 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPanelProps) {
-  // 프로젝트 채팅 모드에서 우측에 프로젝트명 표시 (모바일에서만 — PC 는 위 헤더에 이미 표시)
-  const projectsForTeam = useProjectStore((s) => s.projects[teamId] ?? []);
-  const activeProject = projectId ? projectsForTeam.find((p) => p.id === projectId) ?? null : null;
+  // 프로젝트 채팅 모드에서 우측에 프로젝트명 표시 (모바일에서만 — PC 는 위 헤더에 이미 표시).
+  // selector 안에서 ?? [] 하면 매번 새 배열 반환 → "getSnapshot should be cached" infinite loop.
+  // 따라서 selector 는 안정 참조만 반환하고 fallback 은 밖에서.
+  const rawProjects = useProjectStore((s) => s.projects[teamId]);
+  const activeProject = projectId
+    ? (rawProjects ?? []).find((p) => p.id === projectId) ?? null
+    : null;
   // sub-tab — 채팅(기본) / 자료실. 채팅방마다 독립 — 컨텍스트 전환 시 'chat' 으로 리셋되도록 key 외부에서 줌.
   const [subTab, setSubTab] = useState<'chat' | 'board'>('chat');
 
