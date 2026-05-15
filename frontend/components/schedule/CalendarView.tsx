@@ -194,22 +194,40 @@ export function CalendarView({
             </>
           )}
 
-          {/* 프로젝트 관리 버튼 (PC only) */}
+          {/* PC only — 일정/프로젝트 뷰 토글 버튼.
+              일정 뷰: [프로젝트 관리] 클릭 → 프로젝트 뷰
+              프로젝트 뷰: [일정 관리] 클릭 → 월간 뷰로 복귀 */}
           {!compact && (
             <button
               type="button"
-              onClick={() => onViewChange?.('project')}
+              onClick={() => onViewChange?.(isProjectView ? 'month' : 'project')}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-muted text-sm font-medium hover:bg-gray-50 dark:hover:bg-dark-surface active:bg-gray-100 dark:active:bg-dark-elevated transition-colors duration-150"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
-                />
-              </svg>
-              프로젝트 관리
+              {isProjectView ? (
+                <>
+                  {/* 캘린더 아이콘 */}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                    <path d="M3 9h18" />
+                    <path d="M8 3v4" />
+                    <path d="M16 3v4" />
+                  </svg>
+                  일정 관리
+                </>
+              ) : (
+                <>
+                  {/* 프로젝트(보드) 아이콘 */}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
+                    />
+                  </svg>
+                  프로젝트 관리
+                </>
+              )}
             </button>
           )}
         </div>
@@ -240,17 +258,17 @@ export function CalendarView({
             </div>
           )}
 
-          {/* View tabs */}
+          {/* View tabs — 일정뷰에선 월·주·일 만, 프로젝트뷰(PC) 에선 프로젝트 탭만 */}
           <div className="flex border-b border-gray-200 dark:border-dark-border">
-            {/* 프로젝트 탭 (PC only, 프로젝트 있을 때만) */}
-            {!compact && teamProjects.map((project) => (
+            {/* 프로젝트 탭 (PC only, 프로젝트 뷰일 때만) */}
+            {!compact && isProjectView && teamProjects.map((project) => (
               <button
                 key={project.id}
                 type="button"
                 onClick={() => handleProjectTabClick(project.id)}
                 className={`
                   py-2 px-4 text-sm font-medium border-b-2 transition-colors duration-150
-                  ${view === 'project' && selectedProjectId === project.id
+                  ${selectedProjectId === project.id
                     ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
                   }
@@ -259,8 +277,8 @@ export function CalendarView({
                 {project.name}
               </button>
             ))}
-            {/* 월/주/일 탭 */}
-            {viewTabs.map((tab) => (
+            {/* 월/주/일 탭 — 일정뷰일 때만. 모바일은 자체 탭바 별도라 PC 만 분기 적용 */}
+            {(!isProjectView || compact) && viewTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
