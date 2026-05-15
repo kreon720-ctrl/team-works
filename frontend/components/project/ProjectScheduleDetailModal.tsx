@@ -132,9 +132,11 @@ function ProjectScheduleDetailModalBody({
               모바일은 mt/pb 를 더 타이트하게 — footer 가 갠트와 겹쳐 보이는 문제 해소. */}
           <div className="flex flex-col sm:flex-row flex-1 min-h-0 mt-2 sm:mt-4">
 
-            {/* 좌측(데스크탑) / 위(모바일): 상세 정보 */}
-            <div className="w-full sm:w-72 flex-none flex flex-col px-6 pb-2 sm:pb-5">
-              <div className="flex-1 overflow-y-auto">
+            {/* 좌측(데스크탑) / 위(모바일): 상세 정보.
+                모바일에선 max-h-[45%] 로 제한 — 안 그러면 DetailRow 가 많아 좌측 패널이
+                본문 전체를 차지해 SubScheduleTimeline 이 footer 영역을 침범. */}
+            <div className="w-full sm:w-72 flex-none flex flex-col px-6 pb-2 sm:pb-5 max-h-[45%] sm:max-h-none min-h-0">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 <DetailRow label="기간" value={`${schedule.startDate} ~ ${schedule.endDate}`} />
                 {phaseName && <DetailRow label="단계" value={phaseName} />}
                 <DetailRow

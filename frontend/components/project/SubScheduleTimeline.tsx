@@ -124,7 +124,7 @@ export function SubScheduleTimeline({
   );
 
   return (
-    <div ref={rightRef} className="flex-1 min-w-0 flex flex-col px-4 pb-2 sm:pb-5">
+    <div ref={rightRef} className="flex-1 min-w-0 min-h-0 flex flex-col px-4 pb-2 sm:pb-5">
       {/* [+] 세부일정 추가 — 아이콘만, 우측 상단, 추가 70% 축소. mt-2 로 상단 구분선과 간격 */}
       <div className="flex justify-end mt-2 mb-2 flex-none">
         <button type="button" onClick={onAddClick}
@@ -136,9 +136,9 @@ export function SubScheduleTimeline({
         </button>
       </div>
 
-      {/* 타임라인 */}
-      <div className="overflow-x-auto flex-1 flex flex-col">
-        <div className="flex flex-col flex-1" style={{ minWidth: totalWidth }}>
+      {/* 타임라인 — nested flex 에 min-h-0 필수 (없으면 자식이 부모 높이 무시하고 자연 크기로 늘어남) */}
+      <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
+        <div className="flex flex-col flex-1 min-h-0" style={{ minWidth: totalWidth }}>
 
           {/* 월 행 */}
           <div className="flex border border-gray-300 dark:border-dark-border flex-none">
@@ -173,8 +173,8 @@ export function SubScheduleTimeline({
             ))}
           </div>
 
-          {/* 세부일정 행 영역 */}
-          <div className="overflow-y-auto overflow-x-hidden border-x border-b border-gray-300 dark:border-dark-border flex-1">
+          {/* 세부일정 행 영역 — flex-1 min-h-0 로 부모 영역 안에 머물게 강제, 초과 시 y 스크롤 */}
+          <div className="overflow-y-auto overflow-x-hidden border-x border-b border-gray-300 dark:border-dark-border flex-1 min-h-0">
             {subSchedules.length === 0 ? (
               <div className="relative border-b border-gray-100 dark:border-dark-border" style={{ minHeight: 36 + ROW_PAD * 2 }}>
                 <GridLines />
