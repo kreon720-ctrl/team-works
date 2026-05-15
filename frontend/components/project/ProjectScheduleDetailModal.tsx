@@ -128,15 +128,13 @@ function ProjectScheduleDetailModalBody({
             </button>
           </div>
 
-          {/* 본문 — 모바일: 세로 (상세 위 / 타임라인 아래), 데스크탑: 가로 (좌 상세 / 우 타임라인).
-              모바일은 mt/pb 를 더 타이트하게 — footer 가 갠트와 겹쳐 보이는 문제 해소. */}
-          <div className="flex flex-col sm:flex-row flex-1 min-h-0 mt-2 sm:mt-4">
+          {/* 본문 — 모바일: 세로 reverse (갠트 위, 상세 아래), 데스크탑: 가로 (좌 상세 / 우 타임라인). */}
+          <div className="flex flex-col-reverse sm:flex-row flex-1 min-h-0 mt-2 sm:mt-4">
 
-            {/* 좌측(데스크탑) / 위(모바일): 상세 정보.
-                모바일에선 max-h-[45%] 로 제한 — 안 그러면 DetailRow 가 많아 좌측 패널이
-                본문 전체를 차지해 SubScheduleTimeline 이 footer 영역을 침범. */}
-            <div className="w-full sm:w-72 flex-none flex flex-col px-6 pb-2 sm:pb-5 max-h-[45%] sm:max-h-none min-h-0">
-              <div className="flex-1 overflow-y-auto min-h-0">
+            {/* 좌측(데스크탑) / 아래(모바일): 상세 정보.
+                모바일은 자연 크기 + 스크롤 없음 (사용자 요구). 데스크탑은 좌측 컬럼 안 내부 스크롤. */}
+            <div className="w-full sm:w-72 flex-none flex flex-col px-6 pb-2 sm:pb-5 min-h-0">
+              <div className="sm:flex-1 sm:overflow-y-auto sm:min-h-0">
                 <DetailRow label="기간" value={`${schedule.startDate} ~ ${schedule.endDate}`} />
                 {phaseName && <DetailRow label="단계" value={phaseName} />}
                 <DetailRow
@@ -176,14 +174,17 @@ function ProjectScheduleDetailModalBody({
             {/* 구분선 — 모바일: 가로 한 줄, 데스크탑: 세로 한 줄 */}
             <div className="h-px w-full sm:h-auto sm:w-px bg-gray-200 dark:bg-dark-border flex-none sm:my-2" />
 
-            {/* 우측: 타임라인 */}
-            <SubScheduleTimeline
-              scheduleStartDate={schedule.startDate}
-              scheduleEndDate={schedule.endDate}
-              subSchedules={subSchedules}
-              onSubClick={setViewingSub}
-              onAddClick={openCreate}
-            />
+            {/* 우측(데스크탑) / 위(모바일): 타임라인.
+                모바일에선 고정 h-[35svh] + 갠트 자체 양방향 스크롤. 데스크탑은 flex-1 로 채움. */}
+            <div className="h-[35svh] sm:h-auto sm:flex-1 min-h-0 flex flex-col flex-none">
+              <SubScheduleTimeline
+                scheduleStartDate={schedule.startDate}
+                scheduleEndDate={schedule.endDate}
+                subSchedules={subSchedules}
+                onSubClick={setViewingSub}
+                onAddClick={openCreate}
+              />
+            </div>
           </div>
 
           {/* 모달 하단 footer — 수정·삭제·닫기 버튼 (갠트 차트 아래).

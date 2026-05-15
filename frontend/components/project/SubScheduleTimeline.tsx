@@ -6,7 +6,7 @@ import { SubBar } from './SubBar';
 
 // ── 타임라인 상수 ──
 const MIN_DAY_W = 24;
-const ROW_PAD = 5;
+const ROW_PAD = 2;       // 5→2 축소: row 상하 여백을 타이트하게 (갠트가 모달 안에 더 많이 들어가도록)
 const PROGRESS_H = 20;
 const BAR_MIN_H = Math.round(PROGRESS_H * 1.3);
 
