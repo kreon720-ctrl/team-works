@@ -8,6 +8,46 @@
   <meta name="description"
     content="카톡, 슬랙, 노션, 엑셀… 이제 꺼두셔도 좋습니다. AI 비서 찰떡이와 함께하는 올인원 팀 워크스페이스, TEAM WORKS.MY">
   <link rel="stylesheet" href="index.css">
+  <style>
+    /* 타이핑 애니메이션 — "http://teamworks.my" 19글자 */
+    @keyframes typing-anim {
+      0%   { width: 0; }
+      45%  { width: 19ch; }
+      85%  { width: 19ch; }
+      95%  { width: 0; }
+      100% { width: 0; }
+    }
+    @keyframes caret-blink {
+      0%, 50% { border-right-color: var(--color-gold); }
+      51%, 100% { border-right-color: transparent; }
+    }
+    .url-typewriter-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 1rem;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .url-typewriter-wrap .lock { color: var(--color-text-muted); font-size: 1rem; }
+    .url-typewriter {
+      font-family: "SF Mono", "Menlo", "Consolas", monospace;
+      color: var(--color-gold);
+      font-weight: 600;
+      letter-spacing: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      display: inline-block;
+      width: 0;
+      border-right: 3px solid var(--color-gold);
+      animation:
+        typing-anim 4.5s steps(19, end) infinite,
+        caret-blink 0.7s step-end infinite;
+    }
+  </style>
 </head>
 
 <body>
@@ -62,6 +102,11 @@
             <p style="color: var(--color-text-muted); font-size: 0.95rem; margin-bottom: var(--spacing-sm);">
               주소창에 <strong style="color: var(--color-gold);">http://teamworks.my</strong>만 쳐보세요!
             </p>
+            <!-- 타이핑 애니메이션 주소창 — "http://teamworks.my" 가 순차적으로 입력되는 효과 -->
+            <div class="url-typewriter-wrap" aria-hidden="true">
+              <span class="lock">🌐</span>
+              <span class="url-typewriter">http://teamworks.my</span>
+            </div>
             <a href="https://teamworks.my" class="btn btn-primary" style="padding: var(--spacing-sm) var(--spacing-xl); font-size: 1.5rem; display: inline-block; text-decoration: none;"><span
                 class="nike-font">Just
                 Start It !</span></a>
