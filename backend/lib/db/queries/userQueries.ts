@@ -1,17 +1,18 @@
 import { pool } from '@/lib/db/pool'
 
+// OAuth 만 쓰는 사용자는 비밀번호가 없어 password_hash 가 null 일 수 있음
 export interface User {
   id: string
   email: string
   name: string
-  password_hash: string
+  password_hash: string | null
   created_at: Date
 }
 
 export interface CreateUserParams {
   email: string
   name: string
-  password_hash: string
+  password_hash: string | null
 }
 
 export async function createUser(params: CreateUserParams): Promise<User> {

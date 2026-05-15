@@ -7,6 +7,7 @@ import { useLogin } from '@/hooks/query/useAuth';
 import { ApiError } from '@/lib/apiClient';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
+import { KakaoLoginButton } from './KakaoLoginButton';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -163,6 +164,17 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       >
         {login.isPending ? '로그인 중...' : '로그인'}
       </Button>
+
+      {/* 소셜 로그인 — 현재는 카카오만, 추후 구글 추가 */}
+      <div className="relative my-2">
+        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+          <div className="w-full border-t border-gray-200 dark:border-dark-border" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-white dark:bg-dark-base px-2 text-gray-400 dark:text-dark-text-muted">또는</span>
+        </div>
+      </div>
+      <KakaoLoginButton disabled={login.isPending} />
     </form>
   );
 }

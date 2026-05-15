@@ -39,7 +39,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       )
     }
 
-    // 3. 비밀번호 검증
+    // 3. 비밀번호 검증 — password_hash 가 null 이면 OAuth 전용 사용자라 자체 로그인 불가
+    if (user.password_hash === null) {
+      return NextResponse.json(
+        { error: '소셜 계정으로 가입된 이메일입니다. 카카오/구글 로그인을 이용해주세요.' },
+        { status: 401 }
+      )
+    }
     const isValidPassword = await verifyPassword(password, user.password_hash)
 
     if (!isValidPassword) {
