@@ -213,20 +213,23 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
                 <button
                   type="button"
                   onClick={() => setRightTab('chat')}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors duration-150 ${
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors duration-150 max-w-full min-w-0 ${
                     rightTab === 'chat'
                       ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
                       : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
                   }`}
                 >
                   {/* 채팅 말풍선 아이콘 */}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg className="w-4 h-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     <circle cx="9" cy="12" r="0.6" fill="currentColor" stroke="none" />
                     <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
                     <circle cx="15" cy="12" r="0.6" fill="currentColor" stroke="none" />
                   </svg>
-                  {isProjectChatMode ? `${activeProject!.name} 채팅` : '팀채팅'}
+                  {/* 프로젝트명이 길면 한 줄 + 말줄임. ChatPanel 헤더에 풀 이름 표시되니 탭은 짧게. */}
+                  <span className="truncate min-w-0">
+                    {isProjectChatMode ? `${activeProject!.name} 채팅` : '팀채팅'}
+                  </span>
                 </button>
                 <button
                   type="button"

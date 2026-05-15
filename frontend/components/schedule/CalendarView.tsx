@@ -260,14 +260,16 @@ export function CalendarView({
 
           {/* View tabs — 일정뷰에선 월·주·일 만, 프로젝트뷰(PC) 에선 프로젝트 탭만 */}
           <div className="flex border-b border-gray-200 dark:border-dark-border">
-            {/* 프로젝트 탭 (PC only, 프로젝트 뷰일 때만) */}
+            {/* 프로젝트 탭 (PC only, 프로젝트 뷰일 때만) — 긴 이름은 한 줄 + 말줄임 */}
             {!compact && isProjectView && teamProjects.map((project) => (
               <button
                 key={project.id}
                 type="button"
                 onClick={() => handleProjectTabClick(project.id)}
+                title={project.name}
                 className={`
                   py-2 px-4 text-sm font-medium border-b-2 transition-colors duration-150
+                  whitespace-nowrap truncate max-w-[220px]
                   ${selectedProjectId === project.id
                     ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
                     : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
