@@ -226,10 +226,8 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
                     <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
                     <circle cx="15" cy="12" r="0.6" fill="currentColor" stroke="none" />
                   </svg>
-                  {/* 프로젝트명이 길면 한 줄 + 말줄임. ChatPanel 헤더에 풀 이름 표시되니 탭은 짧게. */}
-                  <span className="truncate min-w-0">
-                    {isProjectChatMode ? `${activeProject!.name} 채팅` : '팀채팅'}
-                  </span>
+                  {/* 프로젝트 채팅 모드여도 탭 라벨은 항상 "팀채팅" — 프로젝트명은 본문 헤더에서 표시 */}
+                  <span className="truncate min-w-0">팀채팅</span>
                 </button>
                 <button
                   type="button"
@@ -257,10 +255,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
                     {isProjectChatMode ? (
                       <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted truncate">
                         <span className="text-emerald-600 dark:text-emerald-400">📌</span>{' '}
-                        {activeProject!.name}{' '}
-                        <span className="text-xs text-gray-400 dark:text-dark-text-disabled">
-                          ({activeProject!.startDate} ~ {activeProject!.endDate})
-                        </span>
+                        {activeProject!.name}
                       </h2>
                     ) : (
                       <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">

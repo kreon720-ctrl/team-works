@@ -53,7 +53,7 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
       onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
       onMouseMove={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
       onMouseLeave={() => setTooltip(null)}
-      className={`group relative w-full rounded overflow-hidden cursor-pointer select-none ${barClass}`}
+      className={`group relative w-full rounded overflow-hidden cursor-pointer select-none flex items-center justify-center ${barClass}`}
       style={{ minHeight: SCHEDULE_BAR_HEIGHT }}
     >
       {/* Hover tooltip — portal to document.body, always on top */}
