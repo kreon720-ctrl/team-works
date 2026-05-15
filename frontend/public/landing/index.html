@@ -9,11 +9,11 @@
     content="카톡, 슬랙, 노션, 엑셀… 이제 꺼두셔도 좋습니다. AI 비서 찰떡이와 함께하는 올인원 팀 워크스페이스, TEAM WORKS.MY">
   <link rel="stylesheet" href="index.css">
   <style>
-    /* 타이핑 애니메이션 — "http://teamworks.my" 19글자 */
+    /* 타이핑 애니메이션 — "https://teamworks.my" 20글자 */
     @keyframes typing-anim {
       0%   { width: 0; }
-      45%  { width: 19ch; }
-      85%  { width: 19ch; }
+      45%  { width: 20ch; }
+      85%  { width: 20ch; }
       95%  { width: 0; }
       100% { width: 0; }
     }
@@ -44,7 +44,7 @@
       width: 0;
       border-right: 3px solid var(--color-gold);
       animation:
-        typing-anim 4.5s steps(19, end) infinite,
+        typing-anim 4.5s steps(20, end) infinite,
         caret-blink 0.7s step-end infinite;
     }
   </style>
@@ -100,16 +100,19 @@
           </ul>
           <div style="margin-top: var(--spacing-md); text-align: left;">
             <p style="color: var(--color-text-muted); font-size: 0.95rem; margin-bottom: var(--spacing-sm);">
-              주소창에 <strong style="color: var(--color-gold);">http://teamworks.my</strong>만 쳐보세요!
+              주소창에 <strong style="color: var(--color-gold);">https://teamworks.my</strong>만 쳐보세요!
             </p>
-            <!-- 타이핑 애니메이션 주소창 — "http://teamworks.my" 가 순차적으로 입력되는 효과 -->
+            <!-- 타이핑 애니메이션 주소창 — "https://teamworks.my" 가 순차적으로 입력되는 효과 -->
             <div class="url-typewriter-wrap" aria-hidden="true">
               <span class="lock">🌐</span>
-              <span class="url-typewriter">http://teamworks.my</span>
+              <span class="url-typewriter">https://teamworks.my</span>
             </div>
-            <a href="https://teamworks.my" class="btn btn-primary" style="padding: var(--spacing-sm) var(--spacing-xl); font-size: 1.5rem; display: inline-block; text-decoration: none;"><span
-                class="nike-font">Just
-                Start It !</span></a>
+            <!-- 줄 분리: 애니메이션이 width 0↔20ch 로 변해도 버튼 위치 흔들림 방지 + 좌측 정렬 고정 -->
+            <div>
+              <a href="https://teamworks.my" class="btn btn-primary" style="padding: var(--spacing-sm) var(--spacing-xl); font-size: 1.5rem; display: inline-block; text-decoration: none;"><span
+                  class="nike-font">Just
+                  Start It !</span></a>
+            </div>
           </div>
         </div>
         <div class="hero-image-wrapper fade-in-up"
