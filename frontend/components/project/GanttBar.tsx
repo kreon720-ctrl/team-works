@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ProjectSchedule, GanttBarColor } from '@/types/project';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 // Static color lookup table for Tailwind v4 compatibility
 // (no dynamic class names - all classes must be statically present)
@@ -27,6 +28,8 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
   const isDelayed = schedule.isDelayed ?? false;
   const barClass = isDelayed ? styles.barDelayed : styles.bar;
 
+  // 모바일은 hover 개념이 없고 long-press 시 툴팁이 거슬려 비활성화
+  const { isMobile } = useBreakpoint();
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
 
   const fmtDate = (d: string) => {
@@ -50,9 +53,9 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
           onClick();
         }
       }}
-      onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
-      onMouseMove={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
-      onMouseLeave={() => setTooltip(null)}
+      onMouseEnter={isMobile ? undefined : (e) => setTooltip({ x: e.clientX, y: e.clientY })}
+      onMouseMove={isMobile ? undefined : (e) => setTooltip({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={isMobile ? undefined : () => setTooltip(null)}
       className={`group relative w-full rounded overflow-hidden cursor-pointer select-none flex items-center justify-center ${barClass}`}
       style={{ minHeight: SCHEDULE_BAR_HEIGHT }}
     >

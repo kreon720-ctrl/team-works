@@ -128,8 +128,10 @@ function ProjectScheduleDetailModalBody({
             </button>
           </div>
 
-          {/* 본문 — 모바일: 세로 reverse (갠트 위, 상세 아래), 데스크탑: 가로 (좌 상세 / 우 타임라인). */}
-          <div className="flex flex-col-reverse sm:flex-row flex-1 min-h-0 mt-2 sm:mt-4">
+          {/* 본문 — 모바일: 세로 reverse (갠트 위, 상세 아래), 데스크탑: 가로 (좌 상세 / 우 타임라인).
+              모바일에서 콘텐츠 합 > 본문 영역일 때 위쪽으로 overflow 되며 타이틀을 가리던 문제 차단:
+              overflow-y-auto 로 본문 자체가 스크롤 (PC 는 좌우 분할이라 visible 유지). */}
+          <div className="flex flex-col-reverse sm:flex-row flex-1 min-h-0 mt-2 sm:mt-4 overflow-y-auto sm:overflow-visible">
 
             {/* 좌측(데스크탑) / 아래(모바일): 상세 정보.
                 모바일은 자연 크기 + 스크롤 없음 (사용자 요구). 데스크탑은 좌측 컬럼 안 내부 스크롤. */}
