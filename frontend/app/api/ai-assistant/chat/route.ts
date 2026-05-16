@@ -1506,9 +1506,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               }
               case 'schedule_create': {
                 send({ type: 'meta', source: 'schedule', classification: cls, ...ragMeta });
+                // 시간대 단어 선치환 — "아침/새벽 N시"=오전, "낮/점심/저녁/밤 N시"=오후.
+                // RAG 서버와 동일 규칙. detectTimeBand 가 "저녁 7시"를 AM/PM 모호로
+                // 잘못 막아 RAG 호출조차 못 하던 문제 방어.
+                const qCreate = question
+                  .replace(/(새벽|아침)\s*(\d{1,2})\s*시/g, '오전 $2시')
+                  .replace(/(낮|점심|저녁|밤)\s*(\d{1,2})\s*시/g, '오후 $2시');
                 // bare 1~12시 모호 가드 — parseScheduleArgs(LLM) 호출 전에 AM/PM 보충 받음.
                 // (query/delete/update 와 동일 정책. RAG 서버 LLM 의 임의 AM/PM 추정 환각 방지.)
-                const tbCreate = detectTimeBand(question);
+                const tbCreate = detectTimeBand(qCreate);
                 if (tbCreate.kind === 'ambiguous' && tbCreate.needsAmpm) {
                   send({
                     type: 'token',
@@ -1524,7 +1530,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 // 시간·일자 시그널 둘 다 없는 매우 모호한 요청 ("일정등록 해줘") 사전 가드.
                 // RAG parseScheduleArgs 가 임의 제목('일정') + 현재시각 환각으로 채워 ok 응답을
                 // 내놓는 케이스 차단. 일시부터 단계적으로 묻기 시작 (update 와 동일 흐름).
-                if (!HAS_TIMING_SIGNAL_RE.test(question) && !HAS_TIME_SIGNAL_RE.test(question)) {
+                if (!HAS_TIMING_SIGNAL_RE.test(qCreate) && !HAS_TIME_SIGNAL_RE.test(qCreate)) {
                   send({
                     type: 'token',
                     text: `일시는 언제로 할까요? (예: '내일 오후 3시')`,
@@ -1536,7 +1542,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                   });
                   break;
                 }
-                const parsed = await parseScheduleArgs(question);
+                const parsed = await parseScheduleArgs(qCreate);
                 if (parsed.ok) {
                   // 사후 제목 가드 — RAG LLM 이 "일정등록 해줘 내일 오후 2시" 같은 입력에서
                   // "일정등록"을 제목으로 환각 추출(title="일정") 하는 케이스 차단.
