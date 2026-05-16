@@ -1318,6 +1318,23 @@ function parseUpdateState(raw: unknown): UpdateState | null {
   };
 }
 
+// JWT payload 에서 userId 추출 — 서명 검증 없이 디코드만 (권한의 최종 판정은
+// backend 미들웨어가 수행. 여기서는 질문 시작 전 UX 가드 용도로만 사용).
+function jwtUserId(token: string): string | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = Buffer.from(
+      part.replace(/-/g, '+').replace(/_/g, '/'),
+      'base64',
+    ).toString('utf8');
+    const payload = JSON.parse(json) as { userId?: unknown };
+    return typeof payload.userId === 'string' ? payload.userId : null;
+  } catch {
+    return null;
+  }
+}
+
 // 변경 전/후 비교 텍스트 — confirm 카드에 들어갈 요약.
 // 시각은 "M. D. HH:MM ~ HH:MM" 한 줄로 묶어 표시 (formatScheduleLine 과 동일 포맷).
 function formatUpdateConfirm(state: {
@@ -1714,6 +1731,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 }
                 // 단일 매치 — confirm 카드
                 const s = schedules[0];
+                // 권한 가드 — 생성자 본인이 아니면 confirm 카드 띄우기 전 즉시 종료.
+                // (backend 가 DELETE 시점에 403 으로 최종 차단하지만, 그 전에 선차단해
+                //  불필요한 confirm 노출을 막음. update 와 동일 정책.)
+                const meIdDel = jwtUserId(jwt);
+                if (meIdDel && s.createdBy && s.createdBy !== meIdDel) {
+                  send({
+                    type: 'token',
+                    text: `'${s.title}' 일정은 만든 사람만 삭제할 수 있어요. 본인이 등록한 일정이 아니라 삭제를 도와드릴 수 없어요. 🙏`,
+                  });
+                  break;
+                }
                 send({
                   type: 'pending-action',
                   pendingAction: {
@@ -1983,6 +2011,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 }
                 // 단일 매치 — 수정 단계 진입 (새 일시 묻기).
                 const s = schedules[0];
+                // 권한 가드 — 생성자 본인이 아니면 질문 시작 전에 즉시 종료.
+                // (backend 가 PATCH 시점에 403 으로 최종 차단하지만, 그 전에 새 일시·
+                //  제목을 다 물어본 뒤 막으면 UX 가 나쁨 → 식별 직후 선차단.)
+                const meId = jwtUserId(jwt);
+                if (meId && s.createdBy && s.createdBy !== meId) {
+                  send({
+                    type: 'token',
+                    text: `'${s.title}' 일정은 만든 사람만 수정할 수 있어요. 본인이 등록한 일정이 아니라 변경을 도와드릴 수 없어요. 🙏`,
+                  });
+                  break;
+                }
                 const initState: UpdateState = {
                   needs: 'new-datetime',
                   targetScheduleId: s.id,
@@ -2238,6 +2277,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           });
         }
         const s = schedules[0];
+        // 권한 가드 — 생성자 본인이 아니면 confirm 전 차단 (stream 경로와 동일 정책).
+        const meIdDelNs = jwtUserId(jwt);
+        if (meIdDelNs && s.createdBy && s.createdBy !== meIdDelNs) {
+          return NextResponse.json({
+            answer: `'${s.title}' 일정은 만든 사람만 삭제할 수 있어요. 본인이 등록한 일정이 아니라 삭제를 도와드릴 수 없어요. 🙏`,
+            source: 'schedule',
+            classification: cls,
+            ...ragMeta,
+          });
+        }
         return NextResponse.json({
           kind: 'confirm',
           answer: `다음 일정을 삭제할까요?\n\n• ${formatScheduleLine(s)}`,
