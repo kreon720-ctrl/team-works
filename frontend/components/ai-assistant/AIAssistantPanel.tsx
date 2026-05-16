@@ -248,7 +248,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
       id: 'welcome',
       role: 'assistant',
       content:
-        '안녕하세요! AI 버틀러 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색)·우리 팀 일정 조회·등록·삭제·수정(📅) 모두 자유롭게 물어봐 주세요. 시스템이 자동으로 적절한 경로로 답변합니다.\n(프로젝트·채팅 작업은 화면에서 직접 처리해 주세요.)',
+        '안녕하세요! AI 비서 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색) 일정 조회·등록·삭제·수정 자유롭게 물어봐 주세요.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -967,7 +967,18 @@ function MessageBubble({
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%] space-y-2">
-        <div className="rounded-2xl rounded-bl-sm bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border px-3.5 py-2.5 text-sm text-gray-800 dark:text-dark-text whitespace-pre-wrap break-words shadow-sm dark:shadow-none">
+        <div className={`rounded-2xl rounded-bl-sm bg-white border border-gray-200 dark:border-dark-border px-3.5 py-2.5 text-sm text-gray-800 dark:text-dark-text whitespace-pre-wrap break-words shadow-sm dark:shadow-none ${message.id === 'welcome' ? 'dark:bg-[#101214]' : 'dark:bg-dark-surface'}`}>
+          {message.id === 'welcome' && (
+            <video
+              src="/imgs/ai_robot.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              aria-hidden="true"
+              className="hidden dark:block float-left w-[32.5%] max-h-[57px] object-contain rounded-lg mr-2 mb-1 mt-1 -ml-3.5 bg-white dark:bg-[#101214]"
+            />
+          )}
           {message.content || '(빈 응답)'}
         </div>
 
