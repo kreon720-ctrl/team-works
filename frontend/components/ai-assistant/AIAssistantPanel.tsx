@@ -248,7 +248,7 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
       id: 'welcome',
       role: 'assistant',
       content:
-        '안녕하세요! AI 비서 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색) 일정 조회·등록·삭제·수정 자유롭게 물어봐 주세요.',
+        '안녕하세요! AI 비서 찰떡입니다.\n팀웍스 사용법(📚 공식 문서)·일반 질문(🌐 웹 검색) 일정 조회·등록·삭제·수정 뭐든 자유롭게 물어봐 주세요.',
     },
   ]);
   const [input, setInput] = useState('');
