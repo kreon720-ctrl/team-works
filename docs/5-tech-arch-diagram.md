@@ -12,6 +12,7 @@
 | 1.5 | 2026-04-29 | docs/4 v1.9 동기화 — Vercel 가정 폐기 → Docker Compose 단일 호스트 운영. 다이어그램 1 재작성(컨테이너 토폴로지). 다이어그램 4 갱신(ai-assistant/board 컴포넌트, useBoard/useProjectMessages 훅, boardApi/aiAssistantApi, types/board·ai, lib/sse). 다이어그램 5 갱신(board·files·project messages/notices 라우트, boardQueries, lib/files StorageAdapter, lib/ai 4-way 분기). 다이어그램 7 파일 경로 갱신(`backend/lib/ai/`). pg Pool max 5→10 |
 | 1.6 | 2026-05-12 | docs/1 v2.1·docs/2 v1.7·docs/4 v1.10 동기화. **다이어그램 1** — Whisper STT 컨테이너 추가(:9000, `faster_whisper`, `whisper_cache` volume), Ollama 임베딩 CPU 분리(`ollama-embed`) 표기. **다이어그램 4** — STT hook trio(`useSpeechRecognition` hybrid · `useWebSpeechRecognition` · `useWhisperRecognition`) + `useSwipeGesture` 추가. AI Assistant 컴포넌트가 마이크 버튼 보유. **다이어그램 5** — AI 로직 위치 정정: `backend/lib/ai/` 폐기, 실제는 `frontend/lib/mcp/` + `frontend/app/api/{ai-assistant,stt}/`. 4-way → 6-way 분류. **다이어그램 7** — 6-way intent + `schedule_update`/`schedule_delete` confirm 흐름, STT 분기 추가(Web Speech 직접 ↔ Whisper backend 분기). |
 | 1.7 | 2026-05-12 | Ghost file 정정 (docs/4 v1.11 동기) — 다이어그램 4 의 `AIAssistantPanel` 노드가 ConfirmCard·AwaitingInputForm 을 inline 으로 가짐을 명시. `BoardPanel` 도 단일 파일임을 명시. `aiAssistantApi` 노드 제거(미존재), `frontend/lib/mcp/` + `openWebUiModel.ts` 노드 추가. |
+| 1.8 | 2026-05-16 | 다이어그램 3-1 신규 — 카카오 소셜 인증 흐름(OAuth 2.0 OIDC + PKCE + state, fragment 토큰 전달, baseUrl 해석). 다이어그램 5 backend AuthR 에 oauth/kakao(start·callback) 추가 |
 
 ---
 
@@ -98,6 +99,36 @@ sequenceDiagram
 
 ---
 
+## 다이어그램 3-1 — 카카오 소셜 인증 흐름 (OAuth 2.0 OIDC + PKCE + state)
+
+```mermaid
+sequenceDiagram
+    participant C as 브라우저
+    participant A as API Route
+    participant D as PostgreSQL
+    participant K as 카카오 인증서버
+
+    C->>A: POST /api/auth/oauth/kakao/start
+    A->>D: oauth_state INSERT (state, code_verifier, TTL 5분)
+    A-->>C: { url: 카카오 인증 URL (code_challenge, state) }
+    C->>K: location 이동 → 로그인·동의
+    K-->>C: 302 redirect_uri?code=…&state=…
+    C->>A: GET /api/auth/oauth/kakao/callback?code&state
+    A->>D: oauth_state 조회·1회 소비 (state 검증)
+    A->>K: code + code_verifier → access_token 교환
+    K-->>A: access_token
+    A->>K: GET /v2/user/me (사용자 정보)
+    K-->>A: 회원번호·이메일·닉네임·프로필
+    A->>D: 계정 매칭 (providerUserId→이메일→신규)
+    Note over A,D: 이메일 미동의 시 email_required → 가입 거절
+    A-->>C: 302 /auth/oauth/success#accessToken&refreshToken&user
+    C->>C: fragment 파싱 → 토큰 저장 → 앱 진입
+```
+
+> 토큰은 querystring(?) 이 아닌 **fragment(#)** 로 전달 — Referer·히스토리·서버 로그 노출 차단. `redirectAfter` 는 자도메인 절대경로만 허용(open-redirect 방지).
+
+---
+
 ## 다이어그램 4 — 프론트엔드 아키텍처
 
 ```mermaid
@@ -160,7 +191,7 @@ graph TB
 ```mermaid
 graph TB
     subgraph Routes["API Routes (backend/app/api/)"]
-        AuthR["/auth\nsignup · login · refresh · me"]
+        AuthR["/auth\nsignup · login · refresh · me\noauth/kakao (start · callback)"]
         TeamR["/teams\nCRUD · join-requests · public\nmembers(강퇴)"]
         SchedR["/teams/teamId/schedules\nCRUD"]
         PostitR["/teams/teamId/postits\nCRUD"]

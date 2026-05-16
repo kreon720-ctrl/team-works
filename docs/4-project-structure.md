@@ -16,6 +16,7 @@
 | 1.9 | 2026-04-29 | docs/1 v2.0·docs/2 v1.6 동기화 — Vercel 가정 폐기 → Docker Compose 단일 호스트 운영 반영. P-06 갱신. 신규 디렉토리: 자료실(`backend/app/api/teams/.../board`, `app/api/files/[fileId]`, `lib/files/`, `frontend/components/board/`, `lib/api/boardApi.ts`, `types/board.ts`), 프로젝트 컨텍스트 격리(`projects/[projectId]/messages`, `/notices`), AI 버틀러(`frontend/app/api/ai-assistant/chat·execute/route.ts`, `components/ai-assistant/AIAssistantPanel.tsx`, `lib/mcp/{pgClient,scheduleQueries}.ts`). 프로젝트 루트에 `docker-compose.yml`·`docker/`·`rag/`·`ollama/`·`files/` 추가. §10 신규(Docker/AI/RAG 인프라). §부록 핵심 제약 갱신, 관련 문서에 docs/13~19 링크 |
 | 1.10 | 2026-05-12 | docs/1 v2.1·docs/2 v1.7 동기화. AI 4-way → 6-way 분류(`schedule_update`/`schedule_delete` 추가). **음성 입력(STT)** 추가: `frontend/hooks/useSpeechRecognition.ts`(hybrid wrapper) + `useWebSpeechRecognition.ts`(브라우저 내장) + `useWhisperRecognition.ts`(자체 호스팅 분기), `frontend/app/api/stt/route.ts`(multipart → Whisper 컨테이너 프록시). **Whisper 컨테이너** (`onerahmet/openai-whisper-asr-webservice` :9000, `faster_whisper` 엔진, CPU INT8, `whisper_cache` volume) docker-compose 추가. **모바일 UX**: `frontend/hooks/useSwipeGesture.ts`(좌우 swipe), `MobileLayout.tsx`(이미 있음, 음성 입력·분할 화면 키보드 억제 책임 보강). RAG 실구현 경로 정정 — `rag/server.js`(Express, 6-way 분류기 + `/parse-schedule-args`·`/parse-schedule-query` + `/chat`). schedule_update/delete 는 별도 RAG endpoint 없이 frontend `chat/route.ts` 가 `/parse-schedule-query` 재활용 + `tryParseDirectDatetime` + LLM fallback 으로 직접 처리. **AI 로직 실 위치 정정** — `backend/lib/ai/`(미존재) 표기 폐기, 실제는 `frontend/lib/mcp/{pgClient,scheduleQueries}.ts` + `frontend/app/api/ai-assistant/{chat,execute}/route.ts`(BFF). 임베딩 CPU 분리(별도 ollama 인스턴스) `docs/embeding-cpu.md` 참조 |
 | 1.11 | 2026-05-12 | Ghost file 정정 — 실제 코드에 없는 파일 표기 제거. `frontend/components/ai-assistant/` 는 `AIAssistantPanel.tsx` 단일 파일이며 `AIAssistantMessageList`·`ConfirmCard`·`AwaitingInputForm` 은 inline 구현임을 명시. `frontend/components/board/` 는 `BoardPanel.tsx` 단일 파일(PostEditor·PostDetail inline). `frontend/lib/api/aiAssistantApi.ts` 와 `frontend/lib/sse/streamReader.ts` 는 미존재 — AI SSE 클라이언트는 `AIAssistantPanel.tsx` 에 inline. 누락 추가: `frontend/lib/openWebUiModel.ts` (Open WebUI `/api/models` 동적 해석), `frontend/lib/mcp/` 명시. docs/5 다이어그램 4 도 동일 정정 |
+| 1.12 | 2026-05-16 | 카카오 소셜 인증 파일 반영 — `(auth)/auth/oauth/success/`, `components/auth/`(KakaoLoginButton·LandingLinksRow·LoginForm·SignupForm), backend `api/auth/oauth/kakao/{start,callback}`, `lib/auth/oauth/{kakao,state,linking}.ts`, `lib/db/queries/oauthQueries.ts` 추가. ProjectGanttView SVG 저장(html-to-image) 주석·frontend deps 반영 |
 
 ---
 
@@ -103,6 +104,8 @@ POST   /api/auth/login
 POST   /api/auth/refresh
 GET    /api/auth/me
 PATCH  /api/auth/me
+POST   /api/auth/oauth/kakao/start
+GET    /api/auth/oauth/kakao/callback
 
 # 팀 관리
 GET    /api/teams
@@ -354,7 +357,7 @@ if (process.env.NODE_ENV !== 'production') {
 │   ├── Dockerfile              # frontend 이미지 빌드 정의
 │   ├── next.config.ts          # frontend 전용 Next.js 설정
 │   ├── tsconfig.json           # frontend 전용 TypeScript 경로 매핑
-│   ├── package.json            # frontend 전용 의존성 (React 19, TanStack Query 5, Zustand 5, Lucide React 등)
+│   ├── package.json            # frontend 전용 의존성 (React 19, TanStack Query 5, Zustand 5, Lucide React, html-to-image 등)
 │   └── .env.example            # frontend 전용 환경변수 키 목록 (NEXT_PUBLIC_API_URL 등)
 ├── database/                   # 데이터베이스: DDL 스키마 + 증분 마이그레이션
 └── docs/                       # 설계 문서 (1~19, 30 docker-container-gen)
@@ -399,9 +402,11 @@ frontend/
 │   ├── (auth)/                        # 인증 불필요 라우트 그룹
 │   │   ├── layout.tsx
 │   │   ├── login/
-│   │   │   └── page.tsx               # S-01 로그인 화면
-│   │   └── signup/
-│   │       └── page.tsx               # S-02 회원가입 화면
+│   │   │   └── page.tsx               # S-01 로그인 화면 (+ 카카오 버튼)
+│   │   ├── signup/
+│   │   │   └── page.tsx               # S-02 회원가입 화면 (+ 카카오 버튼)
+│   │   └── auth/oauth/success/
+│   │       └── page.tsx               # OAuth 콜백 착지 — fragment(#) 토큰 파싱 후 저장·리다이렉트
 │   └── (main)/                        # 인증 필요 라우트 그룹
 │       ├── layout.tsx                 # 인증 가드 레이아웃
 │       ├── page.tsx                   # S-03 팀 목록 (홈)
@@ -467,8 +472,15 @@ frontend/
 │   ├── board/                         # 자료실 (게시판) — 단일 컴포넌트 + inline 폼/상세
 │   │   ├── BoardPanel.tsx             # 글 목록 + 등록·수정·삭제 액션·첨부 처리 모두 inline 구현
 │   │   └── __tests__/
+│   ├── auth/
+│   │   ├── LoginForm.tsx              # 이메일/비밀번호 로그인 폼
+│   │   ├── SignupForm.tsx             # 회원가입 폼
+│   │   ├── KakaoLoginButton.tsx       # [카카오로 시작하기] — POST .../kakao/start → location 이동
+│   │   ├── LandingLinksRow.tsx        # About·FAQ·Quick Start 링크 행 (로그인/회원가입 공통)
+│   │   └── __tests__/
 │   ├── project/
 │   │   ├── ProjectGanttView.tsx       # 프로젝트 목록 + 간트차트 컨테이너
+│   │   │                              #   [저장] 버튼 — html-to-image toSvg 로 {프로젝트명}_{연도}.svg 다운로드
 │   │   ├── GanttChart.tsx             # 간트차트 렌더러
 │   │   ├── GanttBar.tsx               # 간트차트 바 단위
 │   │   ├── SubBar.tsx                 # 세부 일정 바
@@ -585,6 +597,10 @@ backend/
 │       │   ├── login/route.ts         # POST /api/auth/login (Access 15m + Refresh 7d HttpOnly cookie)
 │       │   ├── refresh/route.ts       # POST /api/auth/refresh
 │       │   ├── me/route.ts            # GET, PATCH /api/auth/me
+│       │   ├── oauth/
+│       │   │   └── kakao/
+│       │   │       ├── start/route.ts     # POST .../kakao/start — 인증 URL 발급 (state·PKCE 저장)
+│       │   │       └── callback/route.ts  # GET .../kakao/callback — code 교환·계정 매칭·JWT→fragment 302
 │       │   └── auth.test.ts
 │       ├── teams/
 │       │   ├── route.ts               # GET, POST /api/teams
@@ -666,7 +682,8 @@ backend/
     │       ├── permissionQueries.ts   # 업무보고 조회 권한 조회/수정
     │       ├── projectQueries.ts      # 프로젝트 CRUD
     │       ├── projectScheduleQueries.ts  # 프로젝트 일정 CRUD
-    │       └── subScheduleQueries.ts  # 세부 일정 CRUD
+    │       ├── subScheduleQueries.ts  # 세부 일정 CRUD
+    │       └── oauthQueries.ts        # oauth_accounts·oauth_state CRUD (소셜 연결·state 임시 저장)
     ├── files/                         # 자료실 첨부파일 — StorageAdapter 추상화
     │   ├── storage.ts                 # StorageAdapter 인터페이스 + createStorageAdapter() factory
     │   │                              #   env STORAGE_BACKEND=local|s3 토글
@@ -683,7 +700,11 @@ backend/
     │   ├── jwt.ts                     # Access/Refresh Token 발급·검증
     │   ├── jwt.test.ts
     │   ├── password.ts                # bcryptjs 해싱·검증
-    │   └── password.test.ts
+    │   ├── password.test.ts
+    │   └── oauth/                     # 소셜 인증 (카카오; 구글 향후 확장)
+    │       ├── kakao.ts               # 인증 URL 생성 + code→token 교환 + 사용자 조회 (OIDC, PKCE)
+    │       ├── state.ts               # state·PKCE code_verifier 생성·저장·1회 소비 (OAuthState)
+    │       └── linking.ts             # 계정 매칭/생성 정책 (providerUserId→이메일→신규, email_required)
     ├── errors/
     │   └── databaseError.ts           # DB 에러 표준화 처리
     ├── middleware/

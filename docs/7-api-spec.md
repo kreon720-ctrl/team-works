@@ -13,6 +13,7 @@
 | 1.6 | 2026-04-29 | 신규: 프로젝트 채팅(§12), 프로젝트 공지(§13), 자료실 Board(§14), 파일 다운로드(§15). Messages/Notices 응답에 `projectId` 필드 추가 반영. AI 버틀러 SSE 참고 섹션(§16) 추가. 엔드포인트 요약 테이블 갱신. |
 | 1.7 | 2026-04-30 | docs/1 v2.0 · docs/2 v1.6 동기화: §1 인증에 Refresh Token 7일 만료 + 갱신 실패 시 401 정책 명시. backend route 점검 — 프로젝트 일정/서브 일정 단건 GET 은 backend 미구현(PATCH·DELETE만)임을 §10 에 명시. swagger.json v1.7.1 동기 (없는 GET 2건 제거) |
 | 1.8 | 2026-05-12 | backend route 정밀 재점검 결과 누락·오기 반영. **POST /api/teams** body 에 `description`(≤500자) · `isPublic`(boolean) 추가. **POST·PATCH /api/teams/:teamId/schedules** body 에 `color` 추가 (코드는 검증 없이 기본 `indigo` — 알려진 갭). **POST /api/teams/:teamId/projects** body 에 `progress`(0~100) · `manager`(≤100자) · `phases`(JSONB 배열) 명시. **POST /api/teams/:teamId/projects/:projectId/schedules** body 에 `phaseId`(UUID, nullable) 명시. **GET /api/teams/:teamId/messages** 쿼리에 `limit` · `before` 추가. **GET /api/me/tasks** 권한 표현 정정 — 인증 사용자 누구나 호출 가능, LEADER 외엔 빈 배열 반환. **§16 AI 버틀러** — 6-way 분류 + STT 엔드포인트(`POST /api/stt`, frontend BFF) 참조 추가. swagger.json v1.8.0 동기 (schedule CRUD 권한 description·403 메시지 정정, color 필드 보강, files 응답 헤더 명시) |
+| 1.9 | 2026-05-16 | 카카오 소셜 인증 엔드포인트 추가 — `POST /api/auth/oauth/kakao/start`(인증 URL 발급, redirectAfter open-redirect 차단), `GET /api/auth/oauth/kakao/callback`(state 검증·code 교환·계정매칭·JWT fragment 302, baseUrl 해석 우선순위, error fragment 메시지표). 부록 요약 표 2행 추가 |
 
 ---
 
@@ -221,6 +222,78 @@ Authorization: Bearer <accessToken>
 | 401 | "유효하지 않거나 만료된 Refresh Token입니다." | 토큰 검증 실패 또는 만료 |
 
 **비즈니스 규칙**: FR-01-6
+
+---
+
+### POST /api/auth/oauth/kakao/start
+
+**설명**: 카카오 OAuth 2.0(OIDC) 인증 URL을 발급합니다. CSRF 방지용 `state` 와 PKCE `code_verifier` 를 서버(`oauth_state`)에 저장하고, 클라이언트는 응답 `url` 로 `location` 이동합니다.
+**인증**: 불필요
+**권한**: 없음
+
+**Request**
+
+- Headers: 없음
+- Body (선택):
+
+```json
+{
+  "redirectAfter": "/teams/abc"
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| redirectAfter | string | X | 로그인 후 복귀할 자도메인 절대경로(`/`로 시작, `//` 불가). 외부 URL 은 무시(open-redirect 차단) |
+
+**Response**
+
+- 성공: `200 OK`
+
+```json
+{
+  "url": "https://kauth.kakao.com/oauth/authorize?client_id=...&response_type=code&scope=openid%20account_email%20profile_nickname%20profile_image&state=...&code_challenge=...&code_challenge_method=S256"
+}
+```
+
+- 실패:
+
+| 상태 코드 | 에러 메시지 | 원인 |
+|-----------|-------------|------|
+| 500 | "카카오 로그인 시작 중 오류가 발생했습니다." | state 저장 실패 / 환경변수(KAKAO_CLIENT_ID 등) 누락 |
+
+**비즈니스 규칙**: BR-24, FR-01-7
+
+---
+
+### GET /api/auth/oauth/kakao/callback
+
+**설명**: 카카오 인증 후 콜백. ① `state` 검증·1회 소비 → ② `code` + `code_verifier` 로 access_token 교환 → ③ 카카오 사용자 정보 조회 → ④ 계정 매칭/생성 → ⑤ 우리 JWT 발급 후 `/auth/oauth/success` 로 **302 redirect**. 토큰·사용자·에러는 URL **fragment(#)** 로 전달(서버 로그·Referer 노출 차단).
+**인증**: 불필요 (카카오가 호출)
+**권한**: 없음
+
+**Request**
+
+- Query: `code` (필수), `state` (필수), `error` (카카오가 거부 시)
+
+**Response**
+
+- 성공: `302 Found` → `Location: {baseUrl}/auth/oauth/success#accessToken=...&refreshToken=...&user={"id","email","name"}&redirectAfter=...`
+- 실패: `302 Found` → `Location: {baseUrl}/auth/oauth/success#error=<사용자 친화 메시지>`
+
+| error fragment 메시지 | 원인 |
+|-----------------------|------|
+| "카카오 로그인 거부: ..." | 사용자가 카카오 동의 거부 (`error` 쿼리) |
+| "잘못된 콜백 요청입니다." | `code` 또는 `state` 누락 |
+| "인증 세션이 만료되었거나 유효하지 않습니다. 다시 시도해주세요." | `oauth_state` 미발견 (TTL 만료/위조) |
+| "카카오 계정 이메일 동의가 필요합니다. ..." | 이메일 미동의(`email_required`) — 가입 거절 |
+| "서버 내부 오류가 발생했습니다." | token 교환/사용자 조회 실패 등 |
+
+> **baseUrl 해석 우선순위**: `PUBLIC_BASE_URL` → `X-Forwarded-Host`+`X-Forwarded-Proto` → `Host` → `request.nextUrl.origin` (nginx 리버스 프록시 뒤 backend 컨테이너 host 오인 방지).
+>
+> **계정 매칭 규칙**: ① `provider_user_id` 매칭 → 기존 계정 로그인, ② 미매칭 + 동일 이메일 User 존재 → 자동 연결, ③ 미매칭 + 신규 이메일 → User 생성(`password_hash=NULL`), ④ 이메일 미제공 → `email_required` 거절.
+
+**비즈니스 규칙**: BR-24, FR-01-7, FR-01-8, FR-01-9, FR-01-10
 
 ---
 
@@ -3200,6 +3273,8 @@ SSE(Server-Sent Events) 스트리밍으로 AI 응답을 반환합니다.
 | POST | /api/auth/signup | 회원가입 | 불필요 | 없음 |
 | POST | /api/auth/login | 로그인 | 불필요 | 없음 |
 | POST | /api/auth/refresh | Access Token 재발급 | 불필요 | 없음 |
+| POST | /api/auth/oauth/kakao/start | 카카오 인증 URL 발급 | 불필요 | 없음 |
+| GET | /api/auth/oauth/kakao/callback | 카카오 콜백 (JWT→fragment 302) | 불필요 | 없음 |
 | GET | /api/auth/me | 내 정보 조회 (세션 복구) | 필요 | 인증 사용자 |
 | PATCH | /api/me | 내 프로필(이름) 수정 | 필요 | 본인 |
 | GET | /api/me/tasks | 나의 할 일 목록 (내가 LEADER 인 팀의 PENDING 신청 집계) | 필요 | 인증 사용자 (LEADER 인 팀의 항목만 반환, 없으면 빈 배열) |

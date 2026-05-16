@@ -11,6 +11,7 @@
 | 1.4 | 2026-04-19 | postits, projects, project_schedules, sub_schedules, notices 테이블 추가 (DB 영구저장 구현 반영) |
 | 1.5 | 2026-04-29 | 자료실(board)·프로젝트 채팅/공지 격리 반영 — chat_messages·notices 에 project_id 컬럼 추가(NULL=팀 일자별, NOT NULL=프로젝트 격리), board_posts·board_attachments 테이블 신규, 관련 인덱스(partial WHERE project_id NOT NULL)·CHECK·FK ON DELETE 매트릭스 갱신, BR-08~11 추가(자료실 작성자 권한·첨부 검증·격리·다운로드 멤버십 검증). §3.2 누락 CHECK(chk_schedules_color, chk_chat_messages_type) 보강 |
 | 1.6 | 2026-05-12 | docs/1 v2.1·docs/2 v1.7 동기화: **스키마 변경 없음 — 신기능 모두 기존 테이블 재사용**. AI 4-way → 6-way 분류(`schedule_update`/`schedule_delete` 추가) 는 기존 `schedules` 테이블 UPDATE/DELETE 로 처리(created_by 검증). 음성 입력(STT) 은 텍스트로 변환 후 일반 입력 흐름 — 오디오 영구 저장 없음. 모바일 UX 최적화·RAG 자연어 보강(X시 반 정규화·식사 단어 키워드) 은 프론트엔드·RAG 서버 변경만. BR-12(AI 가 일정 CRUD 시 기존 schedules 테이블 사용)·BR-13(STT 오디오 미저장) 추가. §4 관련 문서에 STT 가이드 등 링크 추가 |
+| 1.7 | 2026-05-16 | 카카오 소셜 인증 스키마 반영 — users.password_hash NOT NULL 해제, `oauth_accounts`(2.1b)·`oauth_state`(2.1c) 신규 테이블, ER 다이어그램·관계(users‖--o{ oauth_accounts) 추가. 마이그레이션 `alter-users-oauth-support.sql` 명시 |
 
 ---
 
@@ -22,8 +23,27 @@ erDiagram
         UUID id PK "not null"
         VARCHAR email "unique, not null"
         VARCHAR name "not null, max 50"
-        VARCHAR password_hash "not null, bcrypt hash"
+        VARCHAR password_hash "nullable, bcrypt hash (OAuth 전용 사용자는 NULL)"
         TIMESTAMP created_at "not null"
+    }
+
+    oauth_accounts {
+        UUID id PK "not null"
+        UUID user_id FK "not null → users.id, ON DELETE CASCADE"
+        VARCHAR provider "not null, kakao|google"
+        VARCHAR provider_user_id "not null, 카카오 회원번호/구글 sub"
+        VARCHAR provider_email "nullable"
+        VARCHAR provider_name "nullable"
+        TEXT provider_picture "nullable"
+        TIMESTAMP linked_at "not null"
+        TIMESTAMP last_login_at "nullable"
+    }
+
+    oauth_state {
+        VARCHAR state PK "not null, CSRF 난수"
+        VARCHAR code_verifier "not null, PKCE"
+        VARCHAR redirect_after "nullable"
+        TIMESTAMP created_at "not null, TTL 5분"
     }
 
     teams {
@@ -173,6 +193,7 @@ erDiagram
         TIMESTAMP uploaded_at "not null"
     }
 
+    users ||--o{ oauth_accounts : "소셜연결"
     users ||--o{ team_members : "소속"
     teams ||--o{ team_members : "구성"
     users ||--o{ team_join_requests : "신청"
@@ -210,18 +231,60 @@ erDiagram
 
 ### 2.1 users (사용자)
 
-팀 서비스의 모든 인증 주체를 저장합니다. 이메일 기반 가입·로그인을 사용하며 비밀번호는 bcrypt로 해싱하여 저장합니다.
+팀 서비스의 모든 인증 주체를 저장합니다. 이메일/비밀번호 가입(bcrypt 해싱) 또는 카카오 소셜 가입을 사용합니다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |------|------|------|------|
 | id | UUID | PK, NOT NULL | 사용자 고유 식별자 (gen_random_uuid()) |
 | email | VARCHAR(255) | UNIQUE, NOT NULL | 로그인 ID. 이메일 형식 검증 필수 |
 | name | VARCHAR(50) | NOT NULL | 표시 이름, 최대 50자 |
-| password_hash | VARCHAR(255) | NOT NULL | bcrypt 해시값 (saltRounds: 12) |
+| password_hash | VARCHAR(255) | **NULL 허용** | bcrypt 해시값 (saltRounds: 12). **OAuth 전용 사용자는 NULL** — 소셜 인증 도입(2026-05)으로 NOT NULL 제약 해제 |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT now() | 가입 일시 (UTC 저장) |
 
 **인덱스**
 - `CREATE UNIQUE INDEX idx_users_email ON users(email);`
+
+> **마이그레이션:** `database/alter-users-oauth-support.sql` — ① `password_hash` NOT NULL 해제 ② `oauth_accounts`·`oauth_state` 신규 생성. 기존 사용자 데이터 무영향(기존 행은 모두 password_hash 보유), `email` 은 NOT NULL 유지.
+
+---
+
+### 2.1b oauth_accounts (소셜 연결 계정)
+
+한 사용자가 외부 Provider(카카오; 향후 구글) 계정을 연결한 정보를 저장합니다. 한 User 는 Provider 별 1개씩 여러 개 연결 가능합니다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | UUID | PK, NOT NULL | gen_random_uuid() |
+| user_id | UUID | FK → users.id, NOT NULL, ON DELETE CASCADE | 연결된 사용자 |
+| provider | VARCHAR(20) | NOT NULL, CHECK IN ('kakao','google') | Provider 종류 |
+| provider_user_id | VARCHAR(255) | NOT NULL | 카카오 회원번호 / 구글 sub |
+| provider_email | VARCHAR(255) | NULL | Provider 제공 이메일 |
+| provider_name | VARCHAR(255) | NULL | Provider 제공 닉네임 |
+| provider_picture | TEXT | NULL | 프로필 이미지 URL |
+| linked_at | TIMESTAMP | NOT NULL, DEFAULT now() | 최초 연결 일시 |
+| last_login_at | TIMESTAMP | NULL | 마지막 소셜 로그인 일시 |
+
+**제약·인덱스**
+- `UNIQUE (provider, provider_user_id)` — 같은 외부 ID 는 한 사용자에게만 매핑
+- `UNIQUE (user_id, provider)` — 한 사용자가 같은 Provider 중복 연결 불가
+- `CREATE INDEX idx_oauth_user_id ON oauth_accounts(user_id);`
+
+---
+
+### 2.1c oauth_state (인증 흐름 임시 상태)
+
+OAuth 인증 시작(`/start`) ↔ 콜백(`/callback`) 사이의 state·PKCE code_verifier 를 임시 보관합니다. Redis 미보유 인프라라 DB 로 대체하며 TTL 5분, 주기적으로 청소합니다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| state | VARCHAR(64) | PK | CSRF 방지 난수 |
+| code_verifier | VARCHAR(128) | NOT NULL | PKCE code_verifier |
+| redirect_after | VARCHAR(255) | NULL | 로그인 후 복귀 경로(open-redirect 검증 후 사용) |
+| created_at | TIMESTAMP | NOT NULL, DEFAULT now() | 생성 일시 (TTL 5분) |
+
+**인덱스·청소**
+- `CREATE INDEX idx_oauth_state_created ON oauth_state(created_at);`
+- 콜백에서 1회 소비 후 삭제. 미사용분은 `DELETE FROM oauth_state WHERE created_at < now() - interval '1 hour'` 로 주기 청소.
 
 ---
 

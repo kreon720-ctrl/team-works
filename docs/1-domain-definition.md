@@ -16,6 +16,7 @@
 | 1.9 | 2026-04-29 | AI 버틀러 "찰떡" 도메인 반영: VI. AI 버틀러 핵심 기능(4-way 자동 의도 분류 — 사용법/RAG · 일반/Open WebUI · 일정 조회·등록 · 거절 안내, 다중 턴 일정 등록) 추가. BR-16~20(의도 분류·confirm 카드·자유 SQL 금지·거절 정책·DB 접근 제약) 추가, UC-21~25 추가, 역할/권한·CRUD 매핑 갱신. 비기능에 AI 모델·SSE 스트리밍·AI 인프라 명시, 관련 문서 docs/13·14·15·16 링크 |
 | 2.0 | 2026-04-29 | 코드 ↔ 문서 일치성 점검 결과 반영: UC-01 수락 조건에 토큰 갱신(`/api/auth/refresh`) 분기 추가, UC-02C 수락 조건에 `GET /api/me/tasks` 명시, UC-20 표제에 endpoint 명시. §9 비기능에 JWT 만료 정책(Access 15분/Refresh 7일), frontend 핵심 라이브러리(TanStack Query·Zustand·Lucide React), Swagger UI(API 문서) 항목 추가 |
 | 2.1 | 2026-05-12 | AI 버틀러 확장 — `schedule_update`·`schedule_delete` 의도 지원 (4-way → 6-way 분류). BR-19 거절 범위 축소(채팅/공지/포스트잇/프로젝트/자료실 CRUD 만), BR-21/22 신설(일정 수정·삭제 다중 턴 confirm), UC-26/27 추가. 음성 입력(STT) 도메인화 — VI 항목·BR-23·UC-28 추가, Web Speech API + 자체 Whisper hybrid 자동 분기(Galaxy/Samsung 디바이스 quirk 회피). 모바일 UX 최적화 — VII 항목 신설(좌우 swipe 네비게이션, 모바일 전용 컴팩트 모달·포스트잇). RAG 자연어 처리 보강 — "X시 반" 정규화, 식사 단어(아침/점심/저녁/야식) 시간대 band → 키워드 매치로 전환 |
+| 2.2 | 2026-05-16 | 카카오 소셜 인증 도입 — User.password nullable, OAuthAccount(4.1b)·OAuthState(4.1c) 엔티티 신설, BR-24(카카오 OAuth+PKCE+state·계정매칭·email_required) 추가, UC-29 신규+수락조건. 간트차트 SVG 저장 — BR-25·UC-30 추가 |
 
 ---
 
@@ -180,7 +181,34 @@
 | id | UUID | PK, not null |
 | email | String | unique, not null, 이메일 형식 |
 | name | String | not null, 최대 50자 |
-| password | String | not null, 암호화 저장 |
+| password | String | **nullable**, 암호화 저장 — OAuth 전용 사용자는 비밀번호 없음 |
+
+> **소셜 인증 도입(2026-05):** 카카오 OAuth 로그인이 추가되면서 `password`(= `password_hash`)의 NOT NULL 제약이 해제됨. 이메일/비밀번호 가입 사용자는 기존대로 해싱된 비밀번호를 보유하고, 카카오로만 가입한 사용자는 `password = NULL` + OAuthAccount 연결로 식별. `email` 은 NOT NULL 유지(이메일 동의 미허락 시 가입 거절 — BR-24).
+
+### 4.1b OAuthAccount (소셜 연결 계정)
+| 속성 | 타입 | 제약 |
+|------|------|------|
+| id | UUID | PK, not null |
+| userId | UUID | FK → User.id, not null, ON DELETE CASCADE |
+| provider | Enum | `kakao` \| `google`, not null |
+| providerUserId | String | not null — 카카오 회원번호 / 구글 sub |
+| providerEmail | String | nullable |
+| providerName | String | nullable — Provider 닉네임 |
+| providerPicture | String | nullable — 프로필 이미지 URL |
+| linkedAt | Timestamp | not null, default now() |
+| lastLoginAt | Timestamp | nullable |
+
+> **규칙:** `UNIQUE(provider, providerUserId)` — 같은 Provider 의 같은 외부 ID 는 한 사용자에게만 매핑. `UNIQUE(userId, provider)` — 한 사용자가 같은 Provider 를 중복 연결 불가. 한 User 는 여러 Provider 를 연결할 수 있음(향후 구글 확장 대비).
+
+### 4.1c OAuthState (인증 흐름 임시 상태)
+| 속성 | 타입 | 제약 |
+|------|------|------|
+| state | String(64) | PK — CSRF 방지용 난수 |
+| codeVerifier | String(128) | not null — PKCE code_verifier |
+| redirectAfter | String | nullable — 로그인 후 복귀 경로(open-redirect 검증 후 사용) |
+| createdAt | Timestamp | not null, default now() — TTL 5분, 주기적 청소 |
+
+> **규칙:** 인증 시작(`/start`)에서 생성 → 콜백(`/callback`)에서 1회 소비 후 즉시 삭제. Redis 미보유 인프라라 DB 로 대체, `created_at < now() - interval '1 hour'` 주기 청소.
 
 ### 4.2 Team (팀)
 | 속성 | 타입 | 제약 |
@@ -425,6 +453,8 @@
 | BR-20 | AI 모델은 DB 에 직접 접근하지 않음 — 자연어 → JSON 변환까지만 수행. SQL 은 backend 의 검증된 SQL 템플릿이 작성, `withAuth`/`withTeamRole` 미들웨어가 권한 격리. 자유 SQL 생성 금지 |
 | BR-21 | `schedule_update` 는 (1) 대상 일정 식별 — `/parse-schedule-query` 로 키워드·날짜 후보 좁히기, 다중이면 `awaiting-input(needs:'target')` 후속 질문 → (2) 새 일시·제목 수집 — 다중 턴 (`updateState.needs: 'new-datetime'` / `'new-title'`), `tryParseDirectDatetime` + Open WebUI LLM fallback, "그대로/유지" 패턴(`KEEP_AS_IS_RE`)은 기존값 유지 → (3) confirm 카드 → (4) ✓ 클릭 후 PATCH. 일정 생성자 본인만 가능 (BR-02 와 동일), backend `withAuth`/`withTeamRole` 와 `created_by === userId` 검증. multi-turn 상태(`updateState`) 는 클라이언트가 turn 마다 carry — 서버는 stateless |
 | BR-22 | `schedule_delete` 는 (1) 대상 일정 식별 (BR-21 과 동일 메커니즘 — `parse-schedule-query` 재활용) → (2) confirm 카드 → (3) ✓ 클릭 후 DELETE. 일정 생성자 본인만 가능. 한국어 "취소"·"삭제"·"제거"·"지워"·"지운" 모두 동일 처리 (예: "회의 취소해" = "회의 일정 지워"). bulk 삭제("전체/모두/다 삭제") 는 `BULK_INTENT_RE` 로 감지해 1건씩만 가능함을 안내 |
+| BR-24 | 카카오 소셜 로그인은 OAuth 2.0(OIDC) Authorization Code + PKCE + state 흐름. `POST /api/auth/oauth/kakao/start` 가 인증 URL 발급(state·code_verifier 를 OAuthState 에 저장), `GET /api/auth/oauth/kakao/callback` 이 code→token 교환·사용자 조회·계정 매칭/생성 후 우리 JWT 를 **URL fragment(#)** 로 `/auth/oauth/success` 에 전달. 매칭 규칙: ① providerUserId 매칭 → 기존 계정 로그인, ② 미매칭 + 동일 이메일 User 존재 → 자동 연결, ③ 미매칭 + 이메일 신규 → 신규 User(`password=NULL`) 생성, ④ **카카오 이메일 동의 미허락 → 가입 거절(`email_required`)**. redirectAfter 는 자도메인 절대경로만 허용(open-redirect 차단) |
+| BR-25 | 프로젝트 간트차트는 `[저장]` 버튼으로 현재 화면을 SVG 파일로 내려받기 가능(`html-to-image` 의 `toSvg`). 파일명 `{프로젝트명}_{연도}.svg`, 다크모드 배경색 명시 적용(투명 배경 방지). 클라이언트 전용 기능 — 서버/DB 변경 없음 |
 | BR-23 | 음성 입력(STT) 은 입력창 옆 마이크 버튼으로 토글. **AI 찰떡이 탭과 팀채팅 탭 둘 다 동일 hook(`useSpeechRecognition`) 으로 일관 적용**. 브라우저·디바이스 자동 분기: Samsung Galaxy / SM-XXXX UA / Samsung Internet / Web Speech API 미지원 환경 → 자체 호스팅 Whisper(`POST /api/stt`), 그 외 → 브라우저 내장 Web Speech API. 인식 텍스트는 입력창에 채워지고 사용자 검토 후 [전송]. 마이크 권한 거부 시 안내 토스트, 비지원 환경에선 마이크 아이콘 숨김. 모바일 캘린더 분할 화면 시 입력창 자동 포커스 억제(키보드 가림 방지) |
 
 ---
@@ -463,6 +493,8 @@
 | UC-26 | AI 어시스턴트로 일정 수정 (대상 식별 + confirm) | 일정 생성자 | BR-01, BR-02, BR-21 |
 | UC-27 | AI 어시스턴트로 일정 삭제 (대상 식별 + confirm) | 일정 생성자 | BR-01, BR-02, BR-22 |
 | UC-28 | AI 어시스턴트 음성 입력 (마이크 → 텍스트) | 로그인 사용자 | BR-01, BR-23 |
+| UC-29 | 카카오 계정으로 로그인 / 회원가입 | 비인증 사용자 | BR-24 |
+| UC-30 | 프로젝트 간트차트 SVG 파일 저장 | 팀장, 팀원 | BR-01, BR-25 |
 
 ### 수락 조건 (Acceptance Criteria)
 
@@ -479,6 +511,22 @@
 - Given: Refresh Token 도 만료 또는 무효
 - When: 갱신 요청
 - Then: 401 Unauthorized, 클라이언트는 재로그인으로 유도
+
+**UC-29 카카오 계정으로 로그인 / 회원가입**
+- Given: 비인증 사용자가 로그인·회원가입 화면에서 [카카오로 시작하기] 클릭
+- When: `POST /api/auth/oauth/kakao/start` → 응답 url 로 카카오 인증 페이지 이동, 동의 완료
+- Then: 카카오가 `GET /api/auth/oauth/kakao/callback` 호출 → state 검증 → 계정 매칭/생성 → 우리 JWT 발급 → `/auth/oauth/success#accessToken=…` 로 302, 프론트가 토큰 저장 후 앱 진입
+- Given: 카카오 동의 화면에서 이메일 제공에 동의하지 않음
+- When: 콜백 처리
+- Then: 가입 거절(`email_required`) — "카카오 계정 이메일 동의가 필요합니다" 안내 후 로그인 화면 복귀
+- Given: 이미 동일 이메일로 가입한 사용자가 카카오로 첫 로그인
+- When: 콜백 처리
+- Then: 기존 User 에 OAuthAccount 자동 연결, 같은 계정으로 로그인
+
+**UC-30 프로젝트 간트차트 SVG 파일 저장**
+- Given: 팀 구성원이 프로젝트(간트차트) 화면 진입
+- When: 상단 `[저장]` 버튼 클릭
+- Then: 현재 간트차트가 `{프로젝트명}_{연도}.svg` 로 다운로드(다크모드 배경 적용). 서버·DB 변경 없음
 
 **UC-02 팀 생성**
 - Given: 로그인한 사용자가 유효한 팀 이름(1~100자) 입력
