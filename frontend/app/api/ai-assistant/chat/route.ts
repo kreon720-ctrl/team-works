@@ -1563,6 +1563,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     });
                     break;
                   }
+                  // AI 일정 등록은 종료시각을 채우지 않음 — 시작시각만 등록(선택 입력).
+                  // LLM 이 endKst 를 환각으로 채우거나 시작+1시간을 넣어도 여기서 무력화.
+                  // 사용자가 종료가 필요하면 등록 후 화면에서 직접 수정.
+                  parsed.args.endAt = null;
                   // confirm 카드 — page.tsx 가 pendingAction 으로 처리.
                   send({
                     type: 'pending-action',
@@ -1571,7 +1575,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                       args: { ...parsed.args, teamId },
                     },
                     preview: parsed.args,
-                    text: `다음 내용으로 일정 등록할까요?\n\n• 제목: ${parsed.args.title}\n• 시작: ${new Date(parsed.args.startAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}${parsed.args.endAt ? `\n• 종료: ${new Date(parsed.args.endAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}${parsed.args.description ? `\n• 설명: ${parsed.args.description}` : ''}`,
+                    text: `다음 내용으로 일정 등록할까요?\n\n• 제목: ${parsed.args.title}\n• 시작: ${new Date(parsed.args.startAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}${parsed.args.description ? `\n• 설명: ${parsed.args.description}` : ''}`,
                   });
                   break;
                 }
