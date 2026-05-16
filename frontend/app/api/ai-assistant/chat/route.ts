@@ -1736,10 +1736,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     newStartAt = updateState.targetStartAt;
                     newEndAt = updateState.targetEndAt;
                   } else {
+                    // 시간대 단어 선치환 — "아침/새벽 N시"=오전, "낮/점심/저녁/밤 N시"=오후.
+                    // schedule_create 와 동일 규칙. 미적용 시 "23일 아침 7시" 의 "아침" 을
+                    // detectTimeBand 가 못 읽어 bare 7시 → 오전/오후 되묻는 문제 방어.
+                    const qUpd = question
+                      .replace(/(새벽|아침)\s*(\d{1,2})\s*시/g, '오전 $2시')
+                      .replace(/(낮|점심|저녁|밤)\s*(\d{1,2})\s*시/g, '오후 $2시');
                     // bare 1~12시 모호 가드 — tryParseDirectDatetime 이 ampm 없는 시각을
                     // 그대로 새벽으로 해석하는 환각 차단. updateState 동봉해 다음 턴에 같은
                     // new-datetime 단계로 재진입.
-                    const tbUpd = detectTimeBand(question);
+                    const tbUpd = detectTimeBand(qUpd);
                     if (tbUpd.kind === 'ambiguous' && tbUpd.needsAmpm) {
                       send({
                         type: 'token',
@@ -1756,7 +1762,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     // 1차: deterministic 파서 — 정형 datetime 입력 (날짜+시각 풀세트) 안정 처리.
                     // 작은 LLM 환각 회피용. 매치 안 되면 null → LLM fallback.
                     const direct = tryParseDirectDatetime(
-                      question,
+                      qUpd,
                       updateState.targetStartAt,
                       updateState.targetEndAt,
                     );
@@ -1784,8 +1790,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                       // 2차: LLM fallback — 사용자 답변에 날짜 단서가 없으면 target 의 날짜를 자동 prefix —
                       // 사용자가 시각만 ("오전 10시") 답해도 parseScheduleArgs 가 needs:'date' 로
                       // 떨어지지 않게 (수정 의도는 보통 동일 일정의 시각만 바꾸는 케이스가 많음).
-                      let augmented = question;
-                      if (!HAS_TIMING_SIGNAL_RE.test(question)) {
+                      let augmented = qUpd;
+                      if (!HAS_TIMING_SIGNAL_RE.test(qUpd)) {
                         const tgtKst = new Date(
                           new Date(updateState.targetStartAt).getTime() + 9 * 60 * 60 * 1000,
                         );
