@@ -334,7 +334,7 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
         <ChevronDown className="w-3 h-3" />
       </button>
       {saveMenuOpen && (
-        <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg overflow-hidden">
+        <div className="absolute right-0 z-30 mt-1 w-max min-w-[11rem] rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg overflow-hidden">
           <button
             type="button"
             disabled={saving}
@@ -342,9 +342,9 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
               setSaveMenuOpen(false);
               handleSaveSvg();
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors disabled:opacity-40"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs whitespace-nowrap text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors disabled:opacity-40"
           >
-            <FileImage className="w-3.5 h-3.5" />
+            <FileImage className="w-3.5 h-3.5 shrink-0" />
             그래픽 (SVG)
           </button>
           <button
@@ -354,9 +354,9 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
               setSaveMenuOpen(false);
               handleSavePptx();
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors disabled:opacity-40 border-t border-gray-100 dark:border-dark-border"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs whitespace-nowrap text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors disabled:opacity-40 border-t border-gray-100 dark:border-dark-border"
           >
-            <Presentation className="w-3.5 h-3.5" />
+            <Presentation className="w-3.5 h-3.5 shrink-0" />
             파워포인트 (PPTX)
           </button>
         </div>
