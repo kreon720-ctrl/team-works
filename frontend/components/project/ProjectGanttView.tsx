@@ -1,8 +1,18 @@
 'use client';
 
 import React from 'react';
-import { PlusSquare, Edit2, Trash2, Download, MessageCircle } from 'lucide-react';
+import {
+  PlusSquare,
+  Edit2,
+  Trash2,
+  Download,
+  MessageCircle,
+  ChevronDown,
+  FileImage,
+  Presentation,
+} from 'lucide-react';
 import { toSvg } from 'html-to-image';
+import { getProjectWeeks, groupWeeksByMonth, getWeekIndex } from './ganttUtils';
 import { useProjectStore } from '@/store/projectStore';
 import type { Project } from '@/types/project';
 import { GanttChart } from './GanttChart';
@@ -125,35 +135,52 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
     </button>
   );
 
-  // 갠트 영역 ref — [저장] 버튼이 이 DOM 을 SVG 로 변환해 다운로드.
+  // 갠트 영역 ref — [저장] 버튼이 이 DOM 을 이미지로 변환해 다운로드.
   const ganttRef = React.useRef<HTMLDivElement | null>(null);
   const [saving, setSaving] = React.useState(false);
+  // 저장 포맷 선택 드롭다운 상태.
+  const [saveMenuOpen, setSaveMenuOpen] = React.useState(false);
+  const saveWrapRef = React.useRef<HTMLDivElement | null>(null);
+
+  // 드롭다운 바깥 클릭 시 닫기.
+  React.useEffect(() => {
+    if (!saveMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (saveWrapRef.current && !saveWrapRef.current.contains(e.target as Node)) {
+        setSaveMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [saveMenuOpen]);
+
+  // dark mode 배경색 — html-to-image 는 투명 배경이라 명시적 배경 필요.
+  const ganttBgColor = () =>
+    document.documentElement.classList.contains('dark') ? '#0f0f10' : '#ffffff';
+
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const handleSaveSvg = async () => {
     if (!selectedProject || !ganttRef.current || saving) return;
     setSaving(true);
     try {
-      // dark mode 배경색 — html-to-image 는 투명 배경이라 명시적 배경 필요
-      const isDark = document.documentElement.classList.contains('dark');
-      const bgColor = isDark ? '#0f0f10' : '#ffffff';
-
       const dataUrl = await toSvg(ganttRef.current, {
-        backgroundColor: bgColor,
+        backgroundColor: ganttBgColor(),
         pixelRatio: 2,
         cacheBust: true,
       });
-
-      // dataUrl(data:image/svg+xml;...) 을 Blob 으로 → 다운로드 링크
       const blob = await (await fetch(dataUrl)).blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
       const yyyy = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `${selectedProject.name}_${yyyy}.svg`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      triggerDownload(blob, `${selectedProject.name}_${yyyy}.svg`);
     } catch (err) {
       console.error('갠트 차트 SVG 저장 실패:', err);
       alert('갠트 차트 저장에 실패했습니다.');
@@ -162,17 +189,179 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
     }
   };
 
+  // 데이터(Project·ProjectSchedule)를 pptxgenjs 네이티브 도형/텍스트로 재구성 —
+  // PowerPoint 에서 막대·라벨·표를 개별 편집 가능. (DOM 비트맵 캡처 아님)
+  // 화면 갠트와 동일 격자: ganttUtils 의 주(week) 계산 재사용.
+  const handleSavePptx = async () => {
+    if (!selectedProject || saving) return;
+    setSaving(true);
+    try {
+      const project = selectedProject;
+      const weeks = getProjectWeeks(project.startDate, project.endDate);
+      const totalWeeks = Math.max(1, weeks.length);
+      const monthGroups = groupWeeksByMonth(weeks);
+      const phases = [...project.phases].sort((a, b) => a.order - b.order);
+
+      // 화면 다크모드 막대색과 동일 계열(단색). amber 만 어두운 글자.
+      const COLOR: Record<string, string> = {
+        indigo: '6366F1',
+        blue: '6366F1',
+        emerald: '10B981',
+        amber: 'FFB800',
+        rose: 'EF4444',
+      };
+      const DELAYED = 'EF4444';
+      const barTextColor = (c: string) => (c === 'amber' ? '363636' : 'FFFFFF');
+
+      const { default: PptxGenJS } = await import('pptxgenjs');
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_WIDE'; // 13.333 x 7.5 in (16:9)
+      const slide = pptx.addSlide();
+
+      const SLIDE_W = 13.333;
+      const SLIDE_H = 7.5;
+      const M = 0.3;
+      const LABEL_W = 1.6;
+      const titleH = 0.45;
+      const headerH = 0.35;
+      const chartX0 = M + LABEL_W;
+      const chartW = SLIDE_W - M * 2 - LABEL_W;
+      const gridTop = M + titleH + headerH;
+      const availH = SLIDE_H - M - gridTop;
+      const xForWeek = (i: number) => chartX0 + (i / totalWeeks) * chartW;
+
+      // 제목 (편집 가능 텍스트)
+      slide.addText(
+        `${project.name}    ${project.startDate} ~ ${project.endDate}    (${project.progress}%)`,
+        { x: M, y: M, w: SLIDE_W - M * 2, h: titleH, fontSize: 18, bold: true, color: '1F2937' },
+      );
+
+      // 월 헤더 (단계 라벨칸 + 월별 셀)
+      slide.addText('단계', {
+        x: M, y: M + titleH, w: LABEL_W, h: headerH, fontSize: 10, bold: true,
+        align: 'center', valign: 'middle', color: '374151',
+        fill: { color: 'F3F4F6' }, line: { color: 'D1D5DB', width: 0.5 },
+      });
+      for (const g of monthGroups) {
+        const i0 = g.weekIndices[0];
+        const i1 = g.weekIndices[g.weekIndices.length - 1] + 1;
+        slide.addText(`${g.month}월`, {
+          x: xForWeek(i0), y: M + titleH, w: xForWeek(i1) - xForWeek(i0), h: headerH,
+          fontSize: 10, bold: true, align: 'center', valign: 'middle', color: '374151',
+          fill: { color: 'F3F4F6' }, line: { color: 'D1D5DB', width: 0.5 },
+        });
+      }
+
+      // 단계별 일정 목록 (startDate 오름차순) + 막대 수 기반 행 높이 산출
+      const perPhase = phases.map((ph) =>
+        schedules
+          .filter((s) => s.phaseId === ph.id)
+          .sort((a, b) => a.startDate.localeCompare(b.startDate)),
+      );
+      const totalBars = perPhase.reduce((n, arr) => n + Math.max(arr.length, 1), 0);
+      const slot = availH / Math.max(totalBars, 1);
+      const barH = Math.min(0.34, Math.max(0.16, slot * 0.72));
+      const gap = Math.max(0.04, slot * 0.16);
+
+      let y = gridTop;
+      phases.forEach((ph, pi) => {
+        const list = perPhase[pi];
+        const rows = Math.max(list.length, 1);
+        const rowH = rows * (barH + gap) + gap;
+        // 행 배경 (교대색) — 도형
+        slide.addShape(pptx.ShapeType.rect, {
+          x: M, y, w: SLIDE_W - M * 2, h: rowH,
+          fill: { color: pi % 2 ? 'FFFFFF' : 'F9FAFB' },
+          line: { color: 'E5E7EB', width: 0.5 },
+        });
+        // 단계 라벨 (편집 가능 텍스트)
+        slide.addText(ph.name, {
+          x: M, y, w: LABEL_W, h: rowH, fontSize: 10, bold: true,
+          align: 'center', valign: 'middle', color: '374151',
+        });
+        // 일정 막대 — 각각 개별 도형(이동·색변경 가능) + 진행률 오버레이 + 라벨 텍스트
+        list.forEach((s, bi) => {
+          const startIdx = getWeekIndex(weeks, s.startDate, 'start');
+          const endIdx = getWeekIndex(weeks, s.endDate, 'end');
+          const bx = xForWeek(startIdx);
+          const bw = Math.max(0.15, xForWeek(endIdx + 1) - bx);
+          const by = y + gap + bi * (barH + gap);
+          const fill = s.isDelayed ? DELAYED : COLOR[s.color] ?? COLOR.indigo;
+          slide.addShape(pptx.ShapeType.roundRect, {
+            x: bx, y: by, w: bw, h: barH, rectRadius: 0.03,
+            fill: { color: fill }, line: { color: fill, width: 0.5 },
+          });
+          if (s.progress > 0) {
+            slide.addShape(pptx.ShapeType.rect, {
+              x: bx, y: by,
+              w: Math.max(0.02, bw * (Math.min(100, s.progress) / 100)), h: barH,
+              fill: { color: 'FFFFFF', transparency: 70 },
+              line: { width: 0 },
+            });
+          }
+          slide.addText(
+            `${s.title} (${s.startDate.slice(5)}~${s.endDate.slice(5)})`,
+            {
+              x: bx, y: by, w: bw, h: barH, fontSize: 8,
+              align: 'center', valign: 'middle', color: barTextColor(s.color),
+            },
+          );
+        });
+        y += rowH;
+      });
+
+      const yyyy = new Date().toISOString().slice(0, 10);
+      await pptx.writeFile({ fileName: `${project.name}_${yyyy}.pptx` });
+    } catch (err) {
+      console.error('갠트 차트 PPTX 저장 실패:', err);
+      alert('갠트 차트 저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveButton = (
-    <button
-      type="button"
-      disabled={!selectedProject || saving}
-      onClick={handleSaveSvg}
-      title="현재 갠트 차트를 SVG 파일로 저장"
-      className="inline-flex items-center gap-1 px-1 py-0 sm:px-2 sm:py-1 rounded sm:rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-muted text-[10px] sm:text-xs font-medium hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-none"
-    >
-      <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-      저장
-    </button>
+    <div ref={saveWrapRef} className="relative flex-none">
+      <button
+        type="button"
+        disabled={!selectedProject || saving}
+        onClick={() => setSaveMenuOpen((o) => !o)}
+        title="현재 갠트 차트를 파일로 저장"
+        className="inline-flex items-center gap-1 px-1 py-0 sm:px-2 sm:py-1 rounded sm:rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-muted text-[10px] sm:text-xs font-medium hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+        저장
+        <ChevronDown className="w-3 h-3" />
+      </button>
+      {saveMenuOpen && (
+        <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg overflow-hidden">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setSaveMenuOpen(false);
+              handleSaveSvg();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors disabled:opacity-40"
+          >
+            <FileImage className="w-3.5 h-3.5" />
+            그래픽 (SVG)
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setSaveMenuOpen(false);
+              handleSavePptx();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-elevated transition-colors disabled:opacity-40 border-t border-gray-100 dark:border-dark-border"
+          >
+            <Presentation className="w-3.5 h-3.5" />
+            파워포인트 (PPTX)
+          </button>
+        </div>
+      )}
+    </div>
   );
 
   // 모바일 전용 — 프로젝트 채팅으로 이동하는 버튼
