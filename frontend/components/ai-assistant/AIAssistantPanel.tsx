@@ -231,8 +231,8 @@ interface AIAssistantPanelProps {
   onToggleCalendar?: () => void;
   // split view 활성 여부 — 아이콘 시각 강조에 사용 (선택).
   calendarSplitActive?: boolean;
-  // 음성 입력(STT) 마이크 아이콘 노출 — true 일 때만 렌더. 모바일 컨텍스트에서 부모가 전달.
-  // 비지원 브라우저(SpeechRecognition 미지원)는 자체적으로 hide.
+  // 모바일 컨텍스트 플래그 — auto-focus 억제(키보드 가림 방지) 등 모바일 전용 동작에 사용.
+  // 음성 입력(STT) 마이크 버튼은 이 값과 무관하게 PC·모바일 공통으로 항상 노출됨.
   enableVoiceInput?: boolean;
 }
 
@@ -273,8 +273,8 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
     inputRef.current?.focus();
   }, [enableVoiceInput]);
 
-  // STT (음성 입력) — 모바일 컨텍스트(enableVoiceInput=true) 에서만 활성.
-  // hook 자체는 항상 호출 (Rules of Hooks). 비지원 브라우저는 isSupported=false 로 자체 차단.
+  // STT (음성 입력) — PC·모바일 공통. 미지원 브라우저는 isSupported=false 가 되며
+  // 버튼은 노출하되 클릭 시 안내 팝업으로 처리.
   const stt = useSpeechRecognition();
 
   // 발화 종료 후에만 입력창에 누적 — 발화 중간 휴지로 자동 stop 되어도
@@ -759,11 +759,19 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
                 </svg>
               ) : '전송'}
             </button>
-            {enableVoiceInput && stt.isSupported && (
+            {/* 음성 입력(STT) — PC·모바일 공통. 미지원 환경에서는 버튼은 노출하되
+                클릭 시 안내 팝업. (이전엔 모바일+지원 시에만 렌더) */}
+            {(
               <div className="relative group">
                 <button
                   type="button"
-                  onClick={stt.isListening ? stt.stop : stt.start}
+                  onClick={() => {
+                    if (!stt.isSupported) {
+                      window.alert('시스템에서 지원하지 않는 기능입니다.');
+                      return;
+                    }
+                    (stt.isListening ? stt.stop : stt.start)();
+                  }}
                   disabled={stt.isTranscribing || isLoading}
                   className={`inline-flex items-center justify-center w-full rounded-lg py-1.5 px-3 transition-colors duration-150 ${
                     stt.isListening
