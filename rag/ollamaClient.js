@@ -1,8 +1,11 @@
 import { OLLAMA_HOST } from "./config.js";
 
-// 모델 Modelfile 기본값(128K)을 그대로 두고 호출 시점에 32K로 명시 고정.
+// 모델 Modelfile 기본값을 두고 호출 시점에 96K(98304) 토큰으로 명시 고정.
+// gemma4:26b 는 최대 256K 컨텍스트(model_info.gemma4.context_length=262144) 지원.
+// 운영자가 매 실행마다 32K 로 떨어지는 것을 막기 위한 영구 설정.
+// 주의: KV 캐시가 컨텍스트에 비례 → 32K → 96K 변경 시 VRAM 점유 크게 증가.
 // num_predict 는 답변 잘림 방지용 출력 토큰 budget.
-const DEFAULT_CHAT_OPTIONS = { num_ctx: 32768, num_predict: 1024 };
+const DEFAULT_CHAT_OPTIONS = { num_ctx: 98304, num_predict: 1024 };
 
 // keep_alive=-1 → Ollama가 모델을 메모리에서 내리지 않도록 강제.
 // 기본 5분 idle 언로드 시 첫 호출 cold-start 지연 + /api/ps 기반 health check 오판 회피.
