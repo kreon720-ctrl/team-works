@@ -2,6 +2,7 @@
 // - 한글·영문·숫자만 추출 (구두점·특수문자 분리)
 // - 한국어 조사 stem (이/가/을/를/은/는/의 등)
 // - 1글자·불용어 제거
+// - 인접 토큰 합성 bigram 추가 — '포스트 잇' / '포스트잇' 같은 띄어쓰기 변형 양방향 매칭
 // - 인덱스 빌드 시 청크 토큰화와 검색 시 질의 토큰화에 동일하게 사용
 
 const STOP = new Set([
@@ -37,5 +38,14 @@ export function tokenize(text) {
     if (stem.length <= 1) stem = w;
     out.push(stem);
   }
-  return out;
+  // 인접 어절 합성 — '포스트' + '잇' → '포스트잇'. 띄어쓰기 변형 매칭용.
+  // raw (1글자 필터 전) 기준으로 합성 — '잇'/'차'/'법' 같은 1글자 한글이 길이 필터에
+  // 걸려도 인접 어절과 합쳐져 의미 단위 복원.
+  // chunk 인덱싱·query 검색 양쪽에 동일 적용해 대칭. 노이즈 bigram 은 문서 빈도 0 이라 IDF 가
+  // 높더라도 점수 기여 없음.
+  const bigrams = [];
+  for (let i = 0; i < raw.length - 1; i++) {
+    bigrams.push(raw[i] + raw[i + 1]);
+  }
+  return [...out, ...bigrams];
 }

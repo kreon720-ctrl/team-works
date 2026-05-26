@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useMessages } from '@/hooks/query/useMessages';
 import { useProjectMessages } from '@/hooks/query/useProjectMessages';
 import { useTeamDetail } from '@/hooks/query/useTeams';
+import { useProjectStore } from '@/store/projectStore';
 import { useWorkPermissions } from '@/hooks/query/useWorkPermissions';
 import { useNoticeStore } from '@/store/noticeStore';
 import { ChatMessageList } from './ChatMessageList';
@@ -23,6 +24,13 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPanelProps) {
+  // 프로젝트 채팅 모드에서 우측에 프로젝트명 표시 (모바일에서만 — PC 는 위 헤더에 이미 표시).
+  // selector 안에서 ?? [] 하면 매번 새 배열 반환 → "getSnapshot should be cached" infinite loop.
+  // 따라서 selector 는 안정 참조만 반환하고 fallback 은 밖에서.
+  const rawProjects = useProjectStore((s) => s.projects[teamId]);
+  const activeProject = projectId
+    ? (rawProjects ?? []).find((p) => p.id === projectId) ?? null
+    : null;
   // sub-tab — 채팅(기본) / 자료실. 채팅방마다 독립 — 컨텍스트 전환 시 'chat' 으로 리셋되도록 key 외부에서 줌.
   const [subTab, setSubTab] = useState<'chat' | 'board'>('chat');
 
@@ -80,8 +88,8 @@ export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPan
 
   return (
     <div className="flex flex-col h-full">
-      {/* sub-tab — 채팅 / 자료실 */}
-      <div className="flex border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
+      {/* sub-tab — 채팅 / 자료실 + 우측에 현재 날짜 표시 (팀 일자별 채팅에 한해) */}
+      <div className="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface shrink-0">
         <button
           type="button"
           onClick={() => setSubTab('chat')}
@@ -104,6 +112,18 @@ export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPan
         >
           자료실
         </button>
+        {/* 팀 일자별 채팅 — 현재 채팅창의 날짜 표시. 프로젝트 채팅(projectId 있는 경우)엔 표시 안 함. */}
+        {date && !projectId && (
+          <span className="ml-auto px-3 text-xs font-medium text-gray-600 dark:text-dark-text-muted">
+            {date.length === 10 ? `${date.slice(0, 4)}년 ${date.slice(5, 7)}월 ${date.slice(8, 10)}일` : date}
+          </span>
+        )}
+        {/* 프로젝트 채팅 — 모바일에서만 우측에 프로젝트명. PC 는 위 헤더에 이미 표시되므로 sm:hidden. */}
+        {projectId && activeProject && (
+          <span className="ml-auto px-3 text-xs font-medium text-gray-600 dark:text-dark-text-muted truncate max-w-[55%] sm:hidden">
+            📌 {activeProject.name}
+          </span>
+        )}
       </div>
 
       {/*

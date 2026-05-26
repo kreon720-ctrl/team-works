@@ -136,8 +136,11 @@ export async function POST(
       )
     }
 
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (phaseId && !UUID_RE.test(phaseId)) {
+    // 프로젝트의 phases 는 JSONB 자유 형식 — seed 데이터(p1·p2 등 짧은 id) 와
+    // 사용자가 생성한 phase(서버가 부여한 UUID) 둘 다 공존. UUID 강제 검증은 너무
+    // 엄격하므로 영문/숫자/하이픈/언더스코어 1~64자만 허용 (SQL 주입·과한 길이 방지).
+    const PHASE_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/
+    if (phaseId && !PHASE_ID_RE.test(phaseId)) {
       return NextResponse.json({ error: '유효하지 않은 단계 ID입니다.' }, { status: 400 })
     }
 

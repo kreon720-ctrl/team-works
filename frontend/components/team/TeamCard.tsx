@@ -116,14 +116,14 @@ export function TeamCard({ team, pendingCount = 0, onClick, onApprove, onUpdate,
             onClick={() => onClick?.(team.id)}
             className="flex-1 min-w-0 text-left cursor-pointer"
           >
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text truncate">{team.name}</h3>
+            <h3 className="text-base md:text-lg font-semibold text-gray-800 dark:text-dark-text truncate">{team.name}</h3>
             <div className="flex items-center gap-2 mt-2">
-              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${roleBadgeClass}`}>
+              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${roleBadgeClass}`}>
                 {roleLabel}
               </span>
-              <span className="text-xs font-normal text-gray-500 dark:text-dark-text-muted">{formattedDate}</span>
+              <span className="text-xs font-normal whitespace-nowrap text-gray-500 dark:text-dark-text-muted">{formattedDate}</span>
               {team.isPublic && (
-                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-white dark:text-gray-900">
+                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-green-100 text-green-800 dark:bg-white dark:text-gray-900">
                   공개
                 </span>
               )}

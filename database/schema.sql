@@ -12,14 +12,42 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- =====================
 
 -- 1. users
+-- password_hash 는 OAuth (카카오·구글) 만 쓰는 사용자는 NULL 허용.
+-- email 은 NOT NULL — 카카오 이메일 미동의 시 가입 거절 정책.
 CREATE TABLE IF NOT EXISTS users (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     email         VARCHAR(255) NOT NULL,
     name          VARCHAR(50)  NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NULL,
     created_at    TIMESTAMP    NOT NULL DEFAULT now(),
     CONSTRAINT uq_users_email UNIQUE (email)
 );
+
+-- 1-a. oauth_accounts — 카카오·구글 등 외부 인증 연결 (한 user 가 여러 provider 가능)
+CREATE TABLE IF NOT EXISTS oauth_accounts (
+    id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider          VARCHAR(20)  NOT NULL,
+    provider_user_id  VARCHAR(255) NOT NULL,
+    provider_email    VARCHAR(255) NULL,
+    provider_name     VARCHAR(255) NULL,
+    provider_picture  TEXT         NULL,
+    linked_at         TIMESTAMP    NOT NULL DEFAULT now(),
+    last_login_at     TIMESTAMP    NULL,
+    CONSTRAINT chk_oauth_provider CHECK (provider IN ('kakao', 'google')),
+    CONSTRAINT uq_oauth_provider_pid UNIQUE (provider, provider_user_id),
+    CONSTRAINT uq_oauth_user_provider UNIQUE (user_id, provider)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_user_id ON oauth_accounts(user_id);
+
+-- 1-b. oauth_state — OAuth start ↔ callback 사이 state·PKCE verifier 임시 저장 (TTL 5분)
+CREATE TABLE IF NOT EXISTS oauth_state (
+    state          VARCHAR(64)  PRIMARY KEY,
+    code_verifier  VARCHAR(128) NOT NULL,
+    redirect_after VARCHAR(255) NULL,
+    created_at     TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_state_created ON oauth_state(created_at);
 
 -- 2. teams
 CREATE TABLE IF NOT EXISTS teams (
@@ -61,10 +89,11 @@ CREATE TABLE IF NOT EXISTS schedules (
     description TEXT         NULL,
     color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
     start_at    TIMESTAMP    NOT NULL,
-    end_at      TIMESTAMP    NOT NULL,
+    -- 종료시각 선택 입력. null 이면 시작시각만 정해진 일정.
+    end_at      TIMESTAMP    NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_schedules_end_after_start CHECK (end_at > start_at),
+    CONSTRAINT chk_schedules_end_after_start CHECK (end_at IS NULL OR end_at > start_at),
     CONSTRAINT chk_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 
@@ -187,7 +216,9 @@ CREATE TABLE IF NOT EXISTS project_schedules (
     leader      VARCHAR(100) NOT NULL DEFAULT '',
     progress    INTEGER      NOT NULL DEFAULT 0,
     is_delayed  BOOLEAN      NOT NULL DEFAULT false,
-    phase_id    UUID         NULL,
+    -- phase_id 는 projects.phases (JSONB) 의 id 를 참조 — UUID 일 수도, 시드의 짧은
+    -- id ("p1","p2","리서치") 일 수도 있음. backend PHASE_ID_RE 로 형식 검증.
+    phase_id    VARCHAR(64)  NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
     CONSTRAINT chk_project_schedules_end_after_start CHECK (end_date >= start_date),

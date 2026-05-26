@@ -16,7 +16,7 @@
 | `features/chat.md` | 일자별·프로젝트 채팅 / 업무보고 / 공지사항 | 섹션 단위 |
 | `features/projects.md` | 프로젝트·간트·세부 일정·프로젝트별 채팅방 | 섹션 단위 |
 | `features/board.md` | 자료실(글 + 첨부파일, 일자별·프로젝트별 격리) | 섹션 단위 |
-| `features/ai-assistant.md` | AI 버틀러 찰떡 — 4-way 의도 분류 + 다중 턴 | 섹션 단위 |
+| `features/ai-assistant.md` | AI 버틀러 찰떡 — 6-way 의도 분류 (조회·등록·수정·삭제) + 다중 턴 + 확인 카드 | 섹션 단위 |
 
 ## 작성 원칙
 

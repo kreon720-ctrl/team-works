@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { JoinRequestActions } from '@/components/team/JoinRequestActions';
 import { Button } from '@/components/common/Button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { LandingMenu } from '@/components/common/LandingMenu';
 
 function MyTasksContent() {
   const router = useRouter();
@@ -82,6 +83,7 @@ function MyTasksContent() {
             로그아웃
           </Button>
           <ThemeToggle />
+          <LandingMenu />
         </div>
       </header>
 

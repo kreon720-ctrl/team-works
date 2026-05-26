@@ -12,7 +12,8 @@ interface UpdateScheduleBody {
   description?: string
   color?: string
   startAt?: string
-  endAt?: string
+  // 종료시각 선택. null 명시 시 기존 endAt 그대로 유지(현재 COALESCE 동작) — 명시 변경 안 함.
+  endAt?: string | null
 }
 
 /**
@@ -111,16 +112,16 @@ export async function PATCH(
     // 날짜 유효성 검증 (제공된 경우에만)
     if (startAt || endAt) {
       const startDate = startAt ? new Date(startAt) : existingSchedule.start_at
-      const endDate = endAt ? new Date(endAt) : existingSchedule.end_at
+      const endDate = endAt ? new Date(endAt) : existingSchedule.end_at  // 기존 endAt 가 null 일 수 있음
 
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      if (isNaN(startDate.getTime()) || (endDate !== null && isNaN(endDate.getTime()))) {
         return NextResponse.json(
           { error: '날짜 형식이 올바르지 않습니다.' },
           { status: 400 }
         )
       }
 
-      if (endDate <= startDate) {
+      if (endDate !== null && endDate <= startDate) {
         return NextResponse.json(
           { error: '종료일은 시작일보다 늦어야 합니다.' },
           { status: 400 }

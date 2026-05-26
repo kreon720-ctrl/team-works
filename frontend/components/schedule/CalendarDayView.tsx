@@ -3,21 +3,24 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Schedule } from '@/types/schedule';
 import { utcToKST, formatTime, formatDateKorean } from '@/lib/utils/timezone';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
-export const HOUR_PX = 56;
+// 1시간 행 기본 높이 — 컨텐츠가 비거나 짧으면 그대로, 길면 동적 확장.
+// 여백 타이트화 위해 56 → 40 (이전엔 빈 시간대도 56px 차지해 화면 절반 이상이 빈 여백).
+export const HOUR_PX = 40;
 const MIN_COL_WIDTH_PCT = 20; // 5개 초과 시 컬럼당 최소 너비(%)
 const MAX_INLINE_COLS = 5;    // 이 수를 초과하면 가로 스크롤 적용
 
 // 텍스트 높이 추정 상수 (한글 기준)
 const TITLE_CHAR_W = 12;  // text-xs 한글 문자 평균 px 너비
 const DESC_CHAR_W  = 10;  // text-[10px] 한글 문자 평균 px 너비
-const TITLE_LINE_H = 16;
-const DESC_LINE_H  = 13;
-const TIME_LINE_H  = 14;
-const BAR_PADDING  = 6;
-const GAP_PX       = 2;
+const TITLE_LINE_H = 15;  // 16 → 15 (leading-tight 와 일치)
+const DESC_LINE_H  = 12;  // 13 → 12
+const TIME_LINE_H  = 12;  // 14 → 12
+const BAR_PADDING  = 4;   // 6 → 4 (카드 내부 상하 padding 축소)
+const GAP_PX       = 1;   // 2 → 1 (카드 위·아래 분리 갭 축소)
 
-function estimateTextHeight(schedule: Schedule, barWidthPx: number): number {
+export function estimateTextHeight(schedule: Schedule, barWidthPx: number): number {
   const inner = Math.max(1, barWidthPx - 12);
   const titleCPL = Math.max(1, Math.floor(inner / TITLE_CHAR_W));
   const titleLines = Math.max(1, Math.ceil(schedule.title.length / titleCPL));
@@ -83,14 +86,20 @@ export function computeLayout(schedules: Schedule[]): LayoutItem[] {
   const sorted = [...schedules].sort((a, b) => {
     const diff = new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
     if (diff !== 0) return diff;
-    // 같은 시작 시각 → 긴 일정 먼저
-    return new Date(b.endAt).getTime() - new Date(a.endAt).getTime();
+    // 같은 시작 시각 → 긴 일정 먼저. endAt null(시작만 있는 일정) 은 startAt 과 같은 길이로 간주.
+    const aEnd = a.endAt ?? a.startAt;
+    const bEnd = b.endAt ?? b.startAt;
+    return new Date(bEnd).getTime() - new Date(aEnd).getTime();
   });
 
   const items: LayoutItem[] = sorted.map(schedule => {
     const startMin = getKSTMinutes(schedule.startAt);
-    const rawEnd = getKSTMinutes(schedule.endAt);
-    const endMin = Math.max(rawEnd, startMin + 15); // 최소 15분 높이 보장
+    // endAt null (종료시각 없는 일정) → 시작 시간 row 1시간 점유로 가정.
+    // rowHeights 알고리즘이 텍스트가 1시간(56px) 안에 들어가면 그대로,
+    // 넘치면 그 row 자체를 확장 시키므로 사용자 요구("텍스트 분량만큼 높이 + 넘치면 row 확대") 자연 만족.
+    const endMin = schedule.endAt
+      ? Math.max(getKSTMinutes(schedule.endAt), startMin + 15)
+      : startMin + 60;
     return { schedule, column: 0, totalColumns: 1, startMin, endMin };
   });
 
@@ -139,7 +148,8 @@ export function CalendarDayView({
     () =>
       schedules.filter(s => {
         const startDay = scheduleToDay(new Date(s.startAt));
-        const endDay = scheduleToDay(new Date(s.endAt));
+        // endAt null → 시작 당일 일정으로 간주
+        const endDay = scheduleToDay(new Date(s.endAt ?? s.startAt));
         return startDay.getTime() === endDay.getTime() && startDay.getTime() === targetDay.getTime();
       }),
     [schedules, targetDay]
@@ -166,39 +176,44 @@ export function CalendarDayView({
     return () => ro.disconnect();
   }, []);
 
-  // 동적 행 높이 계산 (2-pass)
+  const { isMobile } = useBreakpoint();
+
+  // 동적 행 높이 계산 (2-pass) — 모바일은 폭이 좁아 동적 확장 시 row 가 과도하게 늘어남.
+  // 모바일은 fixed HOUR_PX 만 유지하고 카드 안에서 line-clamp 로 truncate.
   const { rowHeights, rowTops, totalHeight } = useMemo(() => {
     const heights = Array<number>(24).fill(HOUR_PX);
 
-    // Pass 1: 1시간짜리 이벤트
-    for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
-      const startH = Math.floor(startMin / 60);
-      const endH   = Math.ceil(endMin / 60);
-      if (endH - startH === 1) {
+    if (!isMobile) {
+      // Pass 1: 1시간짜리 이벤트
+      for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
+        const startH = Math.floor(startMin / 60);
+        const endH   = Math.ceil(endMin / 60);
+        if (endH - startH === 1) {
+          const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
+          const barW    = eventAreaWidth * colWPct / 100;
+          heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+        }
+      }
+
+      // Pass 2: 여러 시간대에 걸친 이벤트
+      for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
+        const startH = Math.floor(startMin / 60);
+        const endH   = Math.min(23, Math.ceil(endMin / 60) - 1);
+        if (endH <= startH) continue;
+        let available = 0;
+        for (let h = startH; h <= endH; h++) available += heights[h];
         const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
         const barW    = eventAreaWidth * colWPct / 100;
-        heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+        const textH   = estimateTextHeight(schedule, barW);
+        if (textH > available) heights[endH] += textH - available;
       }
-    }
-
-    // Pass 2: 여러 시간대에 걸친 이벤트
-    for (const { schedule, totalColumns, startMin, endMin } of layoutItems) {
-      const startH = Math.floor(startMin / 60);
-      const endH   = Math.min(23, Math.ceil(endMin / 60) - 1);
-      if (endH <= startH) continue;
-      let available = 0;
-      for (let h = startH; h <= endH; h++) available += heights[h];
-      const colWPct = totalColumns > MAX_INLINE_COLS ? MIN_COL_WIDTH_PCT : 100 / totalColumns;
-      const barW    = eventAreaWidth * colWPct / 100;
-      const textH   = estimateTextHeight(schedule, barW);
-      if (textH > available) heights[endH] += textH - available;
     }
 
     const tops: number[] = [];
     let acc = 0;
     for (let h = 0; h < 24; h++) { tops.push(acc); acc += heights[h]; }
     return { rowHeights: heights, rowTops: tops, totalHeight: acc };
-  }, [layoutItems, eventAreaWidth]);
+  }, [layoutItems, eventAreaWidth, isMobile]);
 
   // KST 분 → 픽셀 위치
   const minToPixels = (min: number): number => {
@@ -294,12 +309,14 @@ export function CalendarDayView({
                   >
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-[11px] md:text-xs px-1.5 py-0.5 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
+                      className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-[11px] md:text-xs px-1.5 py-0 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
                       title={schedule.title}
                     >
-                      <div className="font-semibold break-words leading-tight">{schedule.title}</div>
+                      <div className="font-semibold break-words leading-tight line-clamp-2 md:line-clamp-none">{schedule.title}</div>
                       <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px]`}>
-                        {formatTime(new Date(schedule.startAt))} ~ {formatTime(new Date(schedule.endAt))}
+                        {schedule.endAt
+                          ? `${formatTime(new Date(schedule.startAt))} ~ ${formatTime(new Date(schedule.endAt))}`
+                          : formatTime(new Date(schedule.startAt))}
                       </div>
                       {schedule.description && (
                         <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px] break-words mt-0.5`}>

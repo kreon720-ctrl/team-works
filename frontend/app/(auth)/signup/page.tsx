@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { SignupForm } from '@/components/auth/SignupForm';
+import { LandingLinksRow } from '@/components/auth/LandingLinksRow';
 
 export default function SignupPage() {
   return (
     <>
       {/* Logo / Title */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-4">
         <div className="flex items-center justify-center gap-2">
           {/* logo_v.svg를 CSS mask로 사용해 앰버골드 채색 */}
           <span
@@ -30,6 +31,9 @@ export default function SignupPage() {
           </h1>
         </div>
       </div>
+
+      {/* 랜딩 페이지 링크 — About 은 디바이스별 분기 */}
+      <LandingLinksRow />
 
       {/* Signup Form — frosted glass 카드 */}
       <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-6 shadow-2xl shadow-black/40">

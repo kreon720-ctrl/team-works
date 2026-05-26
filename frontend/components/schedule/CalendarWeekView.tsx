@@ -3,10 +3,15 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Schedule } from '@/types/schedule';
 import { utcToKST, formatTime } from '@/lib/utils/timezone';
-import { getKSTMinutes, HOUR_PX, computeLayout } from './CalendarDayView';
+import { getKSTMinutes, HOUR_PX, computeLayout, estimateTextHeight } from './CalendarDayView';
 import { ScheduleTooltip } from './ScheduleTooltip';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
-const GAP_PX = 2;
+// DayView 와 일관 — 카드 위·아래 분리 갭 축소(2 → 1).
+const GAP_PX = 1;
+// 시간 컬럼 폭(px) — TIME_COL_W 클래스(w-10/w-12) 와 일치. 동적 row 알고리즘에서 요일 컬럼 폭 계산용.
+const TIME_COL_W_MOBILE_PX = 40;
+const TIME_COL_W_PC_PX = 48;
 
 interface CalendarWeekViewProps {
   currentDate: Date;
@@ -39,11 +44,11 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
   }, [currentDate]);
 
   // ─── 날짜 비교 헬퍼 ─────────────────────────────────────────────────────────
+  // 앰버 마커(원래 today) — 활성 currentDate 를 따라 이동 (CalendarMonthView 와 동일 패턴).
   const isToday = (date: Date): boolean => {
-    const kstNow = new Date(Date.now() + 9 * 3600_000);
-    return date.getUTCFullYear() === kstNow.getUTCFullYear() &&
-           date.getUTCMonth()    === kstNow.getUTCMonth() &&
-           date.getUTCDate()     === kstNow.getUTCDate();
+    return date.getUTCFullYear() === currentDate.getUTCFullYear() &&
+           date.getUTCMonth()    === currentDate.getUTCMonth() &&
+           date.getUTCDate()     === currentDate.getUTCDate();
   };
 
   const isSelected = (date: Date): boolean => {
@@ -65,12 +70,15 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
     const target = toDay(date);
     return schedules.filter(s => {
       const startDay = scheduleToDay(new Date(s.startAt));
-      const endDay   = scheduleToDay(new Date(s.endAt));
+      // endAt null → 시작 당일 일정으로 간주.
+      const endDay   = scheduleToDay(new Date(s.endAt ?? s.startAt));
       return target >= startDay && target <= endDay;
     });
   };
 
   const isMultiDay = (schedule: Schedule): boolean => {
+    // endAt null → 단일 일자 일정.
+    if (!schedule.endAt) return false;
     const startDay = scheduleToDay(new Date(schedule.startAt));
     const endDay   = scheduleToDay(new Date(schedule.endAt));
     return startDay.getTime() !== endDay.getTime();
@@ -78,18 +86,8 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
 
   const [tooltip, setTooltip] = useState<{ schedule: Schedule; x: number; y: number } | null>(null);
 
-  // ─── 자동 스크롤 ────────────────────────────────────────────────────────────
+  // ─── 자동 스크롤 (rowTops 기반 — 동적 row 확장 반영) ─────────────────────
   const timelineRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!timelineRef.current) return;
-    const single = schedules.filter(s => !isMultiDay(s));
-    if (single.length > 0) {
-      const minHour = Math.min(...single.map(s => Math.floor(getKSTMinutes(s.startAt) / 60)));
-      timelineRef.current.scrollTop = Math.max(0, minHour - 1) * HOUR_PX;
-    } else {
-      timelineRef.current.scrollTop = 8 * HOUR_PX;
-    }
-  }, [schedules]);
 
   // ─── 요일별 레이아웃 아이템 ─────────────────────────────────────────────────
   const layoutByDay = useMemo(
@@ -100,9 +98,89 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
     [weekDays, schedules]
   );
 
+  // ─── 동적 row 높이 (DayView 의 2-pass 알고리즘 차용) ────────────────────────
+  // 7개 요일 일정을 모두 봐서 row 별 가장 큰 텍스트 높이로 행을 늘림.
+  // 종료시각 없는 일정도 1시간 점유로 처리되어 텍스트 분량만큼 row 가 자연스럽게 확장됨.
+  const { isMobile } = useBreakpoint();
+  const timeColPx = isMobile ? TIME_COL_W_MOBILE_PX : TIME_COL_W_PC_PX;
+
+  const [containerWidth, setContainerWidth] = useState(700);
+  useEffect(() => {
+    if (!timelineRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    ro.observe(timelineRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const { rowHeights, rowTops, totalHeight } = useMemo(() => {
+    const heights = Array<number>(24).fill(HOUR_PX);
+
+    // 모바일: 컬럼 폭이 매우 좁아(~90px) 동적 확장 적용 시 row 가 과도하게 늘어남.
+    // 모바일은 fixed HOUR_PX 만 유지하고 카드 안에서 line-clamp 로 truncate.
+    if (!isMobile) {
+      const dayColPx = Math.max(1, (containerWidth - timeColPx) / 7);
+
+      // Pass 1: 1시간짜리 (또는 1시간 점유 endAt null 일정)
+      for (const items of layoutByDay) {
+        for (const { schedule, totalColumns, startMin, endMin } of items) {
+          const startH = Math.floor(startMin / 60);
+          const endH = Math.ceil(endMin / 60);
+          if (endH - startH === 1) {
+            const barW = dayColPx / totalColumns;
+            heights[startH] = Math.max(heights[startH], estimateTextHeight(schedule, barW));
+          }
+        }
+      }
+
+      // Pass 2: 다중 시간대 — 마지막 row 에 모자란 높이 추가
+      for (const items of layoutByDay) {
+        for (const { schedule, totalColumns, startMin, endMin } of items) {
+          const startH = Math.floor(startMin / 60);
+          const endH = Math.min(23, Math.ceil(endMin / 60) - 1);
+          if (endH <= startH) continue;
+          let available = 0;
+          for (let h = startH; h <= endH; h++) available += heights[h];
+          const barW = dayColPx / totalColumns;
+          const textH = estimateTextHeight(schedule, barW);
+          if (textH > available) heights[endH] += textH - available;
+        }
+      }
+    }
+
+    const tops: number[] = [];
+    let acc = 0;
+    for (let h = 0; h < 24; h++) { tops.push(acc); acc += heights[h]; }
+    return { rowHeights: heights, rowTops: tops, totalHeight: acc };
+  }, [layoutByDay, containerWidth, timeColPx, isMobile]);
+
+  const minToPixels = (min: number): number => {
+    const h = Math.min(23, Math.floor(min / 60));
+    const m = min % 60;
+    return rowTops[h] + (m / 60) * rowHeights[h];
+  };
+
+  // ─── 자동 스크롤 ────────────────────────────────────────────────────────────
+  // rowHeights 기반 — 동적 row 확장 반영. 최초 렌더에 가장 이른 일정 1시간 전으로.
+  useEffect(() => {
+    if (!timelineRef.current) return;
+    const single = schedules.filter(s => !isMultiDay(s));
+    if (single.length > 0) {
+      const minMin = Math.min(...single.map(s => getKSTMinutes(s.startAt)));
+      const scrollHour = Math.max(0, Math.floor(minMin / 60) - 1);
+      timelineRef.current.scrollTop = rowTops[scrollHour];
+    } else {
+      timelineRef.current.scrollTop = rowTops[8];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedules, rowTops]);
+
   // ─── 상수 ────────────────────────────────────────────────────────────────────
   const weekdays   = ['일', '월', '화', '수', '목', '금', '토'];
-  const TIME_COL_W = 'w-14';
+  // 시간 표시 컬럼 — "08:00" 5자 + 좌우 padding 이 들어갈 최소 폭.
+  // 모바일 w-10 (40px) 빠듯하지만 가능, PC w-12 (48px) 여유. 요일 컬럼은 flex-1 라 자동 확장.
+  const TIME_COL_W = 'w-10 md:w-12';
 
   return (
     <div className="w-full">
@@ -114,7 +192,8 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
             const aStart = scheduleToDay(new Date(a.startAt)).getTime();
             const bStart = scheduleToDay(new Date(b.startAt)).getTime();
             if (aStart !== bStart) return aStart - bStart;
-            return new Date(a.endAt).getTime() - new Date(b.endAt).getTime();
+            // isMultiDay true 일 때만 들어와서 endAt 무조건 존재.
+            return new Date(a.endAt!).getTime() - new Date(b.endAt!).getTime();
           });
         if (allDaySchedules.length === 0) return null;
 
@@ -135,7 +214,8 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
             </div>
             {allDaySchedules.map(schedule => {
               const startDay  = scheduleToDay(new Date(schedule.startAt));
-              const endDay    = scheduleToDay(new Date(schedule.endAt));
+              // allDaySchedules 는 isMultiDay 만 통과 → endAt 존재 보장.
+              const endDay    = scheduleToDay(new Date(schedule.endAt!));
               const startIdx  = getDayIndex(new Date(Math.max(startDay.getTime(), weekStart.getTime())));
               const endIdx    = getDayIndex(new Date(Math.min(endDay.getTime(), weekDays[6].getTime())));
               const colStart  = startIdx + 2;
@@ -143,10 +223,10 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
               return (
                 <div key={schedule.id} className="grid grid-cols-[auto_repeat(7,1fr)] border-b border-gray-100 dark:border-dark-border last:border-b-0">
                   <div className={TIME_COL_W} />
-                  <div className="px-1 py-0.5" style={{ gridColumn: `${colStart} / ${colEnd}` }}>
+                  <div className="px-0 md:px-1 py-0 md:py-0.5" style={{ gridColumn: `${colStart} / ${colEnd}` }}>
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className={`text-[11px] md:text-xs ${COLOR_CLASSES[schedule.color ?? 'indigo'].bgDarker} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-1 py-0.5 rounded truncate cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors`}
+                      className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bgDarker} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1 py-0 md:py-0.5 rounded-none md:rounded truncate cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors`}
                       title={schedule.title}
                     >
                       {schedule.title}
@@ -194,17 +274,17 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
           })}
         </div>
 
-        {/* 24시간 그리드 + 이벤트 오버레이 */}
-        <div className="relative" style={{ height: `${24 * HOUR_PX}px` }}>
+        {/* 24시간 그리드 + 이벤트 오버레이 — height 는 동적 rowHeights 합 */}
+        <div className="relative" style={{ height: `${totalHeight}px` }}>
 
-          {/* 그리드 레이어: 시간 레이블 + 구분선 + 오늘 배경 */}
+          {/* 그리드 레이어: 시간 레이블 + 구분선 + 오늘 배경 — row 별 동적 높이 */}
           {Array.from({ length: 24 }, (_, hour) => (
             <div
               key={hour}
               className="absolute left-0 right-0 flex border-b border-gray-100 dark:border-dark-border pointer-events-none"
-              style={{ top: `${hour * HOUR_PX}px`, height: `${HOUR_PX}px` }}
+              style={{ top: `${rowTops[hour]}px`, height: `${rowHeights[hour]}px` }}
             >
-              <div className={`${TIME_COL_W} flex-shrink-0 border-r border-gray-200 dark:border-dark-border px-1 pt-1 text-xs text-gray-400 dark:text-dark-text-disabled`}>
+              <div className={`${TIME_COL_W} flex-shrink-0 border-r border-gray-200 dark:border-dark-border px-0.5 md:px-1 pt-0.5 md:pt-1 text-[10px] md:text-xs text-gray-400 dark:text-dark-text-disabled text-center md:text-left`}>
                 {String(hour).padStart(2, '0')}:00
               </div>
               {weekDays.map(date => (
@@ -216,7 +296,7 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
             </div>
           ))}
 
-          {/* 이벤트 오버레이: 요일별 컬럼, 절대 위치 이벤트 바 */}
+          {/* 이벤트 오버레이: 요일별 컬럼, 절대 위치 이벤트 바 — minToPixels 기반 */}
           <div className="absolute inset-0 flex overflow-visible">
             <div className={`${TIME_COL_W} flex-shrink-0`} />
             {weekDays.map((date, dayIdx) => {
@@ -224,17 +304,18 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
               return (
                 <div key={date.toISOString()} className="flex-1 relative overflow-visible">
                   {items.map(({ schedule, column, totalColumns, startMin, endMin }) => {
-                    const top       = (startMin / 60) * HOUR_PX + GAP_PX;
-                    const durationH = Math.max(((endMin - startMin) / 60) * HOUR_PX - GAP_PX, 22);
+                    const top       = minToPixels(startMin) + GAP_PX;
+                    const durationH = Math.max(minToPixels(Math.min(endMin, 24 * 60)) - top - GAP_PX, 22);
                     const colWPct   = 100 / totalColumns;
                     const leftPct   = column * colWPct;
                     const start = new Date(schedule.startAt);
-                    const end   = new Date(schedule.endAt);
+                    // endAt null 일정은 시작시각만 표시 (아래 렌더에서 분기).
+                    const end   = schedule.endAt ? new Date(schedule.endAt) : null;
 
                     return (
                       <div
                         key={schedule.id}
-                        className="absolute px-0.5"
+                        className="absolute px-0 md:px-0.5"
                         style={{ top: `${top}px`, height: `${durationH}px`, left: `${leftPct}%`, width: `${colWPct}%` }}
                       >
                         <div
@@ -242,11 +323,11 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                           onMouseLeave={() => setTooltip(null)}
-                          className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-1.5 py-0.5 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
+                          className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1.5 py-0 rounded-none md:rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
                         >
-                          <div className="font-medium text-[11px] md:text-xs break-words leading-tight">{schedule.title}</div>
-                          <div className="opacity-75 text-[10px] truncate">
-                            {formatTime(start)} ~ {formatTime(end)}
+                          <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words line-clamp-2 md:line-clamp-none">{schedule.title}</div>
+                          <div className="opacity-75 text-[9px] md:text-[10px] leading-[1.1] md:leading-normal truncate">
+                            {end ? `${formatTime(start)} ~ ${formatTime(end)}` : formatTime(start)}
                           </div>
                         </div>
                       </div>

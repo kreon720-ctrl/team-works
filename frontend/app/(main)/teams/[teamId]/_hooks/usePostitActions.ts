@@ -30,8 +30,9 @@ export function usePostitActions({
     const day = String(date.getUTCDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
 
-    // PC 월간뷰 + 포스트잇 색상 선택 중이면 포스트잇 생성
-    if (isDesktop && calendarView === 'month' && selectedPostitColor) {
+    // 월간뷰 + 포스트잇 색상 선택 중이면 포스트잇 생성 (PC·모바일 공통).
+    // 모바일도 월간뷰 헤더 아래에 색상 팔레트가 노출되므로 같은 흐름으로 동작.
+    if (calendarView === 'month' && selectedPostitColor) {
       const colorToCreate = selectedPostitColor;
       setSelectedPostitColor(null);
       createPostit.mutate(

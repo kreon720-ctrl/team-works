@@ -1,63 +1,58 @@
-// Open WebUI 호출 시 사용할 chat 모델 이름을 런타임에 자동 해석.
-// Open WebUI `/api/models` 를 조회해 Open WebUI 가 인식하는 모델 중 chat
-// 가능한 첫 번째를 선택. (Ollama `/api/ps` 가 아닌 이유: Ollama 에 떠있어도
-// Open WebUI 가 동기화 안 한 모델은 호출 시 "Model not found" 404 로 실패.)
+// Open WebUI 호출 시 사용할 chat 모델 이름을 매 호출 시 자동 해석.
+// 기준: Ollama /api/ps (메모리 로드된 모델). 운영자가 ollama run 으로 1개만 띄우면
+// 그 모델이 자동 선택. 디스크에 여러 모델 설치돼 있어도 무방.
 //
-// 운영자가 Open WebUI 에 chat 모델 1개만 노출시킨다는 전제로, `.env` 의
-// `OPEN_WEBUI_MODEL` 명시는 불필요. env 가 명시되면 그 값을 우선 사용.
+// 운영 룰: 메모리 로드된 chat 모델은 정확히 1개여야 함.
+// - 0개: "AI 모델에 연결할 수 없습니다." (모델을 ollama run 으로 띄워야)
+// - 1개: 자동 선택
+// - 2개 이상: "AI 모델을 1개만 띄워주세요" — 어떤 모델을 쓸지 비결정적이라 차단
 //
-// 제외 대상: 임베딩 모델(`nomic-embed-*`), Open WebUI 시스템 모델
-// (`arena-model` — 모델 비교용 가상 모델).
+// 강제 지정 escape hatch: `.env` 의 OPEN_WEBUI_MODEL 명시 시 검증 우회 + 그 값 사용.
 //
-// 캐시: 프로세스 라이프타임. frontend 컨테이너 재기동 시 재해석.
+// 제외 대상: 임베딩 모델(`nomic-embed-*`) — chat 모델로 사용 불가.
+//
+// 호출 비용: localhost /api/ps ~5ms. chat 응답 자체가 수 초~수십 초이므로 무시 가능.
+//
+// 메모: Open WebUI 는 Ollama 모델을 동일 이름(예: gemma4-e4b-q4m-pure:latest)으로
+// import 하므로 /api/ps 의 모델명을 그대로 Open WebUI /api/chat/completions 의 model 에 사용 가능.
 
-const OPEN_WEBUI_BASE_URL =
-  process.env.OPEN_WEBUI_BASE_URL || 'http://127.0.0.1:8081';
-const OPEN_WEBUI_API_KEY = process.env.OPEN_WEBUI_API_KEY || '';
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const NOT_AVAILABLE_MSG = 'AI 모델에 연결할 수 없습니다.';
+const TOO_MANY_MSG = 'AI 모델을 1개만 띄워주세요';
 
-let cached: string | null = null;
-
-interface OpenWebUiModel {
-  id?: string;
+interface OllamaPsModel {
   name?: string;
+  model?: string;
 }
 
-const EXCLUDE_RE = /^(arena-model|nomic-embed)/i;
+const EXCLUDE_RE = /^nomic-embed/i;
 
 export async function resolveOpenWebUiModel(): Promise<string> {
-  // env 명시는 자동 해석보다 우선 — 운영자가 특정 프리셋·모델을 강제할 때.
   const explicit = process.env.OPEN_WEBUI_MODEL?.trim();
   if (explicit) return explicit;
-  if (cached) return cached;
-  if (!OPEN_WEBUI_API_KEY) throw new Error(NOT_AVAILABLE_MSG);
+
+  let res: Response;
   try {
-    const res = await fetch(`${OPEN_WEBUI_BASE_URL}/api/models`, {
-      headers: { authorization: `Bearer ${OPEN_WEBUI_API_KEY}` },
-    });
-    if (!res.ok) throw new Error(NOT_AVAILABLE_MSG);
-    const payload = (await res.json().catch(() => ({}))) as
-      | { data?: OpenWebUiModel[] }
-      | OpenWebUiModel[];
-    const models: OpenWebUiModel[] = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.data)
-        ? payload.data
-        : [];
-    const chat = models.find((m) => {
-      const id = (m?.id ?? m?.name ?? '').toString();
-      return id !== '' && !EXCLUDE_RE.test(id);
-    });
-    const id = (chat?.id ?? chat?.name ?? '').toString();
-    if (!id) throw new Error(NOT_AVAILABLE_MSG);
-    cached = id;
-    return cached;
+    res = await fetch(`${OLLAMA_BASE_URL}/api/ps`);
   } catch {
     throw new Error(NOT_AVAILABLE_MSG);
   }
-}
+  if (!res.ok) throw new Error(NOT_AVAILABLE_MSG);
 
-// 테스트·명시적 재해석용. 운영 중 모델 변경 시 컨테이너 재기동을 권장.
-export function resetOpenWebUiModelCache(): void {
-  cached = null;
+  const data = (await res.json().catch(() => ({}))) as { models?: OllamaPsModel[] };
+  const models = Array.isArray(data?.models) ? data.models : [];
+  const chats = models.filter((m) => {
+    const name = (m?.name ?? m?.model ?? '').toString();
+    return name !== '' && !EXCLUDE_RE.test(name);
+  });
+  if (chats.length === 0) throw new Error(NOT_AVAILABLE_MSG);
+  if (chats.length > 1) {
+    const names = chats
+      .map((m) => (m.name ?? m.model ?? '').toString())
+      .join(', ');
+    throw new Error(`${TOO_MANY_MSG} (현재 ${chats.length}개 메모리 로드: ${names})`);
+  }
+  const id = (chats[0]?.name ?? chats[0]?.model ?? '').toString();
+  if (!id) throw new Error(NOT_AVAILABLE_MSG);
+  return id;
 }

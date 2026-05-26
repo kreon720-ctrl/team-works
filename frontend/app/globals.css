@@ -101,3 +101,32 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #4a4948;
 }
+
+/* 캘린더 좌우 swipe 전환 — 새 콘텐츠가 화면 밖에서 슬라이드 인 (Google 캘린더 풍).
+   CalendarView 가 navigate 방향에 따라 calendar-slide-next / calendar-slide-prev 클래스 부여. */
+@keyframes calendar-slide-in-from-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes calendar-slide-in-from-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.calendar-slide-next {
+  animation: calendar-slide-in-from-right 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.calendar-slide-prev {
+  animation: calendar-slide-in-from-left 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}

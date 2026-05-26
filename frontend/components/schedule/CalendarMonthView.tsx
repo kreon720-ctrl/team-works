@@ -18,6 +18,8 @@ interface CalendarMonthViewProps {
   currentUserId?: string;
   onPostitDelete?: (id: string, date: string) => void;
   onPostitContentChange?: (id: string, content: string) => void;
+  // 모바일 모드 — 일정 밴드 글자폭·줄높이 계산을 모바일 스타일(text-[10px] leading-[1.1]) 기준으로.
+  compact?: boolean;
 }
 
 const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: string }> = {
@@ -29,7 +31,9 @@ const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: 
 };
 
 const AVG_CHAR_WIDTH_PX = 13;
+const AVG_CHAR_WIDTH_PX_MOBILE = 11; // text-[10px] 한국어 한 글자 ≈ 11px
 const BAR_LINE_HEIGHT_PX = 16;
+const BAR_LINE_HEIGHT_PX_MOBILE = 11; // leading-[1.1] × 10px font
 const BAR_PADDING_V_PX = 4;
 const MIN_BAR_HEIGHT = 20;
 const SCHEDULE_ROW_GAP = 2;
@@ -46,6 +50,7 @@ export function CalendarMonthView({
   currentUserId = '',
   onPostitDelete,
   onPostitContentChange,
+  compact = false,
 }: CalendarMonthViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -82,11 +87,13 @@ export function CalendarMonthView({
     if (cur > lastDay) break;
   }
 
+  // 앰버 테두리(원래 today 마커) — 사용자가 navigate / swipe / 날짜 클릭 등으로 변경한
+  // currentDate 를 따라 이동. 초기 마운트엔 currentDate = 오늘이라 today 위치에 표시되고,
+  // 그 후엔 활성(선택) 날짜를 추적하는 focus indicator 역할.
   const isToday = (date: Date): boolean => {
-    const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
-    return date.getUTCFullYear() === kstNow.getUTCFullYear() &&
-      date.getUTCMonth() === kstNow.getUTCMonth() &&
-      date.getUTCDate() === kstNow.getUTCDate();
+    return date.getUTCFullYear() === currentDate.getUTCFullYear() &&
+      date.getUTCMonth() === currentDate.getUTCMonth() &&
+      date.getUTCDate() === currentDate.getUTCDate();
   };
 
   const isSelected = (date: Date): boolean => {
@@ -104,12 +111,16 @@ export function CalendarMonthView({
   };
 
   const isSameDaySchedule = (schedule: Schedule): boolean => {
+    // endAt null → 시작 당일 일정 (멀티데이 아님).
+    if (!schedule.endAt) return true;
     const s = scheduleToDay(new Date(schedule.startAt));
     const e = scheduleToDay(new Date(schedule.endAt));
     return s.getTime() === e.getTime();
   };
 
   const formatDateRange = (schedule: Schedule): string => {
+    // 멀티데이 호출에서만 사용 — endAt null 은 멀티데이가 아니므로 도달 안 함. 안전 가드만.
+    if (!schedule.endAt) return '';
     const s = utcToKST(new Date(schedule.startAt));
     const e = utcToKST(new Date(schedule.endAt));
     const sm = s.getUTCMonth() + 1, sd = s.getUTCDate();
@@ -119,12 +130,21 @@ export function CalendarMonthView({
       : `(${sm}월${sd}일~${em}월${ed}일)`;
   };
 
+  // 모바일/PC 분기 — text-[10px] leading-[1.1] vs text-xs leading-tight 차이로
+  // 글자폭·줄높이가 다름. PC 값만 쓰면 모바일에서 height 과대 산출 → 멀티데이 밴드
+  // 아래 빈 여백 발생. compact prop 으로 직접 결정 (containerWidth 임계값은 갤럭시
+  // 플립 가로 모드 같은 케이스 오판할 수 있어 명시적 prop 채택).
+  const charWidthPx = compact ? AVG_CHAR_WIDTH_PX_MOBILE : AVG_CHAR_WIDTH_PX;
+  const lineHeightPx = compact ? BAR_LINE_HEIGHT_PX_MOBILE : BAR_LINE_HEIGHT_PX;
+
   const getBarHeight = (text: string, spanCols: number): number => {
     if (containerWidth <= 0) return MIN_BAR_HEIGHT;
-    const barWidthPx = (spanCols / 7) * containerWidth - 16;
-    const charsPerLine = Math.max(1, Math.floor(barWidthPx / AVG_CHAR_WIDTH_PX));
+    // 모바일은 셀 padding 0 (-mx-0.5 로 밴드가 셀 경계까지), PC 는 양쪽 8px = 16px.
+    const cellPadPx = compact ? 0 : 16;
+    const barWidthPx = (spanCols / 7) * containerWidth - cellPadPx;
+    const charsPerLine = Math.max(1, Math.floor(barWidthPx / charWidthPx));
     const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-    return Math.max(MIN_BAR_HEIGHT, lines * BAR_LINE_HEIGHT_PX + BAR_PADDING_V_PX);
+    return Math.max(MIN_BAR_HEIGHT, lines * lineHeightPx + BAR_PADDING_V_PX);
   };
 
   const getMultiDaySchedulesForWeek = (weekDays: Date[]): {
@@ -140,16 +160,17 @@ export function CalendarMonthView({
 
     const multiDay = schedules.filter(s => {
       if (isSameDaySchedule(s)) return false;
+      // isSameDaySchedule false → endAt 무조건 존재.
       const sStart = scheduleToDay(new Date(s.startAt));
-      const sEnd = scheduleToDay(new Date(s.endAt));
+      const sEnd = scheduleToDay(new Date(s.endAt!));
       return sStart <= kstWeekEnd && sEnd >= kstWeekStart;
     });
 
     multiDay.sort((a, b) => {
       const aStart = scheduleToDay(new Date(a.startAt)).getTime();
       const bStart = scheduleToDay(new Date(b.startAt)).getTime();
-      const aEnd = scheduleToDay(new Date(a.endAt)).getTime();
-      const bEnd = scheduleToDay(new Date(b.endAt)).getTime();
+      const aEnd = scheduleToDay(new Date(a.endAt!)).getTime();
+      const bEnd = scheduleToDay(new Date(b.endAt!)).getTime();
       if (aStart !== bStart) return aStart - bStart;
       return (bEnd - bStart) - (aEnd - aStart);
     });
@@ -159,7 +180,7 @@ export function CalendarMonthView({
 
     for (const schedule of multiDay) {
       const sStart = scheduleToDay(new Date(schedule.startAt));
-      const sEnd = scheduleToDay(new Date(schedule.endAt));
+      const sEnd = scheduleToDay(new Date(schedule.endAt!));
       const clampedStart = sStart < kstWeekStart ? kstWeekStart : sStart;
       const clampedEnd = sEnd > kstWeekEnd ? kstWeekEnd : sEnd;
 
@@ -222,8 +243,8 @@ export function CalendarMonthView({
         ))}
       </div>
 
-      {/* 캘린더 그리드 */}
-      <div className="flex flex-col gap-1.5">
+      {/* 캘린더 그리드 — 모바일은 gap 0, PC 만 gap 1.5 */}
+      <div className="flex flex-col gap-0 md:gap-1.5">
         {weeks.map((week, weekIndex) => {
           const multiDayRows = getMultiDaySchedulesForWeek(week);
           const multiDayBarHeights = multiDayRows.map(({ schedule, colStart, colEnd }) => {
@@ -262,7 +283,7 @@ export function CalendarMonthView({
             <div key={weekIndex} className="relative">
               {/* 날짜 셀 그리드 */}
               <div
-                className="grid grid-cols-7 gap-1.5"
+                className="grid grid-cols-7 gap-0 md:gap-1.5"
                 style={{ gridTemplateRows: `minmax(${cellMinHeight}, auto)` }}
               >
                 {week.map((date, dayIndex) => {
@@ -278,7 +299,7 @@ export function CalendarMonthView({
                       onClick={() => onDateClick?.(date)}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onDateClick?.(date); }}
                       className={`
-                        relative p-2 rounded-lg border transition-all duration-150 flex flex-col cursor-pointer
+                        relative p-0.5 md:p-2 rounded-none md:rounded-lg border-[0.5px] md:border transition-all duration-150 flex flex-col cursor-pointer
                         ${isToday(date)
                           ? 'border-orange-500'
                           : isSelected(date)
@@ -314,7 +335,7 @@ export function CalendarMonthView({
                       {sameDaySchedules.map(schedule => (
                         <div
                           key={schedule.id}
-                          className={`text-[11px] md:text-xs px-1 py-0.5 break-words overflow-hidden rounded mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 -mx-0.5 md:mx-0 break-words overflow-hidden rounded-none md:rounded mb-0 md:mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
@@ -354,11 +375,11 @@ export function CalendarMonthView({
                     return (
                       <div
                         key={`multi-${schedule.id}-${weekIndex}`}
-                        className="absolute px-0.5"
+                        className="absolute px-0 md:px-0.5"
                         style={{ left: leftPct, width: widthPct, top: `${topPx}px`, height: `${barH}px`, pointerEvents: 'auto' }}
                       >
                         <div
-                          className={`text-[11px] md:text-xs px-1 py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded h-full text-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded-none md:rounded h-full text-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
@@ -373,7 +394,7 @@ export function CalendarMonthView({
               )}
               {/* 오늘 날짜 링 — 모든 오버레이 위에 렌더링 */}
               {week.some(d => isToday(d)) && (
-                <div className="absolute inset-0 pointer-events-none grid grid-cols-7 gap-1.5 z-20">
+                <div className="absolute inset-0 pointer-events-none grid grid-cols-7 gap-0 md:gap-1.5 z-20">
                   {week.map((date) => (
                     <div
                       key={date.toISOString()}

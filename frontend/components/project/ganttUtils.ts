@@ -160,14 +160,31 @@ export function getWeekIndex(weeks: Date[], dateStr: string, mode: 'start' | 'en
   const weekYear = thursday.getUTCFullYear();
   const weekMonth = thursday.getUTCMonth();
 
+  // target 이 발견된 week (Sunday) 의 7일 안에 실제로 포함되는지.
+  // Thursday-convention 으로 다른 달로 분류된 주여도 target 이 그 주에 있으면
+  // advance/retreat 하지 않음 — 그러지 않으면 월말(6/30 화) 같은 케이스에서
+  // bar 가 잘려 누락됨 (6/30 의 주가 목요일 7/2 라 July 로 분류되는 부작용).
+  const foundWeekEnd = new Date(foundWeek);
+  foundWeekEnd.setUTCDate(foundWeek.getUTCDate() + 6);
+  const targetInFoundWeek = target >= foundWeek && target <= foundWeekEnd;
+
   if (mode === 'start') {
     // Week is in an earlier month → advance to next week
-    if (weekYear < targetYear || (weekYear === targetYear && weekMonth < targetMonth)) {
+    // 단 target 이 그 주에 있으면 그대로 사용 (월초 케이스 보호).
+    if (
+      !targetInFoundWeek &&
+      (weekYear < targetYear || (weekYear === targetYear && weekMonth < targetMonth))
+    ) {
       if (result + 1 < weeks.length) result += 1;
     }
   } else {
     // Week is in a later month → retreat to previous week
-    if (weekYear > targetYear || (weekYear === targetYear && weekMonth > targetMonth)) {
+    // 단 target 이 그 주에 있으면 그대로 사용 (월말 케이스 보호 — 6/30 같이 화요일이
+    // 그 주의 목요일이 다음달이라 잘못 retreat 되어 bar 가 짧아지는 문제 차단).
+    if (
+      !targetInFoundWeek &&
+      (weekYear > targetYear || (weekYear === targetYear && weekMonth > targetMonth))
+    ) {
       if (result > 0) result -= 1;
     }
   }

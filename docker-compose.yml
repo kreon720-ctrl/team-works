@@ -6,6 +6,10 @@ services:
       POSTGRES_USER: teamworks-manager
       POSTGRES_PASSWORD: 'Nts123!@#'
       POSTGRES_DB: teamworks
+      TZ: Asia/Seoul
+    # PostgreSQL 세션 timezone — OS TZ 와 별개로 postgresql.conf 의 timezone 설정.
+    # 기본은 UTC 라 now() 도 UTC. 시작 옵션으로 Asia/Seoul 강제.
+    command: postgres -c timezone=Asia/Seoul -c log_timezone=Asia/Seoul
     volumes:
       - ~/postgres_data:/var/lib/postgresql
     ports:
@@ -33,7 +37,8 @@ services:
       # 자료실 storage 어댑터 — 1단계 local, 운영 전환 시 's3' 로 변경.
       STORAGE_BACKEND: local
       STORAGE_LOCAL_DIR: /app/files
-    command: sh -c "npm install && npm run dev"
+      TZ: Asia/Seoul
+    command: sh -c "apk add --no-cache tzdata && npm install && npm run dev"
     networks:
       - teamworks-net
     expose:
@@ -57,16 +62,23 @@ services:
       # 일반 질문 경로 — Open WebUI (컨테이너 네트워크 내부)
       OPEN_WEBUI_BASE_URL: http://open-webui:8080
       OPEN_WEBUI_API_KEY: ${OPEN_WEBUI_API_KEY:-}
-      # OPEN_WEBUI_MODEL: 미설정 시 frontend 가 Open WebUI /api/models 로
-      # 등록된 모델 중 chat 가능한 첫 번째를 자동 선택 (lib/openWebUiModel.ts).
-      # 강제 override 가 필요할 때만 .env 에 OPEN_WEBUI_MODEL=... 명시.
+      # 채팅 모델 자동 해석은 Ollama /api/ps (메모리 로드된 모델) 기준.
+      # 운영자는 ollama run <모델> 로 1개만 띄우면 그 모델이 Open WebUI 호출에 사용됨.
+      # 디스크에 여러 모델 설치돼 있어도 OK — 메모리 로드 1개 룰만 지키면 됨.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # OPEN_WEBUI_MODEL: 강제 override (escape hatch). 명시 시 자동 해석 우회.
       OPEN_WEBUI_MODEL: ${OPEN_WEBUI_MODEL:-}
+      # 자체 호스팅 Whisper STT — 모바일/데스크톱 동일 엔진 보장 (Web Speech API quirk 우회)
+      WHISPER_URL: http://whisper:9000
       # Open WebUI 응답엔 URL 이 빠져 있어 SearxNG 를 직접 호출해 sources 보강
       SEARXNG_BASE_URL: http://searxng:8080
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
       NODE_ENV: development
-    command: sh -c "npm install && npm run dev"
+      TZ: Asia/Seoul
+    # Turbopack dev 캐시(.next) 가 컨테이너 재시작에서 살아남아 라우트 매니페스트가
+    # 깨진 채 부팅되는 사례 발견 — 매 부팅마다 .next 를 비워 클린 컴파일 강제.
+    command: sh -c "apk add --no-cache tzdata && npm install && rm -rf .next && npm run dev"
     networks:
       - teamworks-net
     expose:
@@ -81,6 +93,8 @@ services:
       - "8080:80"
     volumes:
       - ./docker/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    environment:
+      TZ: Asia/Seoul
     depends_on:
       - frontend
       - backend
@@ -95,6 +109,7 @@ services:
     environment:
       BASE_URL: http://searxng:8080/
       INSTANCE_NAME: teamworks-searxng
+      TZ: Asia/Seoul
     expose:
       - "8080"
     networks:
@@ -113,9 +128,9 @@ services:
       WEBUI_SECRET_KEY: ${OPEN_WEBUI_SECRET_KEY:-change-me-in-env}
       WEBUI_AUTH: "true"
       ENABLE_API_KEY: "true"   # 사용자 설정 → 계정 → API 키 섹션 노출
-      # 채팅 기본 모델 — 임베딩 모델(nomic-embed-text)이 알파벳 순서상 먼저 잡혀
-      # 신규 채팅 기본값으로 들어가는 것을 방지
-      DEFAULT_MODELS: "gemma4:26b"
+      # 채팅 기본 모델은 명시하지 않음 — 운영자가 Ollama 에 띄운 모델을 Open WebUI 가
+      # 자동 import. 첫 채팅 시 admin 이 드롭다운에서 선택하면 LocalStorage 저장.
+      # 강제 지정이 필요하면 .env 에 OPEN_WEBUI_MODEL=<태그> 추가 (frontend 가 우선 사용).
       ENABLE_RAG_WEB_SEARCH: "true"
       RAG_WEB_SEARCH_ENGINE: searxng
       RAG_WEB_SEARCH_RESULT_COUNT: "5"
@@ -135,6 +150,7 @@ services:
       RAG_EMBEDDING_ENGINE: ollama
       RAG_OLLAMA_BASE_URL: http://host.docker.internal:11434
       RAG_EMBEDDING_MODEL: nomic-embed-text:latest
+      TZ: Asia/Seoul
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -143,10 +159,48 @@ services:
       - teamworks-net
     restart: unless-stopped
 
+  # Whisper STT — CPU 운영. faster_whisper + CT2 INT8 양자화로 small 기준 ~1-2초 응답.
+  # 첫 부팅 시 ASR_MODEL 자동 다운로드 → whisper_cache 볼륨에 영속 저장 (재기동 시 재다운로드 X).
+  #
+  # 모델 선택 가이드 (faster_whisper 엔진 + CT2 양자화 기준):
+  #   - tiny           ~120MB   한국어 보통       초저사양 폴백
+  #   - base           ~250MB   한국어 양호       CPU 빠른 응답 (~1-2초)
+  #   - small          ~600MB   한국어 우수       균형
+  #   - medium         ~1.5GB   한국어 매우 우수
+  #   - large-v3-turbo ~1GB     한국어 최고       large-v3 와 동급 정확도, 5배 빠름 ★권장
+  #   - large-v3       ~3GB     한국어 최고       정확도는 turbo 와 비슷
+  #
+  # 한국어 특화: 위 표준 모델 외에 HuggingFace 의 한국어 fine-tuned 모델 사용 가능.
+  # 예: ASR_MODEL=ghost613/whisper-large-v3-turbo-korean (Zeroth-Korean·KsponSpeech 학습)
+  # 단, 모델이 CT2 (CTranslate2) 형식이어야 faster_whisper 가 직접 로드 가능.
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: teamworks-whisper
+    expose:
+      - "9000"
+    environment:
+      # CPU 운영 default — small + INT8 로 균형 (한국어 우수, ~1-2초 응답).
+      # 회선 안정 + 자원 여유 시 .env 의 WHISPER_MODEL=medium / large-v3-turbo 로 업그레이드.
+      ASR_MODEL: ${WHISPER_MODEL:-small}
+      ASR_ENGINE: ${WHISPER_ENGINE:-faster_whisper}
+      # HF Hub 의 새 xet storage backend 가 일부 환경에서 TLS 연결 끊김 → 모델 다운로드 실패.
+      # 안정적인 git-LFS 방식으로 폴백.
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+      HF_HUB_DISABLE_XET: "1"
+      # CPU 모드에서 INT8 양자화 강제 (FP16/FP32 모델도 메모리는 INT8 로 적재).
+      ASR_QUANTIZATION: "int8"
+      TZ: Asia/Seoul
+    volumes:
+      - whisper_cache:/root/.cache/whisper
+    networks:
+      - teamworks-net
+    restart: unless-stopped
+
 volumes:
   backend_node_modules:
   frontend_node_modules:
   open_webui_data:
+  whisper_cache:
 
 networks:
   teamworks-net:

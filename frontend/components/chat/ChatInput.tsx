@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 
 export type ChatMessageMode = 'NORMAL' | 'WORK_PERFORMANCE' | 'NOTICE';
 
@@ -14,6 +15,24 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
   const [content, setContent] = useState('');
   const [mode, setMode] = useState<ChatMessageMode>('NORMAL');
 
+  // 음성 입력 (STT) — Galaxy/Samsung 등 quirk 자동 회피하는 hybrid hook
+  const stt = useSpeechRecognition();
+  // 발화 종료 후에만 입력창에 누적 — 발화 중간 휴지로 자동 stop 되어도
+  // 다시 마이크를 누르면 기존 텍스트 뒤에 이어 붙음. interim 결과 중복 누적 방지를 위해
+  // listening / transcribing 모두 종료 + 같은 transcript 재커밋 방지(lastCommittedRef).
+  const lastCommittedTranscriptRef = useRef('');
+  useEffect(() => {
+    if (stt.isListening || stt.isTranscribing) return;
+    const t = stt.transcript;
+    if (!t) return;
+    if (t === lastCommittedTranscriptRef.current) return;
+    setContent((prev) => {
+      const trimmed = prev.trim();
+      return trimmed ? `${trimmed} ${t}` : t;
+    });
+    lastCommittedTranscriptRef.current = t;
+  }, [stt.isListening, stt.isTranscribing, stt.transcript]);
+
   const isValidContent = content.trim().length > 0 && content.length <= maxContentLength;
 
   const handleSend = () => {
@@ -21,6 +40,9 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
     onSend(content.trim(), mode);
     setContent('');
     setMode('NORMAL');
+    // 음성 잔여 정리
+    if (stt.isListening) stt.stop();
+    stt.reset();
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -58,38 +80,93 @@ export function ChatInput({ onSend, isPending = false, maxContentLength = 2000 }
 
       {/* Input area */}
       <div className="flex items-stretch gap-2">
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            mode === 'WORK_PERFORMANCE'
-              ? '업무보고를 입력하세요...'
-              : mode === 'NOTICE'
-              ? '공지사항을 입력하세요...'
-              : '메시지를 입력하세요...'
-          }
-          className="flex-1 h-full border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-base px-4 py-2.5 text-sm font-normal text-gray-800 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled shadow-sm resize-none transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
-          disabled={isPending}
-          maxLength={maxContentLength}
-          rows={4}
-        />
+        <div className="relative flex-1">
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              mode === 'WORK_PERFORMANCE'
+                ? '업무보고를 입력하세요...'
+                : mode === 'NOTICE'
+                ? '공지사항을 입력하세요...'
+                : '메시지를 입력하세요...'
+            }
+            className="w-full h-full border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-base pl-4 pr-9 py-2.5 text-sm font-normal text-gray-800 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled shadow-sm resize-none transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+            disabled={isPending}
+            maxLength={maxContentLength}
+            rows={4}
+          />
+          {content.trim().length > 0 && !isPending && (
+            <button
+              type="button"
+              onClick={() => {
+                setContent('');
+                if (stt.isListening) stt.stop();
+                stt.reset();
+                lastCommittedTranscriptRef.current = '';
+              }}
+              aria-label="입력창 비우기"
+              title="입력창 비우기"
+              className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-dark-text-disabled dark:hover:text-dark-text dark:hover:bg-dark-elevated transition-colors duration-150"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         <div className="flex flex-col gap-2">
-          {/* Send button */}
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!isValidContent || isPending}
-            className="inline-flex items-center justify-center gap-1 rounded-lg py-1.5 px-3 text-xs font-medium transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
-          >
-            {isPending ? (
-              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : '전송'}
-          </button>
+          {/* Send + Mic — 한 줄에 아이콘 버튼 2개 */}
+          <div className="flex gap-1">
+            {/* Send button — '전송' 텍스트, 컴팩트 */}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!isValidContent || isPending}
+              aria-label="전송"
+              className="inline-flex items-center justify-center gap-1 rounded-lg py-1.5 px-3 text-xs font-medium transition-colors duration-150 bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-dark-accent-strong dark:text-gray-900 dark:hover:bg-white dark:disabled:bg-dark-elevated dark:disabled:text-dark-text-disabled"
+            >
+              {isPending ? (
+                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : '전송'}
+            </button>
+
+            {/* Mic button — 음성 입력 토글 (비지원 환경에선 숨김) */}
+            {stt.isSupported && (
+              <button
+                type="button"
+                onClick={stt.isListening ? stt.stop : stt.start}
+                disabled={stt.isTranscribing || isPending}
+                aria-label={stt.isListening ? '음성 입력 중지' : stt.isTranscribing ? '음성 변환 중' : '음성 입력 시작'}
+                aria-pressed={stt.isListening}
+                title={stt.isListening ? '음성 입력 중지' : '음성 입력'}
+                className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors duration-150 ${
+                  stt.isListening
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : stt.isTranscribing
+                      ? 'bg-amber-400 text-white cursor-wait'
+                      : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-border dark:text-dark-text-muted dark:hover:bg-dark-elevated'
+                }`}
+              >
+                {stt.isTranscribing ? (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  // heroicons microphone
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v3m-4 0h8M12 3a4 4 0 014 4v4a4 4 0 01-8 0V7a4 4 0 014-4z" />
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
 
           {/* 업무보고 toggle */}
           <button

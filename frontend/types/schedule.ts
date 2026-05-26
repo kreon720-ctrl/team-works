@@ -12,7 +12,8 @@ export interface Schedule {
   title: string;
   description: string | null;
   startAt: string;
-  endAt: string;
+  // 종료시각은 선택 입력. null 이면 시작시각만 정해진 일정.
+  endAt: string | null;
   color?: ScheduleColor;
   createdBy: string;
   creatorName: string | null;
@@ -24,7 +25,8 @@ export interface ScheduleCreateInput {
   title: string;
   description?: string;
   startAt: string;
-  endAt: string;
+  // 선택 입력. 미입력 시 백엔드에 null 로 저장.
+  endAt?: string | null;
   color?: ScheduleColor;
 }
 

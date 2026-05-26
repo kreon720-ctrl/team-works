@@ -9,7 +9,8 @@ export interface Schedule {
   description: string | null
   color: string
   start_at: Date
-  end_at: Date
+  // 종료시각 선택 입력. null 이면 시작시각만 정해진 일정.
+  end_at: Date | null
   created_at: Date
   updated_at: Date
 }
@@ -21,7 +22,7 @@ export interface CreateScheduleParams {
   description?: string | null
   color?: string
   startAt: Date
-  endAt: Date
+  endAt?: Date | null
 }
 
 export interface UpdateScheduleParams {
@@ -29,7 +30,7 @@ export interface UpdateScheduleParams {
   description?: string | null
   color?: string
   startAt?: Date
-  endAt?: Date
+  endAt?: Date | null
 }
 
 export async function createSchedule(params: CreateScheduleParams): Promise<Schedule> {
@@ -39,7 +40,7 @@ export async function createSchedule(params: CreateScheduleParams): Promise<Sche
       `INSERT INTO schedules (team_id, created_by, title, description, color, start_at, end_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, team_id, created_by, title, description, color, start_at, end_at, created_at, updated_at`,
-      [teamId, createdBy, title, description ?? null, color ?? 'indigo', startAt, endAt]
+      [teamId, createdBy, title, description ?? null, color ?? 'indigo', startAt, endAt ?? null]
     )
     return result.rows[0]
   } catch (err) {
@@ -53,13 +54,22 @@ export async function getSchedulesByDateRange(
   endAt: Date
 ): Promise<Schedule[]> {
   try {
+    // 범위 조건:
+    //  - end_at 있음: 기존처럼 (start_at < $3 AND end_at > $2) — 범위에 걸치는 일정 포함
+    //  - end_at NULL (종료시각 없는 일정): start_at 자체가 범위 안에 있어야 포함
+    //                                       ($2 <= start_at < $3). 안 그러면 이전 날짜의
+    //                                       endAt null 일정이 다음 날 조회에 잘못 섞임
+    //                                       (예: 14일 14:00 endAt null 이 15일 조회에 포함되던 버그).
     const result = await pool.query<Schedule>(
       `SELECT s.id, s.team_id, s.created_by, u.name AS creator_name, s.title, s.description, s.color, s.start_at, s.end_at, s.created_at, s.updated_at
        FROM schedules s
        LEFT JOIN users u ON u.id = s.created_by
        WHERE s.team_id = $1
          AND s.start_at < $3
-         AND s.end_at > $2
+         AND (
+           (s.end_at IS NULL AND s.start_at >= $2)
+           OR (s.end_at IS NOT NULL AND s.end_at > $2)
+         )
        ORDER BY s.start_at ASC`,
       [teamId, startAt, endAt]
     )

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ProjectSchedule, GanttBarColor } from '@/types/project';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 // Static color lookup table for Tailwind v4 compatibility
 // (no dynamic class names - all classes must be statically present)
@@ -27,6 +28,8 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
   const isDelayed = schedule.isDelayed ?? false;
   const barClass = isDelayed ? styles.barDelayed : styles.bar;
 
+  // 모바일은 hover 개념이 없고 long-press 시 툴팁이 거슬려 비활성화
+  const { isMobile } = useBreakpoint();
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
 
   const fmtDate = (d: string) => {
@@ -50,10 +53,10 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
           onClick();
         }
       }}
-      onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
-      onMouseMove={(e) => setTooltip({ x: e.clientX, y: e.clientY })}
-      onMouseLeave={() => setTooltip(null)}
-      className={`group relative w-full rounded overflow-hidden cursor-pointer select-none ${barClass}`}
+      onMouseEnter={isMobile ? undefined : (e) => setTooltip({ x: e.clientX, y: e.clientY })}
+      onMouseMove={isMobile ? undefined : (e) => setTooltip({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={isMobile ? undefined : () => setTooltip(null)}
+      className={`group relative w-full rounded overflow-hidden cursor-pointer select-none flex items-center justify-center ${barClass}`}
       style={{ minHeight: SCHEDULE_BAR_HEIGHT }}
     >
       {/* Hover tooltip — portal to document.body, always on top */}
@@ -82,7 +85,7 @@ export function GanttBar({ schedule, onClick }: GanttBarProps) {
       {/* Text label — in flow (determines bar height), hidden on hover */}
       <div className="relative z-10 flex items-center justify-center px-1.5 py-1 group-hover:opacity-0 transition-opacity duration-100 pointer-events-none">
         <span
-          className={`text-xs font-medium text-center leading-tight line-clamp-2 ${styles.text} mix-blend-multiply`}
+          className={`text-[10px] font-medium text-center leading-tight ${styles.text} mix-blend-multiply`}
           style={{ textShadow: '0 0 2px rgba(255,255,255,0.8)', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
         >
           {label}

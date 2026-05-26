@@ -84,18 +84,13 @@ export function CalendarSection({
   onEditSubmit,
 }: CalendarSectionProps) {
 
-  function getKSTTimeStrings(dateStr: string): { startAt: string; endAt: string } {
+  // 신규 일정 모달 초기값 — 시작시각만 KST 현재 시각으로 채우고 종료는 비워둠 (선택 입력).
+  function getKSTTimeStrings(dateStr: string): { startAt: string; endAt: null } {
     const now = new Date();
     const kstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
-    const endHour = (kstHour + 1) % 24;
-    const endDate = endHour === 0 ? (() => {
-      const d = new Date(dateStr);
-      d.setUTCDate(d.getUTCDate() + 1);
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-    })() : dateStr;
     return {
       startAt: `${dateStr}T${String(kstHour).padStart(2, '0')}:00`,
-      endAt: `${endDate}T${String(endHour).padStart(2, '0')}:00`,
+      endAt: null,
     };
   }
 
@@ -124,17 +119,17 @@ export function CalendarSection({
 
       {/* 일정 등록 모달 */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 dark:bg-black/70 px-4 py-8 overflow-y-auto">
-          <div className="w-full max-w-md bg-white dark:bg-dark-elevated dark:border dark:border-dark-border rounded-2xl shadow-xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text">일정 등록</h2>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 dark:bg-black/70 px-2 py-4 md:px-4 md:py-8 overflow-y-auto">
+          <div className="w-4/5 md:w-full max-w-md bg-white dark:bg-dark-elevated dark:border dark:border-dark-border rounded-xl md:rounded-2xl shadow-xl p-3 md:p-6">
+            <div className="flex items-center justify-between mb-2 md:mb-5">
+              <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-dark-text">일정 등록</h2>
               <button
                 type="button"
                 onClick={onCreateModalClose}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors duration-150"
+                className="p-1 md:p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors duration-150"
                 aria-label="닫기"
               >
-                <svg className="w-5 h-5 text-gray-500 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-500 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -167,17 +162,17 @@ export function CalendarSection({
       />
 
       {showEditModal && selectedSchedule && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 dark:bg-black/70 px-4 py-8 overflow-y-auto">
-          <div className="w-full max-w-md bg-white dark:bg-dark-elevated dark:border dark:border-dark-border rounded-2xl shadow-xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text">일정 수정</h2>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 dark:bg-black/70 px-2 py-4 md:px-4 md:py-8 overflow-y-auto">
+          <div className="w-4/5 md:w-full max-w-md bg-white dark:bg-dark-elevated dark:border dark:border-dark-border rounded-xl md:rounded-2xl shadow-xl p-3 md:p-6">
+            <div className="flex items-center justify-between mb-2 md:mb-5">
+              <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-dark-text">일정 수정</h2>
               <button
                 type="button"
                 onClick={onEditModalClose}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors duration-150"
+                className="p-1 md:p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors duration-150"
                 aria-label="닫기"
               >
-                <svg className="w-5 h-5 text-gray-500 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-500 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

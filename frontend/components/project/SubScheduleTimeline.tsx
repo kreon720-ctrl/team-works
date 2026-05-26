@@ -6,7 +6,7 @@ import { SubBar } from './SubBar';
 
 // ── 타임라인 상수 ──
 const MIN_DAY_W = 24;
-const ROW_PAD = 5;
+const ROW_PAD = 2;       // 5→2 축소: row 상하 여백을 타이트하게 (갠트가 모달 안에 더 많이 들어가도록)
 const PROGRESS_H = 20;
 const BAR_MIN_H = Math.round(PROGRESS_H * 1.3);
 
@@ -124,21 +124,21 @@ export function SubScheduleTimeline({
   );
 
   return (
-    <div ref={rightRef} className="flex-1 min-w-0 flex flex-col px-4 pb-5">
-      {/* [+일정] 버튼 */}
-      <div className="flex justify-end mb-2 flex-none">
+    <div ref={rightRef} className="flex-1 min-w-0 min-h-0 flex flex-col px-4 pb-2 sm:pb-5">
+      {/* [+] 세부일정 추가 — 아이콘만, 우측 상단, 추가 70% 축소. mt-2 로 상단 구분선과 간격 */}
+      <div className="flex justify-end mt-2 mb-2 flex-none">
         <button type="button" onClick={onAddClick}
-          className="flex items-center gap-1 px-3 py-1 bg-primary-500 text-white text-xs font-medium rounded-lg hover:bg-primary-600 dark:bg-[#FFB800] dark:text-gray-900 dark:hover:bg-[#E6A600] transition-colors">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          title="세부일정 추가"
+          className="flex items-center justify-center p-0.5 bg-primary-500 text-white rounded hover:bg-primary-600 dark:bg-[#FFB800] dark:text-gray-900 dark:hover:bg-[#E6A600] transition-colors">
+          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
           </svg>
-          일정
         </button>
       </div>
 
-      {/* 타임라인 */}
-      <div className="overflow-x-auto flex-1 flex flex-col">
-        <div className="flex flex-col flex-1" style={{ minWidth: totalWidth }}>
+      {/* 타임라인 — nested flex 에 min-h-0 필수 (없으면 자식이 부모 높이 무시하고 자연 크기로 늘어남) */}
+      <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
+        <div className="flex flex-col flex-1 min-h-0" style={{ minWidth: totalWidth }}>
 
           {/* 월 행 */}
           <div className="flex border border-gray-300 dark:border-dark-border flex-none">
@@ -173,8 +173,8 @@ export function SubScheduleTimeline({
             ))}
           </div>
 
-          {/* 세부일정 행 영역 */}
-          <div className="overflow-y-auto overflow-x-hidden border-x border-b border-gray-300 dark:border-dark-border flex-1">
+          {/* 세부일정 행 영역 — flex-1 min-h-0 로 부모 영역 안에 머물게 강제, 초과 시 y 스크롤 */}
+          <div className="overflow-y-auto overflow-x-hidden border-x border-b border-gray-300 dark:border-dark-border flex-1 min-h-0">
             {subSchedules.length === 0 ? (
               <div className="relative border-b border-gray-100 dark:border-dark-border" style={{ minHeight: 36 + ROW_PAD * 2 }}>
                 <GridLines />

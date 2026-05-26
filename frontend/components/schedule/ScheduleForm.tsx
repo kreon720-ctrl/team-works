@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { ScheduleCreateInput, ScheduleUpdateInput, Schedule, ScheduleColor, SCHEDULE_COLORS } from '@/types/schedule';
 import { Button } from '@/components/common/Button';
 import { utcToKST } from '@/lib/utils/timezone';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 interface ScheduleFormProps {
   mode: 'create' | 'edit';
@@ -48,9 +49,11 @@ interface DateTimePickerProps {
   disabled?: boolean;
   error?: string;
   label: string;
+  // 라벨 옆 빨간 * 표시 여부. 기본 true (시작일시 등 필수). 종료일시처럼 선택 입력이면 false.
+  required?: boolean;
 }
 
-function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePickerProps) {
+function DateTimePicker({ value, onChange, disabled, error, label, required = true }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // 현재 값 파싱
@@ -153,12 +156,12 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
 
   return (
     <div className="relative">
-      <label className="text-sm font-medium text-gray-700 dark:text-dark-text-muted mb-1.5 block">
-        {label} <span className="text-error-500">*</span>
+      <label className="text-xs md:text-sm font-medium text-gray-700 dark:text-dark-text-muted mb-1 md:mb-1.5 block">
+        {label}{required && <> <span className="text-error-500">*</span></>}
       </label>
 
-      {/* 표시 필드 */}
-      <div className="flex gap-2">
+      {/* 표시 필드 — 모바일은 가로폭 80%, PC 는 full */}
+      <div className="flex gap-1.5 md:gap-2 w-4/5 md:w-full">
         <input
           type="text"
           value={displayValue}
@@ -171,7 +174,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
           }}
           placeholder="날짜와 시간을 선택하세요"
           disabled={disabled}
-          className={`flex-1 border rounded-xl bg-white dark:bg-dark-surface px-4 py-2.5 text-base font-normal text-gray-900 dark:text-dark-text shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed cursor-pointer ${
+          className={`flex-1 border rounded-lg md:rounded-xl bg-white dark:bg-dark-surface px-2.5 py-1.5 md:px-4 md:py-2.5 text-sm md:text-base font-normal text-gray-900 dark:text-dark-text shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed cursor-pointer ${
             error
               ? 'border-error-500 focus:ring-error-500 bg-error-50'
               : 'border-gray-300 dark:border-dark-border focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent'
@@ -186,15 +189,15 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
             }
           }}
           disabled={disabled}
-          className="px-3 py-2.5 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface hover:bg-gray-50 dark:hover:bg-dark-elevated disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+          className="px-2 py-1.5 md:px-3 md:py-2.5 border border-gray-300 dark:border-dark-border rounded-lg md:rounded-xl bg-white dark:bg-dark-surface hover:bg-gray-50 dark:hover:bg-dark-elevated disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
         >
-          <svg className="w-5 h-5 text-gray-600 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-600 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </button>
       </div>
 
-      {error && <p className="text-sm font-normal text-error-500 mt-1">{error}</p>}
+      {error && <p className="text-xs md:text-sm font-normal text-error-500 mt-1">{error}</p>}
 
       {/* 팝오버 */}
       {isOpen && (
@@ -216,7 +219,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                   newDate.setMonth(newDate.getMonth() - 1);
                   setSelectedDate(newDate);
                 }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                className="p-1.5 rounded-lg text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -232,7 +235,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                   newDate.setMonth(newDate.getMonth() + 1);
                   setSelectedDate(newDate);
                 }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                className="p-1.5 rounded-lg text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -269,7 +272,14 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                       onClick={() => handleDateClick(date)}
                       className={`
                         p-1.5 text-sm rounded-lg transition-all duration-150
-                        ${!currentMonth ? 'text-gray-300' : today ? 'ring-2 ring-orange-500 font-semibold' : selected ? 'bg-primary-100 text-primary-800 font-semibold' : 'text-gray-700 hover:bg-gray-100'}
+                        ${!currentMonth
+                          ? 'text-gray-400 dark:text-gray-500'
+                          : today
+                            ? 'text-amber-500 dark:text-amber-400 font-semibold'
+                            : selected
+                              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-800 dark:text-primary-200 font-semibold'
+                              : 'text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface'
+                        }
                       `}
                     >
                       {date.getDate()}
@@ -288,7 +298,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('hours', (hours + 1) % 24)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -308,7 +318,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('hours', (hours + 23) % 24)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -325,7 +335,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('minutes', (minutes + 1) % 60)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -345,7 +355,7 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
                     <button
                       type="button"
                       onClick={() => handleTimeChange('minutes', (minutes + 59) % 60)}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
+                      className="p-1 rounded text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -356,19 +366,19 @@ function DateTimePicker({ value, onChange, disabled, error, label }: DateTimePic
               </div>
             </div>
 
-            {/* 버튼 */}
-            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
+            {/* 버튼 — 가로폭 40% (각 버튼 row 의 1/5), 중앙 정렬 */}
+            <div className="flex justify-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
               <button
                 type="button"
                 onClick={handleApply}
-                className="flex-1 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors font-medium"
+                className="w-1/5 px-2 py-1.5 bg-amber-400 hover:bg-amber-500 text-gray-900 rounded-lg transition-colors text-sm font-medium"
               >
                 적용
               </button>
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-dark-border rounded-xl text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors font-medium"
+                className="w-1/5 px-2 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-text-muted hover:bg-gray-50 dark:hover:bg-dark-surface transition-colors text-sm font-medium"
               >
                 닫기
               </button>
@@ -388,18 +398,19 @@ export function ScheduleForm({
   isPending = false,
   error,
 }: ScheduleFormProps) {
+  const { isMobile } = useBreakpoint();
+  const btnSize = isMobile ? 'sm' : 'md';
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [description, setDescription] = useState(initialData?.description ?? '');
   const [color, setColor] = useState<ScheduleColor>(initialData?.color ?? 'indigo');
 
-  // KST 기준으로 현재 시간 계산 (컴포넌트 마운트 시 한 번만 계산)
+  // KST 기준으로 현재 시간 계산 (컴포넌트 마운트 시 한 번만 계산).
+  // 종료시각은 선택 입력으로 변경되어 endStr 미사용 — 시작시각만 기본값 채움.
   const defaultDates = useMemo(() => {
     const now = new Date();
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const startStr = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(kstNow.getUTCDate()).padStart(2, '0')}T${String(kstNow.getUTCHours()).padStart(2, '0')}:00`;
-    const kstEnd = new Date(kstNow.getTime() + 60 * 60 * 1000);
-    const endStr = `${kstEnd.getUTCFullYear()}-${String(kstEnd.getUTCMonth() + 1).padStart(2, '0')}-${String(kstEnd.getUTCDate()).padStart(2, '0')}T${String(kstEnd.getUTCHours()).padStart(2, '0')}:00`;
-    return { startStr, endStr };
+    return { startStr };
   }, []);
 
   const [startDate, setStartDate] = useState(() => {
@@ -409,12 +420,14 @@ export function ScheduleForm({
     }
     return defaultDates.startStr;
   });
+  // 종료 일시는 선택 입력. 신규 등록 시 빈 문자열로 시작 (사용자가 채우지 않으면 endAt=null 로 전송).
+  // 편집 시 기존 endAt 가 있으면 채워두고, null 이면 빈 문자열.
   const [endDate, setEndDate] = useState(() => {
     if (initialData?.endAt) {
       const kst = utcToKST(new Date(initialData.endAt));
       return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}T${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
     }
-    return defaultDates.endStr;
+    return '';
   });
   const [errors, setErrors] = useState<FormErrors>(() => (error ? { general: error } : {}));
 
@@ -431,10 +444,7 @@ export function ScheduleForm({
       newErrors.startAt = '시작 일시는 필수입니다.';
     }
 
-    if (!endDate) {
-      newErrors.endAt = '종료 일시는 필수입니다.';
-    }
-
+    // 종료 일시는 선택 — 비워둬도 OK. 입력했을 때만 시작보다 뒤 검증.
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
       newErrors.endAt = '종료 시각은 시작 시각과 같거나 이후여야 합니다.';
     }
@@ -452,7 +462,8 @@ export function ScheduleForm({
       title: title.trim(),
       description: description.trim() || undefined,
       startAt: new Date(startDate).toISOString(),
-      endAt: new Date(endDate).toISOString(),
+      // 빈 값이면 null 로 전송 → 백엔드 NULL 저장.
+      endAt: endDate ? new Date(endDate).toISOString() : null,
       color,
     };
 
@@ -469,8 +480,8 @@ export function ScheduleForm({
   return (
     <form onSubmit={handleSubmit} className="w-full bg-white dark:bg-dark-elevated">
       {/* Title */}
-      <div className="flex flex-col gap-1.5 mb-5">
-        <label className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">
+      <div className="flex flex-col gap-1 md:gap-1.5 mb-2.5 md:mb-5">
+        <label className="text-xs md:text-sm font-medium text-gray-700 dark:text-dark-text-muted">
           제목 <span className="text-error-500">*</span>
         </label>
         <input
@@ -480,7 +491,7 @@ export function ScheduleForm({
           placeholder="일정 제목을 입력하세요"
           maxLength={MAX_TITLE_LENGTH}
           disabled={isPending}
-          className={`w-full border rounded-xl bg-white dark:bg-dark-surface px-4 py-2.5 text-base font-normal text-gray-900 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:border-transparent focus:dark:ring-dark-accent disabled:bg-gray-100 disabled:cursor-not-allowed ${
+          className={`w-full border rounded-lg md:rounded-xl bg-white dark:bg-dark-surface px-2.5 py-1.5 md:px-4 md:py-2.5 text-sm md:text-base font-normal text-gray-900 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:border-transparent focus:dark:ring-dark-accent disabled:bg-gray-100 disabled:cursor-not-allowed ${
             errors.title
               ? 'border-error-500 focus:ring-error-500 bg-error-50'
               : 'border-gray-300 dark:border-dark-border focus:ring-primary-500 focus:border-transparent'
@@ -488,8 +499,8 @@ export function ScheduleForm({
         />
         <div className="flex items-center justify-between">
           {errors.title ? (
-            <p className="text-sm font-normal text-error-500 flex items-center gap-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <p className="text-xs md:text-sm font-normal text-error-500 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
@@ -501,14 +512,14 @@ export function ScheduleForm({
           ) : (
             <span />
           )}
-          <p className="text-xs text-gray-400">{title.length} / {MAX_TITLE_LENGTH}자</p>
+          <p className="text-[10px] md:text-xs text-gray-400">{title.length} / {MAX_TITLE_LENGTH}자</p>
         </div>
       </div>
 
       {/* Color Palette */}
-      <div className="flex flex-col gap-2 mb-5">
-        <label className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">색상</label>
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-1.5 md:gap-2 mb-2.5 md:mb-5">
+        <label className="text-xs md:text-sm font-medium text-gray-700 dark:text-dark-text-muted">색상</label>
+        <div className="flex items-center gap-2.5 md:gap-3">
           {SCHEDULE_COLORS.map((colorOption) => {
             const isSelected = color === colorOption;
             const swatchColor = COLOR_SWATCH_COLORS[colorOption];
@@ -519,7 +530,7 @@ export function ScheduleForm({
                 onClick={() => setColor(colorOption)}
                 disabled={isPending}
                 className={`
-                  w-4 h-4 rounded-full ${swatchColor} transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                  w-3.5 h-3.5 md:w-4 md:h-4 rounded-full ${swatchColor} transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
                   ${isSelected ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-105'}
                 `}
                 title={colorOption}
@@ -531,34 +542,30 @@ export function ScheduleForm({
       </div>
 
       {/* Description */}
-      <div className="flex flex-col gap-1.5 mb-5">
-        <label className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">설명</label>
+      <div className="flex flex-col gap-1 md:gap-1.5 mb-2.5 md:mb-5">
+        <label className="text-xs md:text-sm font-medium text-gray-700 dark:text-dark-text-muted">설명</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="설명을 입력하세요 (선택)"
-          rows={3}
+          rows={isMobile ? 2 : 3}
           disabled={isPending}
-          className="w-full border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface px-4 py-2.5 text-sm font-normal text-gray-800 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled shadow-sm resize-none transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+          className="w-full border border-gray-300 dark:border-dark-border rounded-lg md:rounded-xl bg-white dark:bg-dark-surface px-2.5 py-1.5 md:px-4 md:py-2.5 text-xs md:text-sm font-normal text-gray-800 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-disabled shadow-sm resize-none transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
         />
       </div>
 
       {/* Start Date */}
-      <div className="flex flex-col gap-1.5 mb-5">
+      <div className="flex flex-col gap-1 md:gap-1.5 mb-2.5 md:mb-5">
         <DateTimePicker
           label="시작 일시"
           value={startDate}
           onChange={(value) => {
             setStartDate(value);
-            // 시작 일시를 변경하면 종료 일시도 같은 날짜로 설정하고, 시간은 1시간 뒤로 설정
-            const endDateValue = new Date(value);
-            endDateValue.setHours(endDateValue.getHours() + 1);
-            const endYear = endDateValue.getFullYear();
-            const endMonth = String(endDateValue.getMonth() + 1).padStart(2, '0');
-            const endDay = String(endDateValue.getDate()).padStart(2, '0');
-            const endHours = String(endDateValue.getHours()).padStart(2, '0');
-            const endMinutes = String(endDateValue.getMinutes()).padStart(2, '0');
-            setEndDate(`${endYear}-${endMonth}-${endDay}T${endHours}:${endMinutes}`);
+            // 종료 일시 자동 +1시간 채움 제거 — 종료는 사용자 선택. 시작이 종료보다 뒤로 가면
+            // 종료를 자동으로 비워(잘못된 검증 막기) 사용자가 다시 선택하도록 안내.
+            if (endDate && new Date(value) > new Date(endDate)) {
+              setEndDate('');
+            }
             if (errors.startAt) {
               setErrors((prev) => ({ ...prev, startAt: undefined }));
             }
@@ -571,10 +578,10 @@ export function ScheduleForm({
         />
       </div>
 
-      {/* End Date */}
-      <div className="flex flex-col gap-1.5 mb-5">
+      {/* End Date — 선택 입력 */}
+      <div className="flex flex-col gap-1 md:gap-1.5 mb-2.5 md:mb-5">
         <DateTimePicker
-          label="종료 일시"
+          label="종료 일시 (선택)"
           value={endDate}
           onChange={(value) => {
             setEndDate(value);
@@ -584,22 +591,28 @@ export function ScheduleForm({
           }}
           disabled={isPending}
           error={errors.endAt}
+          required={false}
         />
+        {!endDate && (
+          <p className="text-[11px] md:text-xs text-gray-500 dark:text-dark-text-muted">
+            비워두면 시작시각만 정해진 일정으로 등록돼요.
+          </p>
+        )}
       </div>
 
       {/* General error */}
       {errors.general && (
-        <div className="mb-5 p-3 bg-error-50 border border-error-500 rounded-xl">
-          <p className="text-sm font-normal text-error-500">{errors.general}</p>
+        <div className="mb-2.5 md:mb-5 p-2 md:p-3 bg-error-50 border border-error-500 rounded-lg md:rounded-xl">
+          <p className="text-xs md:text-sm font-normal text-error-500">{errors.general}</p>
         </div>
       )}
 
       {/* Actions */}
-      <div className="flex justify-center gap-3">
+      <div className="flex justify-center gap-2 md:gap-3">
         <Button
           type="submit"
           variant="primary"
-          size="md"
+          size={btnSize}
           disabled={isPending}
         >
           {isPending ? '저장 중...' : mode === 'create' ? '생성' : '저장'}
@@ -607,7 +620,7 @@ export function ScheduleForm({
         <Button
           type="button"
           variant="secondary"
-          size="md"
+          size={btnSize}
           onClick={onCancel}
           disabled={isPending}
         >

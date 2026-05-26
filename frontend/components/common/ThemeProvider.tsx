@@ -18,7 +18,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = localStorage.getItem('theme') as Theme | null;
-    const initial = stored ?? 'light';
+    // localStorage 미설정 (첫 방문) → dark 기본. 이후 사용자가 토글하면 그 선택을 저장·존중.
+    const initial = stored ?? 'dark';
     setTheme(initial);
     document.documentElement.classList.toggle('dark', initial === 'dark');
   }, []);

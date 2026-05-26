@@ -41,7 +41,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
     setCalendarView,
   } = useTeamStore();
 
-  const [activeTab, setActiveTab] = useState<'calendar' | 'chat' | 'ai-assistant'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'project' | 'chat' | 'ai-assistant'>('calendar');
   // 데스크탑 우측 패널의 탭 — 팀채팅 / AI 버틀러
   const [rightTab, setRightTab] = useState<'chat' | 'ai-assistant'>('chat');
 
@@ -56,11 +56,12 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
     date: selectedDate,
   });
 
-  // 포스트잇: 현재 월 (YYYY-MM) 기준 조회 — PC + 월간뷰 전용
+  // 포스트잇: 현재 월 (YYYY-MM) 기준 조회 — 월간뷰일 때 (PC·모바일 공통).
+  // 모바일도 월간뷰 헤더 아래에 색상 팔레트와 포스트잇 카드가 노출되므로 데이터 fetch 필요.
   const postitMonth = selectedDate.slice(0, 7);
   const { data: postitsData } = usePostits(
     teamId,
-    isDesktop && calendarView === 'month' ? postitMonth : ''
+    calendarView === 'month' ? postitMonth : ''
   );
   const { data: myTasksData } = useMyTasks();
   const pendingCount = myTasksData?.totalPendingCount ?? 0;
@@ -212,20 +213,21 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
                 <button
                   type="button"
                   onClick={() => setRightTab('chat')}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors duration-150 ${
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors duration-150 max-w-full min-w-0 ${
                     rightTab === 'chat'
                       ? 'text-primary-600 border-primary-500 dark:text-dark-accent dark:border-dark-accent'
                       : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-dark-text-muted dark:hover:text-dark-text'
                   }`}
                 >
                   {/* 채팅 말풍선 아이콘 */}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg className="w-4 h-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     <circle cx="9" cy="12" r="0.6" fill="currentColor" stroke="none" />
                     <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
                     <circle cx="15" cy="12" r="0.6" fill="currentColor" stroke="none" />
                   </svg>
-                  {isProjectChatMode ? `${activeProject!.name} 채팅` : '팀채팅'}
+                  {/* 프로젝트 채팅 모드여도 탭 라벨은 항상 "팀채팅" — 프로젝트명은 본문 헤더에서 표시 */}
+                  <span className="truncate min-w-0">팀채팅</span>
                 </button>
                 <button
                   type="button"
@@ -253,10 +255,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
                     {isProjectChatMode ? (
                       <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted truncate">
                         <span className="text-emerald-600 dark:text-emerald-400">📌</span>{' '}
-                        {activeProject!.name}{' '}
-                        <span className="text-xs text-gray-400 dark:text-dark-text-disabled">
-                          ({activeProject!.startDate} ~ {activeProject!.endDate})
-                        </span>
+                        {activeProject!.name}
                       </h2>
                     ) : (
                       <h2 className="text-sm font-medium text-gray-700 dark:text-dark-text-muted">
@@ -323,6 +322,12 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         calendarView={calendarView}
         schedules={schedules}
         isLeader={isLeader}
+        currentUserId={currentUser?.id}
+        postits={postits}
+        selectedPostitColor={postitActions.selectedPostitColor}
+        onPostitColorSelect={postitActions.setSelectedPostitColor}
+        onPostitDelete={postitActions.handlePostitDelete}
+        onPostitContentChange={postitActions.handlePostitContentChange}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onViewChange={handleViewChange}
@@ -347,6 +352,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         onDelete={scheduleActions.handleDelete}
         onEditModalClose={() => { scheduleActions.setShowEditModal(false); scheduleActions.setSelectedSchedule(null); }}
         onEditSubmit={scheduleActions.handleEditSubmit}
+        currentUserIdForProject={currentUser?.id ?? ''}
       />
     </div>
   );
