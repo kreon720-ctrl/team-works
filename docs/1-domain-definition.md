@@ -17,6 +17,7 @@
 | 2.0 | 2026-04-29 | 코드 ↔ 문서 일치성 점검 결과 반영: UC-01 수락 조건에 토큰 갱신(`/api/auth/refresh`) 분기 추가, UC-02C 수락 조건에 `GET /api/me/tasks` 명시, UC-20 표제에 endpoint 명시. §9 비기능에 JWT 만료 정책(Access 15분/Refresh 7일), frontend 핵심 라이브러리(TanStack Query·Zustand·Lucide React), Swagger UI(API 문서) 항목 추가 |
 | 2.1 | 2026-05-12 | AI 버틀러 확장 — `schedule_update`·`schedule_delete` 의도 지원 (4-way → 6-way 분류). BR-19 거절 범위 축소(채팅/공지/포스트잇/프로젝트/자료실 CRUD 만), BR-21/22 신설(일정 수정·삭제 다중 턴 confirm), UC-26/27 추가. 음성 입력(STT) 도메인화 — VI 항목·BR-23·UC-28 추가, Web Speech API + 자체 Whisper hybrid 자동 분기(Galaxy/Samsung 디바이스 quirk 회피). 모바일 UX 최적화 — VII 항목 신설(좌우 swipe 네비게이션, 모바일 전용 컴팩트 모달·포스트잇). RAG 자연어 처리 보강 — "X시 반" 정규화, 식사 단어(아침/점심/저녁/야식) 시간대 band → 키워드 매치로 전환 |
 | 2.2 | 2026-05-16 | 카카오 소셜 인증 도입 — User.password nullable, OAuthAccount(4.1b)·OAuthState(4.1c) 엔티티 신설, BR-24(카카오 OAuth+PKCE+state·계정매칭·email_required) 추가, UC-29 신규+수락조건. 간트차트 SVG 저장 — BR-25·UC-30 추가 |
+| 2.3 | 2026-05-26 | frontend/backend/DB 구현 기준 정합성 보정 — Schedule.color/endAt nullable, WorkPerformancePermission 빈 배열 의미, ProjectSchedule.phaseId 타입, STT 미지원 UI 동작, UC-04/UC-06 주체·명칭 정정 |
 
 ---
 
@@ -86,7 +87,7 @@
 - 노트북 Chrome·iOS Safari·일반 Android Chrome → Web Speech API (브라우저 내장 — Google·Apple 음성 엔진 위임, 한국어 정확도 ★★★★★)
 - Samsung Galaxy 디바이스·Samsung Internet·Firefox 등 → 자체 호스팅 Whisper STT (`onerahmet/openai-whisper-asr-webservice` 컨테이너, `faster_whisper` 엔진, KST 도메인 어휘 initial_prompt + VAD filter)
 
-마이크 비지원 환경(Firefox 등 일부)에서는 마이크 아이콘이 자동 숨김. 인식된 텍스트는 입력창에 채워지고 사용자가 검토 후 [전송] 클릭 — 오인식 수정 여지 확보. 캘린더 분할 화면(휴대폰에서 캘린더 + AI 입력 동시) 에선 키보드가 화면 절반을 가리지 않도록 마이크로 입력하면 텍스트 입력창에 자동 포커스가 가지 않게 처리(키보드 표시 억제).
+마이크 비지원 환경(Firefox 등 일부)에서는 팀채팅 입력창의 마이크 아이콘이 자동 숨김. AI 찰떡이 입력창은 버튼을 노출하되 클릭 시 미지원 안내를 표시. 인식된 텍스트는 입력창에 채워지고 사용자가 검토 후 [전송] 클릭 — 오인식 수정 여지 확보. 캘린더 분할 화면(휴대폰에서 캘린더 + AI 입력 동시) 에선 키보드가 화면 절반을 가리지 않도록 마이크로 입력하면 텍스트 입력창에 자동 포커스가 가지 않게 처리(키보드 표시 억제).
 
 #### VII. 모바일 최적화 UX — "한 손으로 한 화면에서 다 됩니다"
 출퇴근 지하철, 외근 중에도 캘린더 보고 메시지 보내야 할 때 있죠. PC 버전 그대로 모바일에 띄우면 글자 작아서 안 보이고 버튼 빼곡해서 잘못 누르기 일쑤예요. TEAM WORKS 는 모바일 뷰포트(<640px) 에서 자동으로 다음을 적용합니다.
@@ -124,7 +125,7 @@
 | # | 문제 | 해결 유스케이스 |
 |---|------|----------------|
 | P-01 | 팀 일정이 개인 캘린더·메신저·엑셀에 분산 → 충돌·누락 빈발 | UC-03, UC-04 |
-| P-02 | 일정 관련 대화가 일정과 분리 → 맥락 추적 어려움 | UC-05, UC-06, UC-07 |
+| P-02 | 업무 대화와 일정 맥락이 분리 → 추적 어려움 | UC-05, UC-06, UC-07 |
 | P-03 | 팀장의 팀원 일정 가시성·통제력 부족 | UC-03, UC-04 |
 
 ---
@@ -221,7 +222,7 @@
 
 > **팀장 생성 시점:** 팀이 생성될 때 요청자가 자동으로 해당 팀의 `leaderId`로 설정되고, 동시에 `TeamMember(role: LEADER)` 레코드가 원자적으로 생성됩니다. 즉, **팀 생성 = LEADER 생성**입니다.
 >
-> **규칙:** `leaderId`가 권위(source of truth). 팀장 변경 시 `leaderId` 업데이트 + 기존 LEADER의 TeamMember.role → MEMBER로 동시 전환.
+> **규칙:** `leaderId`가 권위(source of truth). 현재 구현은 팀 생성 시 팀장을 확정하며, 팀장 변경 유스케이스/API는 제공하지 않음. 향후 팀장 변경을 도입할 경우 `leaderId` 업데이트 + 기존 LEADER의 TeamMember.role → MEMBER 전환을 한 트랜잭션으로 처리해야 함.
 
 ### 4.3 TeamMember (팀 구성원)
 | 속성 | 타입 | 제약 |
@@ -249,8 +250,9 @@
 | teamId | UUID | FK → Team.id, not null |
 | title | String | not null, 최대 200자 |
 | description | String | nullable |
+| color | String | not null, default 'indigo' — indigo/blue/emerald/amber/rose |
 | startAt | DateTime | not null |
-| endAt | DateTime | not null, endAt > startAt |
+| endAt | DateTime | nullable — 값이 있으면 endAt > startAt |
 | createdBy | UUID | FK → User.id, not null |
 
 ### 4.6 ChatMessage (채팅 메시지)
@@ -287,7 +289,7 @@
 | userId | UUID | FK → User.id, not null, PK |
 | grantedAt | DateTime | not null |
 
-> **복합 PK:** (teamId, userId). 빈 배열이면 권한 제한 없음(전체 구성원 조회 가능).
+> **복합 PK:** (teamId, userId). 권한 row 가 있는 MEMBER 만 WORK_PERFORMANCE 메시지를 조회할 수 있음. 빈 배열이면 추가 조회 권한이 모두 해제되어 팀장(LEADER)만 WORK_PERFORMANCE 메시지를 조회 가능.
 
 ### 4.9 Project (프로젝트)
 | 속성 | 타입 | 제약 |
@@ -318,7 +320,7 @@
 | leader | String | not null, default '' |
 | progress | Integer | not null, 0~100, default 0 |
 | isDelayed | Boolean | not null, default false |
-| phaseId | UUID | nullable — projects.phases[].id 참조 |
+| phaseId | String(64) | nullable — projects.phases[].id 참조. UUID 뿐 아니라 seed 단계 id(`p1`, `p2` 등)도 허용 |
 
 ### 4.11 SubSchedule (세부 일정)
 | 속성 | 타입 | 제약 |
@@ -453,9 +455,9 @@
 | BR-20 | AI 모델은 DB 에 직접 접근하지 않음 — 자연어 → JSON 변환까지만 수행. SQL 은 backend 의 검증된 SQL 템플릿이 작성, `withAuth`/`withTeamRole` 미들웨어가 권한 격리. 자유 SQL 생성 금지 |
 | BR-21 | `schedule_update` 는 (1) 대상 일정 식별 — `/parse-schedule-query` 로 키워드·날짜 후보 좁히기, 다중이면 `awaiting-input(needs:'target')` 후속 질문 → (2) 새 일시·제목 수집 — 다중 턴 (`updateState.needs: 'new-datetime'` / `'new-title'`), `tryParseDirectDatetime` + Open WebUI LLM fallback, "그대로/유지" 패턴(`KEEP_AS_IS_RE`)은 기존값 유지 → (3) confirm 카드 → (4) ✓ 클릭 후 PATCH. 일정 생성자 본인만 가능 (BR-02 와 동일), backend `withAuth`/`withTeamRole` 와 `created_by === userId` 검증. multi-turn 상태(`updateState`) 는 클라이언트가 turn 마다 carry — 서버는 stateless |
 | BR-22 | `schedule_delete` 는 (1) 대상 일정 식별 (BR-21 과 동일 메커니즘 — `parse-schedule-query` 재활용) → (2) confirm 카드 → (3) ✓ 클릭 후 DELETE. 일정 생성자 본인만 가능. 한국어 "취소"·"삭제"·"제거"·"지워"·"지운" 모두 동일 처리 (예: "회의 취소해" = "회의 일정 지워"). bulk 삭제("전체/모두/다 삭제") 는 `BULK_INTENT_RE` 로 감지해 1건씩만 가능함을 안내 |
+| BR-23 | 음성 입력(STT) 은 입력창 옆 마이크 버튼으로 토글. **AI 찰떡이 탭과 팀채팅 탭 둘 다 동일 hook(`useSpeechRecognition`) 으로 일관 적용**. 브라우저·디바이스 자동 분기: Samsung Galaxy / SM-XXXX UA / Samsung Internet / Web Speech API 미지원 환경 → 자체 호스팅 Whisper(`POST /api/stt`), 그 외 → 브라우저 내장 Web Speech API. 인식 텍스트는 입력창에 채워지고 사용자 검토 후 [전송]. 마이크 권한 거부 시 안내 토스트. 비지원 환경에서는 팀채팅 마이크 아이콘은 숨기고, AI 찰떡이 마이크 버튼은 노출 후 클릭 시 미지원 안내를 표시. 모바일 캘린더 분할 화면 시 입력창 자동 포커스 억제(키보드 가림 방지) |
 | BR-24 | 카카오 소셜 로그인은 OAuth 2.0(OIDC) Authorization Code + PKCE + state 흐름. `POST /api/auth/oauth/kakao/start` 가 인증 URL 발급(state·code_verifier 를 OAuthState 에 저장), `GET /api/auth/oauth/kakao/callback` 이 code→token 교환·사용자 조회·계정 매칭/생성 후 우리 JWT 를 **URL fragment(#)** 로 `/auth/oauth/success` 에 전달. 매칭 규칙: ① providerUserId 매칭 → 기존 계정 로그인, ② 미매칭 + 동일 이메일 User 존재 → 자동 연결, ③ 미매칭 + 이메일 신규 → 신규 User(`password=NULL`) 생성, ④ **카카오 이메일 동의 미허락 → 가입 거절(`email_required`)**. redirectAfter 는 자도메인 절대경로만 허용(open-redirect 차단) |
 | BR-25 | 프로젝트 간트차트는 `[저장]` 버튼으로 현재 화면을 SVG 파일로 내려받기 가능(`html-to-image` 의 `toSvg`). 파일명 `{프로젝트명}_{연도}.svg`, 다크모드 배경색 명시 적용(투명 배경 방지). 클라이언트 전용 기능 — 서버/DB 변경 없음 |
-| BR-23 | 음성 입력(STT) 은 입력창 옆 마이크 버튼으로 토글. **AI 찰떡이 탭과 팀채팅 탭 둘 다 동일 hook(`useSpeechRecognition`) 으로 일관 적용**. 브라우저·디바이스 자동 분기: Samsung Galaxy / SM-XXXX UA / Samsung Internet / Web Speech API 미지원 환경 → 자체 호스팅 Whisper(`POST /api/stt`), 그 외 → 브라우저 내장 Web Speech API. 인식 텍스트는 입력창에 채워지고 사용자 검토 후 [전송]. 마이크 권한 거부 시 안내 토스트, 비지원 환경에선 마이크 아이콘 숨김. 모바일 캘린더 분할 화면 시 입력창 자동 포커스 억제(키보드 가림 방지) |
 
 ---
 
@@ -468,9 +470,9 @@
 | UC-02B | 팀 공개 목록 조회 및 가입 신청 | 로그인 사용자 | BR-07 |
 | UC-02C | 가입 신청 승인/거절 (나의 할 일) | 팀장 | BR-03 |
 | UC-03 | 월·주·일 단위 팀 일정 조회 | 팀장, 팀원 | BR-01, BR-06 |
-| UC-04 | 팀 일정 추가·수정·삭제 | 팀장 | BR-01, BR-02 |
+| UC-04 | 팀 일정 추가·수정·삭제 | 팀장, 팀원 | BR-01, BR-02 |
 | UC-05 | 날짜별 채팅 메시지 조회 | 팀장, 팀원 | BR-01, BR-05, BR-06 |
-| UC-06 | 채팅으로 일정 변경 요청 | 팀원 | BR-01, BR-04 |
+| UC-06 | 채팅으로 업무보고 전송 | 팀장, 팀원 | BR-01, BR-04 |
 | UC-07 | 캘린더·채팅 동시 화면 조회 | 팀장, 팀원 | BR-01, BR-06 |
 | UC-08 | 포스트잇 작성·수정·삭제 | 팀장, 팀원 | BR-01, BR-08 |
 | UC-09 | 프로젝트(간트차트) 생성·수정·삭제 | 팀장, 팀원 | BR-01, BR-09 |
@@ -570,9 +572,12 @@
 - Then: 403 Forbidden
 
 **UC-04 팀 일정 추가·수정·삭제**
-- Given: 팀 구성원(LEADER/MEMBER)이 유효한 title, startAt < endAt 입력
+- Given: 팀 구성원(LEADER/MEMBER)이 유효한 title, startAt 입력
 - When: 일정 생성 요청
-- Then: 201 Created, 팀 전체에 일정 노출
+- Then: 201 Created, 팀 전체에 일정 노출. color 미전달 시 indigo, endAt 미전달/null 시 시작시각만 있는 일정으로 저장
+- Given: 팀 구성원(LEADER/MEMBER)이 endAt 을 함께 입력
+- When: 일정 생성·수정 요청
+- Then: endAt > startAt 인 경우만 허용
 - Given: 일정의 생성자 본인이 수정 요청
 - When: PATCH 요청
 - Then: 200 OK, 변경된 필드만 수정
@@ -671,7 +676,7 @@
 - Then: 기존 권한 전부 교체, 전달된 userIds 목록으로 권한 설정
 - Given: 빈 배열([]) 전달
 - When: PATCH /work-permissions 요청
-- Then: 전체 권한 해제 (모든 구성원 WORK_PERFORMANCE 조회 가능)
+- Then: 전체 권한 해제 (팀장만 WORK_PERFORMANCE 조회 가능, MEMBER 는 조회 불가)
 - Given: MEMBER 권한의 사용자
 - When: 권한 설정 시도
 - Then: 403 Forbidden
@@ -839,7 +844,7 @@
 - Then: 안내 토스트 "마이크 권한이 필요합니다", 마이크 아이콘 원래 상태로 복귀
 - Given: 음성 인식 미지원 브라우저(Firefox 등에서 Whisper 도 비가용)
 - When: 컴포넌트 마운트
-- Then: 마이크 아이콘 자체가 렌더되지 않음 (feature detection)
+- Then: 팀채팅 입력창은 마이크 아이콘 자체가 렌더되지 않음. AI 찰떡이 입력창은 마이크 버튼 클릭 시 미지원 안내를 표시
 
 ---
 

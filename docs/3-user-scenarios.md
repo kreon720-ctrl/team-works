@@ -13,6 +13,7 @@
 | 1.6 | 2026-04-29 | docs/1 v2.0·docs/2 v1.6 동기화: SC-20(프로젝트 채팅), SC-21(프로젝트 공지), SC-22(자료실 + 첨부파일), SC-23~27(AI 버틀러 5종) 추가. SC-01에 토큰 갱신 분기, SC-02C에 `/api/me/tasks` 명시. 테스트 팀에 프로젝트 정보 추가, 시나리오 목록 26→27개로 확장 |
 | 1.7 | 2026-05-12 | docs/1 v2.1·docs/2 v1.7 동기화: AI 4-way → 6-way 분류 반영. SC-26B(일정 수정 다중 턴), SC-26C(일정 삭제 다중 턴), SC-28(STT 음성 입력) 추가. SC-27 거절 범위 축소(일정 외 도메인만, 일정 수정·삭제는 SC-26B/C 로 분리). **모바일 전용 테스트 시나리오 섹션 신규** — SC-M1~M6: 좌우 swipe 네비게이션, 컴팩트 모달, 포스트잇 색상 팔레트, AI 찰떡이 음성 입력 일정 등록, 팀채팅 음성 입력, 다크모드 캘린더 시인성. 부록 API 표 갱신 |
 | 1.8 | 2026-05-16 | 카카오 소셜 인증 — SC-01 에 "카카오 소셜 로그인/회원가입" 단계별 흐름 + 예외(email_required·state 만료·동의 거부) 추가. 간트차트 SVG 저장 — SC-12 에 단계별 흐름·결과 추가 |
+| 1.9 | 2026-05-26 | docs/1 v2.3·docs/2 v1.9 동기화: Schedule.endAt nullable/color 기본값, 업무보고 권한 빈 배열 의미, STT 미지원 UI 기대값 정정 |
 
 ---
 
@@ -56,7 +57,7 @@
 | SC-05 | 팀 일정 추가 (팀원도 생성 가능) | PA / PB | UC-04 |
 | SC-06 | 팀 일정 수정 (생성자 본인만 가능) | PA / PB | UC-04 |
 | SC-07 | 날짜별 채팅 조회 및 메시지 전송 | PA~PF 공통 | UC-05 |
-| SC-08 | 업무보고 채팅 전송 | PB~PF (MEMBER) | UC-06 |
+| SC-08 | 업무보고 채팅 전송 | PA~PF 공통 | UC-06 |
 | SC-09 | 캘린더 + 채팅 동시 화면에서 날짜 연동 | PA~PF 공통 | UC-07 |
 | SC-10 | 포스트잇 작성·수정·삭제 | PA / PC | UC-08 |
 | SC-11 | 업무보고 조회 권한 설정 및 가시성 검증 | PA (설정) / PB·PC (검증) | UC-13 |
@@ -265,11 +266,11 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 
 ---
 
-## SC-03 팀 일정 삭제 (LEADER)
+## SC-03 팀 일정 삭제 (생성자 본인)
 
-- **페르소나**: Persona A (LEADER)
-- **목표**: 등록된 팀 일정을 삭제한다
-- **전제조건**: 로그인 상태. LEADER 권한으로 팀에 소속. 삭제 대상 Schedule이 DB에 존재. 캘린더 뷰에서 해당 일정이 표시된 상태
+- **페르소나**: PA (김민준, LEADER), PB (이서연, MEMBER)
+- **목표**: 등록된 팀 일정을 삭제한다. 삭제는 일정 생성자 본인만 가능함을 검증한다
+- **전제조건**: 로그인 상태. 팀에 소속. 삭제 대상 Schedule의 생성자 본인. 캘린더 뷰에서 해당 일정이 표시된 상태
 
 ### 단계별 흐름
 
@@ -309,15 +310,15 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 | 1 | 팀 목록 화면에서 조회할 팀을 클릭한다 | `GET /api/teams` 로 팀 목록 조회 후 선택된 팀의 메인 화면으로 이동 | `GET /api/teams` |
 | 2 | — | 팀 메인 화면(S-05) 렌더링. 기본 뷰는 월간(月) 캘린더 | — |
 | 3 | — | 현재 월(year, month) 기준으로 `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 요청 자동 발생 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` |
-| 4 | — | 해당 팀의 해당 월 Schedule 목록 반환 (id, title, startAt, endAt). 타 팀 일정은 포함되지 않음 (BR-06) | — |
+| 4 | — | 해당 팀의 해당 월 Schedule 목록 반환 (id, title, color, startAt, endAt nullable). 타 팀 일정은 포함되지 않음 (BR-06) | — |
 | 5 | — | 캘린더 날짜 셀에 일정 제목 표시 | — |
 | 6 | 특정 일정을 클릭한다 | `GET /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송 | `GET /api/teams/[teamId]/schedules/[scheduleId]` |
-| 7 | — | 일정 상세 팝업 표시 (title, description, startAt, endAt) | — |
+| 7 | — | 일정 상세 팝업 표시 (title, description, color, startAt, endAt nullable) | — |
 | 8 | [이전 달] 또는 [다음 달] 버튼을 클릭한다 | 해당 월로 파라미터를 변경하여 `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재요청 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` |
 
 ### 결과
 - 선택한 팀의 해당 월 일정 전체가 캘린더에 표시된다
-- 일정 클릭 시 상세 정보(제목, 설명, 시작/종료 시각)를 확인할 수 있다
+- 일정 클릭 시 상세 정보(제목, 설명, 색상, 시작시각, 선택 종료시각)를 확인할 수 있다
 
 ### 예외 처리
 
@@ -340,10 +341,10 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 | # | 사용자 행동 | 시스템 반응 | API |
 |---|------------|-------------|-----|
 | 1 | 캘린더에서 [+ 일정 추가] 버튼 또는 특정 날짜 셀을 클릭한다 | `/teams/[teamId]/schedules/new` (S-06) 또는 인라인 생성 폼 렌더링 | — |
-| 2 | 제목(필수), 설명(선택), 시작 일시, 종료 일시를 입력한다 | 클라이언트 측 유효성 검증: 제목 필수, 제목 최대 200자, startAt < endAt 확인 | — |
-| 3 | [저장] 버튼을 클릭한다 | `POST /api/teams/[teamId]/schedules` 요청 전송 (body: title, description, startAt, endAt) | `POST /api/teams/[teamId]/schedules` |
-| 4 | — | 서버가 팀 구성원 여부 확인 후 Schedule 레코드 생성 (createdBy: 요청자). startAt < endAt 서버 측 재검증 | — |
-| 5 | — | 응답 201 Created (body: scheduleId, title, startAt, endAt) | — |
+| 2 | 제목(필수), 설명(선택), 색상(선택), 시작 일시를 입력한다. 종료 일시는 선택 입력한다 | 클라이언트 측 유효성 검증: 제목 필수, 제목 최대 200자, endAt 입력 시 startAt < endAt 확인 | — |
+| 3 | [저장] 버튼을 클릭한다 | `POST /api/teams/[teamId]/schedules` 요청 전송 (body: title, description, color, startAt, endAt optional/null) | `POST /api/teams/[teamId]/schedules` |
+| 4 | — | 서버가 팀 구성원 여부 확인 후 Schedule 레코드 생성 (createdBy: 요청자). endAt 이 있으면 startAt < endAt 서버 측 재검증, color 미전달 시 indigo 저장 | — |
+| 5 | — | 응답 201 Created (body: scheduleId, title, color, startAt, endAt) | — |
 | 6 | — | 캘린더 뷰 갱신. 새로 추가된 일정이 해당 날짜 셀에 표시됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
 
 ### 결과
@@ -356,7 +357,8 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 |--------|-------------|
 | 제목 미입력 | 클라이언트 유효성 검증 실패. "제목은 필수입니다" 인라인 오류. API 요청 미발생 |
 | 제목 200자 초과 | 클라이언트 유효성 검증 실패. "제목은 최대 200자까지 입력 가능합니다" 인라인 오류 |
-| startAt >= endAt | 클라이언트 및 서버 모두 유효성 검증. "종료 시각은 시작 시각 이후여야 합니다" 오류 표시 |
+| 종료 일시 미입력 | endAt=null 로 저장되어 시작시각만 있는 일정으로 표시 |
+| endAt 입력 + startAt >= endAt | 클라이언트 및 서버 모두 유효성 검증. "종료 시각은 시작 시각 이후여야 합니다" 오류 표시 |
 | 팀 구성원이 아닌 외부 사용자가 일정 추가 시도 | 직접 API 호출 시 `POST /api/teams/[teamId]/schedules` → 403 Forbidden. 팀원이면 LEADER·MEMBER 모두 생성 가능 |
 
 ---
@@ -371,11 +373,11 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 
 | # | 사용자 행동 | 시스템 반응 | API |
 |---|------------|-------------|-----|
-| 1 | 캘린더에서 수정할 일정을 클릭하여 상세 팝업을 연다 | `GET /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송. 일정 상세 정보(title, description, startAt, endAt) 렌더링 | `GET /api/teams/[teamId]/schedules/[scheduleId]` |
+| 1 | 캘린더에서 수정할 일정을 클릭하여 상세 팝업을 연다 | `GET /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송. 일정 상세 정보(title, description, color, startAt, endAt nullable) 렌더링 | `GET /api/teams/[teamId]/schedules/[scheduleId]` |
 | 2 | 상세 팝업에서 [수정] 버튼을 클릭한다 | 수정 폼으로 전환 (기존 값 pre-fill) | — |
-| 3 | 변경할 필드를 수정한다 | 클라이언트 측 유효성 검증 (제목 필수, 최대 200자, startAt < endAt) | — |
+| 3 | 변경할 필드를 수정한다 | 클라이언트 측 유효성 검증 (제목 필수, 최대 200자, endAt 입력 시 startAt < endAt) | — |
 | 4 | [저장] 버튼을 클릭한다 | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` 요청 전송 (body: 변경된 필드) | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` |
-| 5 | — | 서버가 Schedule.createdBy = 요청자 확인 후 레코드 업데이트. startAt < endAt 서버 측 재검증 | — |
+| 5 | — | 서버가 Schedule.createdBy = 요청자 확인 후 레코드 업데이트. endAt 이 있으면 startAt < endAt 서버 측 재검증 | — |
 | 6 | — | 응답 200 OK | — |
 | 7 | — | 캘린더 뷰 갱신. 수정된 일정 내용이 반영됨 | `GET /api/teams/[teamId]/schedules?view=month&date=YYYY-MM-DD` 재조회 |
 
@@ -388,7 +390,7 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 | 케이스 | 시스템 반응 |
 |--------|-------------|
 | **일정 생성자가 아닌 사용자의 수정 시도** | UI에서 [수정] 버튼 미표시 (생성자 기반 렌더링 제어). 생성자가 아닌 사용자가 직접 API 호출 시 → **403 Forbidden** 반환. "일정 수정 권한이 없습니다" 메시지 표시 |
-| startAt >= endAt으로 수정 시도 | 클라이언트 및 서버 유효성 검증 실패. "종료 시각은 시작 시각 이후여야 합니다" 오류 표시. 저장 미처리 |
+| endAt 입력 + startAt >= endAt으로 수정 시도 | 클라이언트 및 서버 유효성 검증 실패. "종료 시각은 시작 시각 이후여야 합니다" 오류 표시. 저장 미처리 |
 | 존재하지 않는 scheduleId | `PATCH /api/teams/[teamId]/schedules/[scheduleId]` → 404 Not Found |
 | 다른 팀 일정에 대한 수정 시도 | 서버가 teamId 기반 권한 확인 → 403 Forbidden (BR-06) |
 
@@ -436,11 +438,11 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 
 ---
 
-## SC-08 업무보고 채팅 전송 (MEMBER)
+## SC-08 업무보고 채팅 전송
 
-- **페르소나**: Persona B (MEMBER)
-- **목표**: 팀장에게 업무 상황을 공식 채팅으로 보고한다
-- **전제조건**: 로그인 상태. MEMBER 권한으로 팀에 소속. 팀 메인 화면(S-05) 채팅 영역 진입 상태 (BR-04)
+- **페르소나**: PA~PF 공통
+- **목표**: 팀 구성원이 업무 상황을 공식 채팅으로 보고한다
+- **전제조건**: 로그인 상태. 팀 구성원(LEADER 또는 MEMBER)으로 소속. 팀 메인 화면(S-05) 채팅 영역 진입 상태 (BR-04)
 
 ### 단계별 흐름
 
@@ -449,14 +451,14 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 | 1 | 채팅 영역에서 [업무보고] 버튼을 클릭한다 | 업무보고 메시지 입력 모드로 전환. 입력창 또는 별도 모달 렌더링 | — |
 | 2 | 보고 내용을 텍스트로 입력한다 | 클라이언트 측 유효성 검증: 최대 2000자, 빈 메시지 불가 | — |
 | 3 | [전송] 버튼을 클릭한다 | `POST /api/teams/[teamId]/messages` 요청 전송 (body: content, type: "WORK_PERFORMANCE") | `POST /api/teams/[teamId]/messages` |
-| 4 | — | 서버가 ChatMessage 레코드 생성 (type: WORK_PERFORMANCE, senderId: 현재 MEMBER, sentAt: 현재 서버 시각 KST) | — |
+| 4 | — | 서버가 ChatMessage 레코드 생성 (type: WORK_PERFORMANCE, senderId: 현재 사용자, sentAt: 현재 서버 시각 KST) | — |
 | 5 | — | 응답 201 Created | — |
 | 6 | — | 메시지 전송 성공 후 TanStack Query 즉시 refetch 발생. 채팅 목록에 WORK_PERFORMANCE 메시지가 일반 메시지와 시각적으로 구분된 형태(예: 다른 배경색 또는 뱃지)로 표시됨 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
 | 7 | LEADER가 다음 폴링 주기(3~5초) 이내에 채팅을 확인하면 | WORK_PERFORMANCE 타입 메시지가 시각적으로 강조 표시되어 업무보고임을 인지할 수 있음 | — |
 
 ### 결과
 - ChatMessage(type: WORK_PERFORMANCE) 레코드가 DB에 저장된다
-- 팀 채팅 이력에 MEMBER의 업무보고가 공식적으로 기록된다
+- 팀 채팅 이력에 팀 구성원의 업무보고가 공식적으로 기록된다
 - LEADER는 항상 모든 업무보고를 열람할 수 있으며, 다른 MEMBER는 팀장이 부여한 권한이 있을 경우에만 열람 가능하다
 
 ### 예외 처리
@@ -559,18 +561,18 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 | # | 페르소나 | 사용자 행동 | 시스템 반응 | API |
 |---|----------|------------|-------------|-----|
 | 1 | PE | "이번 주 작업 완료: 기획서 초안 작성 및 검토 요청 드립니다" 업무보고 전송 | `POST /api/teams/[teamId]/messages` (type: WORK_PERFORMANCE). 201 Created | `POST /api/teams/[teamId]/messages` |
-| 2 | PA | 팀 설정에서 [업무보고 열람 권한 관리] 메뉴에 진입한다 | 현재 권한 목록 조회: `GET /api/teams/[teamId]/work-permissions`. 초기값 빈 배열(전체 허용 상태) | `GET /api/teams/[teamId]/work-permissions` |
+| 2 | PA | 팀 설정에서 [업무보고 열람 권한 관리] 메뉴에 진입한다 | 현재 권한 목록 조회: `GET /api/teams/[teamId]/work-permissions`. 초기값 빈 배열이면 MEMBER 추가 열람 권한 없음 | `GET /api/teams/[teamId]/work-permissions` |
 | 3 | PA | 이서연(PB)과 최유나(PD)만 선택 후 [저장]을 클릭한다 | `PATCH /api/teams/[teamId]/work-permissions` (body: userIds: [PB.id, PD.id]). 200 OK | `PATCH /api/teams/[teamId]/work-permissions` |
 | 4 | PB | 채팅에서 당일 날짜 메시지를 조회한다 | NORMAL 메시지와 함께 PE의 WORK_PERFORMANCE 메시지가 표시됨 (열람 허용 상태) | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
 | 5 | PC | 채팅에서 같은 날짜 메시지를 조회한다 | NORMAL 메시지만 표시됨. PE의 WORK_PERFORMANCE 메시지는 보이지 않음 (열람 미허용) | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
 | 6 | PC | [업무보고 열람 권한 설정] 메뉴를 클릭한다 | 403 Forbidden. "팀장만 권한을 설정할 수 있습니다" | `PATCH /api/teams/[teamId]/work-permissions` |
 | 7 | PA | 권한 목록을 빈 배열([])로 설정한다 | `PATCH /api/teams/[teamId]/work-permissions` (body: userIds: []). 전체 권한 해제 | `PATCH /api/teams/[teamId]/work-permissions` |
-| 8 | PC | 다시 채팅을 조회한다 | 이제 PE의 WORK_PERFORMANCE 메시지가 PC에게도 표시됨 (전체 허용으로 변경됨) | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
+| 8 | PC | 다시 채팅을 조회한다 | NORMAL 메시지만 표시됨. 빈 배열은 MEMBER 추가 열람 권한 해제이므로 PE의 WORK_PERFORMANCE 메시지는 보이지 않음 | `GET /api/teams/[teamId]/messages?date=YYYY-MM-DD` |
 
 ### 결과
 - 팀장만 업무보고 열람 권한을 설정할 수 있다
 - 허용된 MEMBER만 WORK_PERFORMANCE 메시지를 볼 수 있다
-- 빈 배열 설정 시 전체 구성원이 업무보고를 열람할 수 있다
+- 빈 배열 설정 시 MEMBER 추가 열람 권한이 모두 해제되어 팀장만 업무보고를 열람할 수 있다
 
 ### 예외 처리
 
@@ -734,7 +736,7 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 | 2 | 일정 생성 후 수정 권한 | PF | 일정 생성 후 PE가 수정 시도 | PF 생성 일정은 PF만 수정 가능. PE는 403 |
 | 3 | 프로젝트 생성 후 삭제 권한 | PD | 프로젝트 생성 후 PF가 삭제 시도 | PD 생성 프로젝트는 PD·PA만 삭제 불가 — PD만 삭제 가능, PA도 403 |
 | 4 | 공지사항 삭제 권한 | PC | 공지 작성 후 PD가 삭제 시도 | PD는 403. PA(팀장) 또는 PC(작성자)만 삭제 가능 |
-| 5 | 권한 일괄 해제 후 가시성 | PA | work-permissions를 빈 배열로 설정 | PC·PE·PF 모두 이제 업무보고 열람 가능 |
+| 5 | 권한 일괄 해제 후 가시성 | PA | work-permissions를 빈 배열로 설정 | PB·PD 포함 모든 MEMBER가 업무보고 미열람. PA(팀장)만 열람 가능 |
 | 6 | 권한 재설정 후 가시성 | PA | work-permissions를 [PB.id]만으로 재설정 | PB만 업무보고 열람 가능. PD·PC·PE·PF 모두 미열람 |
 
 ### 결과
@@ -1248,7 +1250,7 @@ PRD §6 반응형 UI / FR-15 모바일 최적화 UX 검증용. **viewport <640px
 | 케이스 | 시스템 반응 |
 |--------|-------------|
 | 마이크 권한 거부 | 토스트 "마이크 권한이 필요합니다", 아이콘 원래 상태로 |
-| Firefox + Whisper 도 비가용 | 마이크 아이콘 자체 렌더 안 함 (`isSupported=false`) |
+| Firefox + Whisper 도 비가용 | 팀채팅 입력창은 마이크 아이콘 자체 렌더 안 함(`isSupported=false`). AI 찰떡이 입력창은 버튼 클릭 시 "시스템에서 지원하지 않는 기능입니다." 안내 |
 | Whisper STT 컨테이너 다운 | `/api/stt` 500 → "음성 변환에 실패했습니다" 토스트, 텍스트 입력으로 계속 가능 |
 | 발화 너무 짧음 (no-speech) | "음성이 감지되지 않았습니다" 안내, 마이크 원상태 |
 
