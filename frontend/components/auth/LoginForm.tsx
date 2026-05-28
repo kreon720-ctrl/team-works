@@ -8,6 +8,7 @@ import { ApiError } from '@/lib/apiClient';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { KakaoLoginButton } from './KakaoLoginButton';
+import { GoogleLoginButton } from './GoogleLoginButton';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -128,7 +129,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         <button
           type="button"
           onClick={() => setShowPassword((v) => !v)}
-          aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+          aria-label={showPassword ? '입력 내용 숨기기' : '입력 내용 보기'}
           aria-pressed={showPassword}
           tabIndex={-1}
           className="absolute right-3 top-[34px] flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:text-dark-text-muted dark:hover:text-dark-text focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-dark-accent disabled:opacity-50"
@@ -165,7 +166,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         {login.isPending ? '로그인 중...' : '로그인'}
       </Button>
 
-      {/* 소셜 로그인 — 현재는 카카오만, 추후 구글 추가 */}
+      {/* 소셜 로그인 */}
       <div className="relative my-2">
         <div className="absolute inset-0 flex items-center" aria-hidden="true">
           <div className="w-full border-t border-gray-200 dark:border-dark-border" />
@@ -174,7 +175,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           <span className="bg-white dark:bg-dark-base px-2 text-gray-400 dark:text-dark-text-muted">또는</span>
         </div>
       </div>
-      <KakaoLoginButton disabled={login.isPending} />
+      <div className="space-y-2">
+        <GoogleLoginButton disabled={login.isPending} />
+        <KakaoLoginButton disabled={login.isPending} />
+      </div>
     </form>
   );
 }

@@ -44,15 +44,16 @@ export async function linkOrCreateUser(input: LinkInput): Promise<LinkResult> {
   if (!input.email) {
     return { ok: false, reason: 'email_required' }
   }
+  const email = input.email
 
   // 3) 같은 이메일의 user 가 있으면 자동 연결
-  const sameEmailUser = await getUserByEmail(input.email)
+  const sameEmailUser = await getUserByEmail(email)
   if (sameEmailUser) {
     await createOAuthAccount({
       user_id: sameEmailUser.id,
       provider: input.provider,
       provider_user_id: input.providerUserId,
-      provider_email: input.email,
+      provider_email: email,
       provider_name: input.nickname,
       provider_picture: input.picture,
     })
@@ -60,7 +61,7 @@ export async function linkOrCreateUser(input: LinkInput): Promise<LinkResult> {
   }
 
   // 4) 신규 user + oauth 동시 생성 (트랜잭션)
-  const user = await createNewUserWithOAuth(input)
+  const user = await createNewUserWithOAuth({ ...input, email })
   return { ok: true, user, isNewUser: true, isNewLink: true }
 }
 

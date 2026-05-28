@@ -42,7 +42,7 @@ export function KakaoLoginButton({ redirectAfter, disabled }: KakaoLoginButtonPr
       type="button"
       onClick={handleClick}
       disabled={loading || disabled}
-      aria-label="카카오로 로그인"
+      aria-label="카카오로 시작하기"
       className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
       style={{ backgroundColor: '#FEE500', color: '#191919' }}
     >

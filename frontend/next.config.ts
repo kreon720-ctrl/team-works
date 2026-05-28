@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
     "192.168.219.50",
     "teamworks.my",
   ],
+  async rewrites() {
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
+    return [
+      {
+        source: "/api/auth/:path*",
+        destination: `${backendUrl}/api/auth/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
