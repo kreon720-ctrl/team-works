@@ -4,6 +4,7 @@ import React from 'react';
 import { Schedule } from '@/types/schedule';
 import { Button } from '@/components/common/Button';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
+import { CalendarCheck } from 'lucide-react';
 
 interface ScheduleDetailModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface ScheduleDetailModalProps {
   onEdit: () => void;
   onDelete: () => void;
   isDeleting?: boolean;
+  isLeader?: boolean;
 }
 
 export function ScheduleDetailModal({
@@ -23,12 +25,14 @@ export function ScheduleDetailModal({
   onEdit,
   onDelete,
   isDeleting = false,
+  isLeader = false,
 }: ScheduleDetailModalProps) {
   const { isMobile } = useBreakpoint();
   if (!isOpen || !schedule) return null;
 
-  // 일정을 등록한 사람만 수정/삭제 가능
-  const canEditOrDelete = currentUserId === schedule.createdBy;
+  const canEditOrDelete = schedule.source === 'google'
+    ? schedule.editable !== false && isLeader
+    : schedule.editable !== false && currentUserId === schedule.createdBy;
   // 모바일은 sm 사이즈로 축소. PC 는 기존 md 유지.
   const btnSize = isMobile ? 'sm' : 'md';
 
@@ -54,9 +58,17 @@ export function ScheduleDetailModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text truncate">
-            {schedule.title}
-          </h2>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text truncate">
+              {schedule.title}
+            </h2>
+            {schedule.source === 'google' && (
+              <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-200">
+                <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                Google Calendar
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -97,9 +109,15 @@ export function ScheduleDetailModal({
         <div className="mb-6">
           <label className="text-sm font-medium text-gray-500 dark:text-dark-text-muted mb-1 block">등록자</label>
           <p className="text-base font-normal text-gray-800 dark:text-dark-text">
-            {schedule.creatorName || '알 수 없음'}
+            {schedule.source === 'google' ? 'Google Calendar' : schedule.creatorName || '알 수 없음'}
           </p>
         </div>
+
+        {schedule.source === 'google' && (
+          <div className="mb-6 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-100">
+            Google Calendar 원본 일정입니다. 수정하거나 삭제하면 Google Calendar에 반영됩니다.
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex justify-center gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">

@@ -10,6 +10,11 @@ import { useTeamDetail } from '@/hooks/query/useTeams';
 import { useSchedules } from '@/hooks/query/useSchedules';
 import { usePostits } from '@/hooks/query/usePostits';
 import { useMyTasks } from '@/hooks/query/useMyTasks';
+import {
+  useDisconnectGoogleCalendarIntegration,
+  useGoogleCalendarIntegrationStatus,
+  useStartGoogleCalendarIntegration,
+} from '@/hooks/query/useGoogleCalendarIntegration';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { AIAssistantPanel } from '@/components/ai-assistant/AIAssistantPanel';
 import { ResizableSplit } from '@/components/common/ResizableSplit';
@@ -51,7 +56,7 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
   const activeProject = (projectsForTeam ?? []).find((p) => p.id === selectedProjectId) ?? null;
   const isProjectChatMode = calendarView === 'project' && !!activeProject;
 
-  const { data: schedulesData } = useSchedules(teamId, {
+  const { data: schedulesData, dataUpdatedAt: schedulesUpdatedAt } = useSchedules(teamId, {
     view: calendarView,
     date: selectedDate,
   });
@@ -68,6 +73,9 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
 
   const schedules = schedulesData?.schedules ?? [];
   const postits = postitsData?.postits ?? [];
+  const googleCalendarStatus = useGoogleCalendarIntegrationStatus(teamId, team ? !team.isPublic : false);
+  const startGoogleCalendar = useStartGoogleCalendarIntegration(teamId);
+  const disconnectGoogleCalendar = useDisconnectGoogleCalendarIntegration(teamId);
 
   // Update selected team ID when component mounts
   useEffect(() => {
@@ -105,6 +113,25 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
     const month = String(date.getUTCMonth() + 1).padStart(2, '0');
     const day = String(date.getUTCDate()).padStart(2, '0');
     setSelectedDate(`${year}-${month}-${day}`);
+  };
+
+  const handleGoogleCalendarConnect = async () => {
+    try {
+      const result = await startGoogleCalendar.mutateAsync();
+      if (result.url) {
+        window.location.href = result.url;
+      }
+    } catch {
+      // 상태 바에서 mutation error를 표시한다.
+    }
+  };
+
+  const handleGoogleCalendarDisconnect = async () => {
+    try {
+      await disconnectGoogleCalendar.mutateAsync();
+    } catch {
+      // 상태 바에서 mutation error를 표시한다.
+    }
   };
 
   if (isLoading) {
@@ -188,6 +215,24 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
                 updateScheduleIsPending={scheduleActions.updateSchedule.isPending}
                 updateScheduleError={scheduleActions.updateSchedule.error instanceof Error ? scheduleActions.updateSchedule.error.message : null}
                 deleteScheduleIsPending={scheduleActions.deleteSchedule.isPending}
+                googleCalendarStatus={googleCalendarStatus.data}
+                googleCalendarStatusLoading={googleCalendarStatus.isLoading}
+                googleCalendarStatusError={
+                  googleCalendarStatus.error instanceof Error
+                    ? googleCalendarStatus.error.message
+                    : startGoogleCalendar.error instanceof Error
+                      ? startGoogleCalendar.error.message
+                      : disconnectGoogleCalendar.error instanceof Error
+                        ? disconnectGoogleCalendar.error.message
+                        : null
+                }
+                googleCalendarStarting={startGoogleCalendar.isPending}
+                googleCalendarDisconnecting={disconnectGoogleCalendar.isPending}
+                lastCalendarSync={scheduleActions.lastCalendarSync}
+                scheduleListCalendarSync={schedulesData?.calendarSync ?? null}
+                scheduleListUpdatedAt={schedulesUpdatedAt}
+                onGoogleCalendarConnect={handleGoogleCalendarConnect}
+                onGoogleCalendarDisconnect={handleGoogleCalendarDisconnect}
                 onPostitColorSelect={postitActions.setSelectedPostitColor}
                 onPostitDelete={postitActions.handlePostitDelete}
                 onPostitContentChange={postitActions.handlePostitContentChange}
@@ -345,6 +390,24 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         updateScheduleIsPending={scheduleActions.updateSchedule.isPending}
         updateScheduleError={scheduleActions.updateSchedule.error instanceof Error ? scheduleActions.updateSchedule.error.message : null}
         deleteScheduleIsPending={scheduleActions.deleteSchedule.isPending}
+        googleCalendarStatus={googleCalendarStatus.data}
+        googleCalendarStatusLoading={googleCalendarStatus.isLoading}
+        googleCalendarStatusError={
+          googleCalendarStatus.error instanceof Error
+            ? googleCalendarStatus.error.message
+            : startGoogleCalendar.error instanceof Error
+              ? startGoogleCalendar.error.message
+              : disconnectGoogleCalendar.error instanceof Error
+                ? disconnectGoogleCalendar.error.message
+                : null
+        }
+        googleCalendarStarting={startGoogleCalendar.isPending}
+        googleCalendarDisconnecting={disconnectGoogleCalendar.isPending}
+        lastCalendarSync={scheduleActions.lastCalendarSync}
+        scheduleListCalendarSync={schedulesData?.calendarSync ?? null}
+        scheduleListUpdatedAt={schedulesUpdatedAt}
+        onGoogleCalendarConnect={handleGoogleCalendarConnect}
+        onGoogleCalendarDisconnect={handleGoogleCalendarDisconnect}
         onCreateModalClose={() => scheduleActions.setShowCreateModal(false)}
         onCreateSubmit={scheduleActions.handleCreateSubmit}
         onDetailClose={() => { scheduleActions.setShowDetailModal(false); scheduleActions.setSelectedSchedule(null); }}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule } from '@/hooks/query/useSchedules';
-import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput } from '@/types/schedule';
+import type { CalendarSyncResult, Schedule, ScheduleCreateInput, ScheduleUpdateInput } from '@/types/schedule';
 
 interface UseScheduleActionsOptions {
   teamId: string;
@@ -15,6 +15,7 @@ export function useScheduleActions({ teamId, selectedDate }: UseScheduleActionsO
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [scheduleDefaultDate, setScheduleDefaultDate] = useState<string>('');
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [lastCalendarSync, setLastCalendarSync] = useState<CalendarSyncResult | null>(null);
 
   const createSchedule = useCreateSchedule(teamId);
   const updateSchedule = useUpdateSchedule(teamId, selectedSchedule?.id ?? '');
@@ -32,14 +33,16 @@ export function useScheduleActions({ teamId, selectedDate }: UseScheduleActionsO
 
   const handleCreateSubmit = async (data: ScheduleCreateInput | ScheduleUpdateInput) => {
     try {
-      await createSchedule.mutateAsync(data as ScheduleCreateInput);
+      const schedule = await createSchedule.mutateAsync(data as ScheduleCreateInput);
+      setLastCalendarSync(schedule.calendarSync ?? null);
       setShowCreateModal(false);
     } catch { /* ScheduleForm에서 error prop으로 표시 */ }
   };
 
   const handleEditSubmit = async (data: ScheduleCreateInput | ScheduleUpdateInput) => {
     try {
-      await updateSchedule.mutateAsync(data as ScheduleUpdateInput);
+      const schedule = await updateSchedule.mutateAsync(data as ScheduleUpdateInput);
+      setLastCalendarSync(schedule.calendarSync ?? null);
       setShowEditModal(false);
       setSelectedSchedule(null);
     } catch { /* ScheduleForm에서 error prop으로 표시 */ }
@@ -48,7 +51,8 @@ export function useScheduleActions({ teamId, selectedDate }: UseScheduleActionsO
   const handleDelete = async () => {
     if (!selectedSchedule) return;
     try {
-      await deleteSchedule.mutateAsync(selectedSchedule.id);
+      const result = await deleteSchedule.mutateAsync(selectedSchedule.id);
+      setLastCalendarSync(result?.calendarSync ?? null);
       setShowDetailModal(false);
       setSelectedSchedule(null);
     } catch { /* 삭제 실패 */ }
@@ -60,6 +64,8 @@ export function useScheduleActions({ teamId, selectedDate }: UseScheduleActionsO
     showDetailModal,
     scheduleDefaultDate,
     selectedSchedule,
+    lastCalendarSync,
+    setLastCalendarSync,
     setShowCreateModal,
     setShowEditModal,
     setShowDetailModal,

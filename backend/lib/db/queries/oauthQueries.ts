@@ -35,6 +35,17 @@ export async function getOAuthAccountByProvider(
   return result.rows[0] ?? null
 }
 
+export async function getOAuthAccountByUserProvider(
+  userId: string,
+  provider: 'kakao' | 'google'
+): Promise<OAuthAccount | null> {
+  const result = await pool.query<OAuthAccount>(
+    `SELECT * FROM oauth_accounts WHERE user_id = $1 AND provider = $2`,
+    [userId, provider]
+  )
+  return result.rows[0] ?? null
+}
+
 /**
  * 신규 OAuth 연결 생성
  */

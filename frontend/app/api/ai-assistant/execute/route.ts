@@ -51,7 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         description,
         color,
       });
-      return NextResponse.json({ ok: true, schedule });
+      return NextResponse.json({ ok: true, schedule, calendarSync: schedule.calendarSync });
     }
 
     if (tool === 'deleteSchedule') {
@@ -63,8 +63,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 400 }
         );
       }
-      await deleteSchedule({ teamId, jwt, scheduleId });
-      return NextResponse.json({ ok: true });
+      const result = await deleteSchedule({ teamId, jwt, scheduleId });
+      return NextResponse.json({ ok: true, calendarSync: result.calendarSync });
     }
 
     if (tool === 'updateSchedule') {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         description,
         color,
       });
-      return NextResponse.json({ ok: true, schedule });
+      return NextResponse.json({ ok: true, schedule, calendarSync: schedule.calendarSync });
     }
 
     return NextResponse.json({ error: '알 수 없는 도구' }, { status: 400 });

@@ -180,6 +180,53 @@ describe('ScheduleDetailModal', () => {
       expect(screen.queryByText('삭제')).toBeNull();
     });
 
+    it('shows edit and delete buttons for Google schedules to team leaders', () => {
+      render(
+        <ScheduleDetailModal
+          isOpen={true}
+          schedule={{
+            ...mockSchedule,
+            id: 'google:google-event-1',
+            source: 'google',
+            editable: true,
+            googleEventId: 'google-event-1',
+          }}
+          currentUserId="user-2"
+          isLeader={true}
+          onClose={mockOnClose}
+          onEdit={mockOnEdit}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      expect(screen.getByText('수정')).toBeTruthy();
+      expect(screen.getByText('삭제')).toBeTruthy();
+      expect(screen.getByText(/Google Calendar에 반영됩니다/)).toBeTruthy();
+    });
+
+    it('hides edit and delete buttons for Google schedules from non-leaders', () => {
+      render(
+        <ScheduleDetailModal
+          isOpen={true}
+          schedule={{
+            ...mockSchedule,
+            id: 'google:google-event-1',
+            source: 'google',
+            editable: true,
+            googleEventId: 'google-event-1',
+          }}
+          currentUserId="user-1"
+          isLeader={false}
+          onClose={mockOnClose}
+          onEdit={mockOnEdit}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      expect(screen.queryByText('수정')).toBeNull();
+      expect(screen.queryByText('삭제')).toBeNull();
+    });
+
     it('calls onEdit when edit button is clicked', () => {
       render(
         <ScheduleDetailModal

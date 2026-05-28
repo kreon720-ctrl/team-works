@@ -6,8 +6,9 @@ import { AIAssistantPanel } from '@/components/ai-assistant/AIAssistantPanel';
 import { ResizableSplit } from '@/components/common/ResizableSplit';
 import { ProjectGanttView } from '@/components/project/ProjectGanttView';
 import { CalendarSection } from './CalendarSection';
-import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType, ScheduleColor } from '@/types/schedule';
+import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType, ScheduleColor, CalendarSyncResult } from '@/types/schedule';
 import type { PostIt } from '@/types/postit';
+import type { GoogleCalendarIntegrationStatusResponse } from '@/hooks/query/useGoogleCalendarIntegration';
 
 type MobileTab = 'calendar' | 'project' | 'chat' | 'ai-assistant';
 
@@ -45,6 +46,16 @@ interface MobileLayoutProps {
   updateScheduleIsPending: boolean;
   updateScheduleError: string | null;
   deleteScheduleIsPending: boolean;
+  googleCalendarStatus?: GoogleCalendarIntegrationStatusResponse;
+  googleCalendarStatusLoading?: boolean;
+  googleCalendarStatusError?: string | null;
+  googleCalendarStarting?: boolean;
+  googleCalendarDisconnecting?: boolean;
+  lastCalendarSync?: CalendarSyncResult | null;
+  scheduleListCalendarSync?: CalendarSyncResult | null;
+  scheduleListUpdatedAt?: number;
+  onGoogleCalendarConnect?: () => void;
+  onGoogleCalendarDisconnect?: () => void;
   onCreateModalClose: () => void;
   onCreateSubmit: (data: ScheduleCreateInput | ScheduleUpdateInput) => void;
   onDetailClose: () => void;
@@ -87,6 +98,16 @@ export function MobileLayout({
   updateScheduleIsPending,
   updateScheduleError,
   deleteScheduleIsPending,
+  googleCalendarStatus,
+  googleCalendarStatusLoading,
+  googleCalendarStatusError,
+  googleCalendarStarting,
+  googleCalendarDisconnecting,
+  lastCalendarSync,
+  scheduleListCalendarSync,
+  scheduleListUpdatedAt,
+  onGoogleCalendarConnect,
+  onGoogleCalendarDisconnect,
   onCreateModalClose,
   onCreateSubmit,
   onDetailClose,
@@ -137,6 +158,16 @@ export function MobileLayout({
       updateScheduleIsPending={updateScheduleIsPending}
       updateScheduleError={updateScheduleError}
       deleteScheduleIsPending={deleteScheduleIsPending}
+      googleCalendarStatus={googleCalendarStatus}
+      googleCalendarStatusLoading={googleCalendarStatusLoading}
+      googleCalendarStatusError={googleCalendarStatusError}
+      googleCalendarStarting={googleCalendarStarting}
+      googleCalendarDisconnecting={googleCalendarDisconnecting}
+      lastCalendarSync={lastCalendarSync}
+      scheduleListCalendarSync={scheduleListCalendarSync}
+      scheduleListUpdatedAt={scheduleListUpdatedAt}
+      onGoogleCalendarConnect={onGoogleCalendarConnect}
+      onGoogleCalendarDisconnect={onGoogleCalendarDisconnect}
       onPostitColorSelect={onPostitColorSelect}
       onPostitDelete={onPostitDelete}
       onPostitContentChange={onPostitContentChange}
@@ -236,7 +267,7 @@ export function MobileLayout({
       <div className="flex-1 overflow-hidden">
         {/* Calendar tab */}
         <div className={`h-full ${activeTab === 'calendar' ? 'block' : 'hidden'}`}>
-          <div className="h-full overflow-y-auto bg-white">
+          <div className="h-full overflow-y-auto bg-white dark:bg-dark-surface">
             {calendarSectionElement}
           </div>
         </div>

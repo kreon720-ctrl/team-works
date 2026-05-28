@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/apiClient';
 import type {
   Schedule,
+  CalendarSyncResult,
   ScheduleCreateInput,
   ScheduleUpdateInput,
   ScheduleQueryParams,
@@ -43,10 +44,14 @@ export function useCreateSchedule(teamId: string) {
 
   return useMutation({
     mutationFn: async (data: ScheduleCreateInput): Promise<Schedule> => {
-      return apiClient.post<Schedule>(
+      const response = await apiClient.post<Schedule | { schedule: Schedule; calendarSync?: CalendarSyncResult }>(
         `/api/teams/${teamId}/schedules`,
         data
       );
+      if (response && typeof response === 'object' && 'schedule' in response) {
+        return { ...response.schedule, calendarSync: response.calendarSync };
+      }
+      return response as Schedule;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schedules', teamId] });
@@ -59,10 +64,14 @@ export function useUpdateSchedule(teamId: string, scheduleId: string) {
 
   return useMutation({
     mutationFn: async (data: ScheduleUpdateInput): Promise<Schedule> => {
-      return apiClient.patch<Schedule>(
+      const response = await apiClient.patch<Schedule | { schedule: Schedule; calendarSync?: CalendarSyncResult }>(
         `/api/teams/${teamId}/schedules/${scheduleId}`,
         data
       );
+      if (response && typeof response === 'object' && 'schedule' in response) {
+        return { ...response.schedule, calendarSync: response.calendarSync };
+      }
+      return response as Schedule;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schedules', teamId] });
@@ -77,8 +86,8 @@ export function useDeleteSchedule(teamId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (scheduleId: string): Promise<void> => {
-      return apiClient.delete<void>(
+    mutationFn: async (scheduleId: string): Promise<{ calendarSync?: CalendarSyncResult } | null> => {
+      return apiClient.delete<{ calendarSync?: CalendarSyncResult } | null>(
         `/api/teams/${teamId}/schedules/${scheduleId}`
       );
     },

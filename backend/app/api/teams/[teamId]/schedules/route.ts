@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware/withAuth'
-import { withTeamRole, requireLeader } from '@/lib/middleware/withTeamRole'
+import { withTeamRole } from '@/lib/middleware/withTeamRole'
 import {
-  getSchedulesByDateRange,
-  createSchedule,
-} from '@/lib/db/queries/scheduleQueries'
-import { getTeamById } from '@/lib/db/queries/teamQueries'
+  createScheduleWithGoogleSync,
+  getSchedulesWithGoogleEvents,
+} from '@/lib/google/scheduleCalendarService'
 import { getKstDateRange, CalendarView } from '@/lib/utils/timezone'
 
 interface CreateScheduleBody {
@@ -55,23 +54,12 @@ export async function GET(
     // 3. KST 날짜 범위 계산
     const { start, end } = getKstDateRange(view, date)
 
-    // 4. 일정 조회
-    const schedules = await getSchedulesByDateRange(teamId, start, end)
+    // 4. 일정 조회 + Google Calendar 연결 팀이면 외부 일정 함께 조회
+    const result = await getSchedulesWithGoogleEvents({ teamId, start, end })
 
     return NextResponse.json({
-      schedules: schedules.map(schedule => ({
-        id: schedule.id,
-        teamId: schedule.team_id,
-        title: schedule.title,
-        description: schedule.description,
-        color: schedule.color,
-        startAt: schedule.start_at,
-        endAt: schedule.end_at,
-        createdBy: schedule.created_by,
-        creatorName: schedule.creator_name,
-        createdAt: schedule.created_at,
-        updatedAt: schedule.updated_at,
-      })),
+      schedules: result.schedules,
+      calendarSync: result.calendarSync,
       view,
       date,
     })
@@ -150,8 +138,8 @@ export async function POST(
       )
     }
 
-    // 3. 일정 생성
-    const schedule = await createSchedule({
+    // 3. 일정 생성 + Google Calendar 연결 팀이면 event 생성
+    const result = await createScheduleWithGoogleSync({
       teamId,
       createdBy: authResult.user.userId,
       title,
@@ -160,6 +148,7 @@ export async function POST(
       startAt: startDate,
       endAt: endDate,
     })
+    const { schedule, calendarSync } = result
 
     return NextResponse.json(
       {
@@ -173,6 +162,10 @@ export async function POST(
         createdBy: schedule.created_by,
         createdAt: schedule.created_at,
         updatedAt: schedule.updated_at,
+        source: 'local',
+        editable: true,
+        googleEventId: calendarSync.googleEventId,
+        calendarSync,
       },
       { status: 201 }
     )

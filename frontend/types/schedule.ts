@@ -19,6 +19,17 @@ export interface Schedule {
   creatorName: string | null;
   createdAt: string;
   updatedAt: string;
+  source?: 'local' | 'google';
+  editable?: boolean;
+  googleEventId?: string;
+  calendarSync?: CalendarSyncResult;
+}
+
+export interface CalendarSyncResult {
+  attempted: boolean;
+  success: boolean;
+  error?: string;
+  googleEventId?: string;
 }
 
 export interface ScheduleCreateInput {
@@ -40,4 +51,7 @@ export interface ScheduleQueryParams {
 // API 명세 GET /api/teams/:teamId/schedules 응답
 export interface ScheduleListResponse {
   schedules: Schedule[];
+  calendarSync?: CalendarSyncResult;
+  view?: Exclude<CalendarView, 'project'>;
+  date?: string;
 }

@@ -42,6 +42,29 @@ const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: 
   rose: { bg: 'bg-rose-100 dark:bg-[#EF4444]', text: 'text-rose-800 dark:text-white', border: 'border-rose-400 dark:border-[#EF4444]', hover: 'hover:bg-rose-200 dark:hover:brightness-110', textLight: 'text-rose-600 dark:text-white/80' },
 };
 
+function scheduleClasses(schedule: Schedule): { box: string; muted: string } {
+  if (schedule.source === 'google') {
+    return {
+      box: 'bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-100 dark:border-sky-700 dark:hover:bg-sky-900/60',
+      muted: 'text-sky-700 dark:text-sky-100/80',
+    };
+  }
+  const color = COLOR_CLASSES[schedule.color ?? 'indigo'];
+  return {
+    box: `${color.bg} ${color.text} ${color.hover} ${color.border}`,
+    muted: color.textLight,
+  };
+}
+
+function GoogleBadge({ schedule }: { schedule: Schedule }) {
+  if (schedule.source !== 'google') return null;
+  return (
+    <span className="mr-1 inline-flex h-3 w-3 align-middle items-center justify-center rounded-sm bg-white/80 text-[8px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-100">
+      G
+    </span>
+  );
+}
+
 interface CalendarDayViewProps {
   currentDate: Date;
   schedules?: Schedule[];
@@ -295,6 +318,7 @@ export function CalendarDayView({
                 const barW       = eventAreaWidth * colWidthPct / 100;
                 const textH      = estimateTextHeight(schedule, barW);
                 const height     = Math.max(durationH, textH, 22);
+                const styles = scheduleClasses(schedule);
 
                 return (
                   <div
@@ -309,17 +333,20 @@ export function CalendarDayView({
                   >
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} text-[11px] md:text-xs px-1.5 py-0 rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150 break-words border-l-2 ${COLOR_CLASSES[schedule.color ?? 'indigo'].border}`}
+                      className={`w-full h-full overflow-hidden text-[11px] md:text-xs px-1.5 py-0 rounded cursor-pointer transition-colors duration-150 break-words border-l-2 ${styles.box}`}
                       title={schedule.title}
                     >
-                      <div className="font-semibold break-words leading-tight line-clamp-2 md:line-clamp-none">{schedule.title}</div>
-                      <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px]`}>
+                      <div className="font-semibold break-words leading-tight line-clamp-2 md:line-clamp-none">
+                        <GoogleBadge schedule={schedule} />
+                        {schedule.title}
+                      </div>
+                      <div className={`${styles.muted} text-[10px]`}>
                         {schedule.endAt
                           ? `${formatTime(new Date(schedule.startAt))} ~ ${formatTime(new Date(schedule.endAt))}`
                           : formatTime(new Date(schedule.startAt))}
                       </div>
                       {schedule.description && (
-                        <div className={`${COLOR_CLASSES[schedule.color ?? 'indigo'].textLight} text-[10px] break-words mt-0.5`}>
+                        <div className={`${styles.muted} text-[10px] break-words mt-0.5`}>
                           {schedule.description}
                         </div>
                       )}

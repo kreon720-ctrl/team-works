@@ -4,9 +4,11 @@ import React from 'react';
 import { CalendarView } from '@/components/schedule/CalendarView';
 import { ScheduleForm } from '@/components/schedule/ScheduleForm';
 import { ScheduleDetailModal } from '@/components/schedule/ScheduleDetailModal';
-import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType } from '@/types/schedule';
+import { GoogleCalendarIntegrationBar } from '@/components/schedule/GoogleCalendarIntegrationBar';
+import type { Schedule, ScheduleCreateInput, ScheduleUpdateInput, CalendarView as CalendarViewType, CalendarSyncResult } from '@/types/schedule';
 import type { PostIt } from '@/types/postit';
 import type { ScheduleColor } from '@/types/schedule';
+import type { GoogleCalendarIntegrationStatusResponse } from '@/hooks/query/useGoogleCalendarIntegration';
 
 interface CalendarSectionProps {
   teamId: string;
@@ -29,6 +31,16 @@ interface CalendarSectionProps {
   updateScheduleIsPending: boolean;
   updateScheduleError: string | null;
   deleteScheduleIsPending: boolean;
+  googleCalendarStatus?: GoogleCalendarIntegrationStatusResponse;
+  googleCalendarStatusLoading?: boolean;
+  googleCalendarStatusError?: string | null;
+  googleCalendarStarting?: boolean;
+  googleCalendarDisconnecting?: boolean;
+  lastCalendarSync?: CalendarSyncResult | null;
+  scheduleListCalendarSync?: CalendarSyncResult | null;
+  scheduleListUpdatedAt?: number;
+  onGoogleCalendarConnect?: () => void;
+  onGoogleCalendarDisconnect?: () => void;
   onPostitColorSelect: (color: ScheduleColor | null) => void;
   onPostitDelete: (id: string, date: string) => void;
   onPostitContentChange: (id: string, content: string) => void;
@@ -67,6 +79,16 @@ export function CalendarSection({
   updateScheduleIsPending,
   updateScheduleError,
   deleteScheduleIsPending,
+  googleCalendarStatus,
+  googleCalendarStatusLoading = false,
+  googleCalendarStatusError,
+  googleCalendarStarting = false,
+  googleCalendarDisconnecting = false,
+  lastCalendarSync,
+  scheduleListCalendarSync,
+  scheduleListUpdatedAt,
+  onGoogleCalendarConnect,
+  onGoogleCalendarDisconnect,
   onPostitColorSelect,
   onPostitDelete,
   onPostitContentChange,
@@ -96,8 +118,23 @@ export function CalendarSection({
 
   return (
     <>
+      <GoogleCalendarIntegrationBar
+        status={googleCalendarStatus}
+        isLoading={googleCalendarStatusLoading}
+        isLeader={isLeader}
+        isStarting={googleCalendarStarting}
+        isDisconnecting={googleCalendarDisconnecting}
+        lastScheduleSync={lastCalendarSync ?? scheduleListCalendarSync}
+        lastFetchedAt={scheduleListUpdatedAt}
+        errorMessage={googleCalendarStatusError}
+        compact={compact}
+        onConnect={() => onGoogleCalendarConnect?.()}
+        onDisconnect={() => onGoogleCalendarDisconnect?.()}
+      />
+
       <CalendarView
         currentDate={currentDate}
+        selectedDate={new Date(`${selectedDate}T00:00:00.000Z`)}
         view={calendarView}
         schedules={schedules}
         canCreateSchedule={true}
@@ -155,6 +192,7 @@ export function CalendarSection({
         isOpen={showDetailModal}
         schedule={selectedSchedule}
         currentUserId={currentUserId ?? null}
+        isLeader={isLeader}
         onClose={onDetailClose}
         onEdit={onDetailEdit}
         onDelete={onDelete}

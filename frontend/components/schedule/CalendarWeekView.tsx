@@ -30,6 +30,23 @@ const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: 
   rose: { bg: 'bg-rose-100 dark:bg-[#EF4444]', text: 'text-rose-800 dark:text-white', hover: 'hover:bg-rose-200 dark:hover:brightness-110', bgDarker: 'bg-rose-200 dark:bg-[#EF4444]' },
 };
 
+function scheduleClasses(schedule: Schedule, allDay = false): string {
+  if (schedule.source === 'google') {
+    return 'bg-sky-50 text-sky-800 border border-sky-300 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-100 dark:border-sky-700 dark:hover:bg-sky-900/60';
+  }
+  const color = COLOR_CLASSES[schedule.color ?? 'indigo'];
+  return `${allDay ? color.bgDarker : color.bg} ${color.text} ${color.hover}`;
+}
+
+function GoogleBadge({ schedule }: { schedule: Schedule }) {
+  if (schedule.source !== 'google') return null;
+  return (
+    <span className="mr-1 inline-flex h-3 w-3 align-middle items-center justify-center rounded-sm bg-white/80 text-[8px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-100">
+      G
+    </span>
+  );
+}
+
 export function CalendarWeekView({ currentDate, schedules = [], selectedDate, onDateClick, onScheduleClick }: CalendarWeekViewProps) {
 
   // ─── 주간 날짜 배열 ──────────────────────────────────────────────────────────
@@ -226,9 +243,10 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                   <div className="px-0 md:px-1 py-0 md:py-0.5" style={{ gridColumn: `${colStart} / ${colEnd}` }}>
                     <div
                       onClick={() => onScheduleClick?.(schedule)}
-                      className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bgDarker} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1 py-0 md:py-0.5 rounded-none md:rounded truncate cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors`}
+                      className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 rounded-none md:rounded truncate cursor-pointer transition-colors ${scheduleClasses(schedule, true)}`}
                       title={schedule.title}
                     >
+                      <GoogleBadge schedule={schedule} />
                       {schedule.title}
                     </div>
                   </div>
@@ -323,9 +341,12 @@ export function CalendarWeekView({ currentDate, schedules = [], selectedDate, on
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                           onMouseLeave={() => setTooltip(null)}
-                          className={`w-full h-full overflow-hidden ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text} px-0 md:px-1.5 py-0 rounded-none md:rounded cursor-pointer ${COLOR_CLASSES[schedule.color ?? 'indigo'].hover} transition-colors duration-150`}
+                          className={`w-full h-full overflow-hidden px-0 md:px-1.5 py-0 rounded-none md:rounded cursor-pointer transition-colors duration-150 ${scheduleClasses(schedule)}`}
                         >
-                          <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words line-clamp-2 md:line-clamp-none">{schedule.title}</div>
+                          <div className="font-medium text-[10px] md:text-xs leading-[1.1] md:leading-tight break-words line-clamp-2 md:line-clamp-none">
+                            <GoogleBadge schedule={schedule} />
+                            {schedule.title}
+                          </div>
                           <div className="opacity-75 text-[9px] md:text-[10px] leading-[1.1] md:leading-normal truncate">
                             {end ? `${formatTime(start)} ~ ${formatTime(end)}` : formatTime(start)}
                           </div>

@@ -63,6 +63,19 @@ interface Message {
   };
 }
 
+interface CalendarSyncResult {
+  attempted?: boolean;
+  success?: boolean;
+  error?: string;
+  googleEventId?: string;
+}
+
+function formatCalendarSyncNotice(sync: CalendarSyncResult | undefined): string {
+  if (!sync?.attempted) return '';
+  if (sync.success) return '\nGoogle Calendar에도 반영됐어요.';
+  return `\n\nGoogle Calendar 동기화는 실패했어요. TEAM WORKS 일정은 처리됐습니다.${sync.error ? `\n원인: ${sync.error}` : ''}`;
+}
+
 // 단일 진입점 — 6개 의도(usage·general·query·create·delete·update) 대표 예시 1개씩.
 const EXAMPLE_QUESTIONS = [
   '오늘 일정 알려줘',
@@ -607,12 +620,13 @@ export function AIAssistantPanel({ teamId, teamName, showHeader = false, onToggl
           : tool === 'updateSchedule'
           ? '수정했어요. 캘린더에 반영됐어요. ✓'
           : '완료했어요. 캘린더에 반영됐어요. ✓';
+      const calendarSync = data?.calendarSync as CalendarSyncResult | undefined;
       setMessages((prev) => [
         ...prev,
         {
           id: newId(),
           role: 'assistant',
-          content: doneMsg,
+          content: `${doneMsg}${formatCalendarSyncNotice(calendarSync)}`,
         },
       ]);
     } catch (err) {

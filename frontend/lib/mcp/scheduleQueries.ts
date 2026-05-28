@@ -14,11 +14,20 @@ export interface Schedule {
   description: string | null;
   color: string;
   startAt: string; // ISO 8601 (UTC)
-  endAt: string;
+  endAt: string | null;
   createdBy: string;
   creatorName: string | null;
   createdAt: string;
   updatedAt: string;
+  googleEventId?: string;
+  calendarSync?: CalendarSyncResult;
+}
+
+export interface CalendarSyncResult {
+  attempted: boolean;
+  success: boolean;
+  error?: string;
+  googleEventId?: string;
 }
 
 export type ScheduleView = 'month' | 'week' | 'day';
@@ -65,7 +74,7 @@ export async function createSchedule(opts: CreateScheduleOptions): Promise<Sched
   if (endAt) body.endAt = endAt;
   if (description !== undefined) body.description = description;
   if (color !== undefined) body.color = color;
-  const data = await callBackend<Schedule | { schedule: Schedule }>({
+  const data = await callBackend<Schedule | { schedule: Schedule; calendarSync?: CalendarSyncResult }>({
     method: 'POST',
     path: `/api/teams/${encodeURIComponent(teamId)}/schedules`,
     jwt,
@@ -74,7 +83,8 @@ export async function createSchedule(opts: CreateScheduleOptions): Promise<Sched
   // 백엔드는 schedule 객체를 직접 반환하거나 {schedule:...} 으로 감싸 반환할 수 있음
   if (data && typeof data === 'object' && 'id' in data) return data as Schedule;
   if (data && typeof data === 'object' && 'schedule' in data) {
-    return (data as { schedule: Schedule }).schedule;
+    const wrapped = data as { schedule: Schedule; calendarSync?: CalendarSyncResult };
+    return { ...wrapped.schedule, calendarSync: wrapped.calendarSync };
   }
   throw new Error('createSchedule: 예상치 못한 응답 형식');
 }
@@ -86,17 +96,17 @@ export interface DeleteScheduleOptions {
 }
 
 // 백엔드 DELETE /api/teams/:teamId/schedules/:scheduleId 호출. 권한·존재 검증은 백엔드가 처리.
-// 성공 시 void 반환. 백엔드는 204 또는 {ok:true} 등으로 응답할 수 있음 — 어느 쪽이든 호출 측은
-// 성공 여부만 신경쓰면 되므로 결과를 무시.
-export async function deleteSchedule(opts: DeleteScheduleOptions): Promise<void> {
+// 성공 시 Google Calendar 동기화 결과를 함께 반환할 수 있다.
+export async function deleteSchedule(opts: DeleteScheduleOptions): Promise<{ calendarSync?: CalendarSyncResult }> {
   const { teamId, jwt, scheduleId } = opts;
   if (!teamId) throw new Error('teamId 가 필요합니다.');
   if (!scheduleId) throw new Error('scheduleId 가 필요합니다.');
-  await callBackend<unknown>({
+  const data = await callBackend<{ calendarSync?: CalendarSyncResult } | null>({
     method: 'DELETE',
     path: `/api/teams/${encodeURIComponent(teamId)}/schedules/${encodeURIComponent(scheduleId)}`,
     jwt,
   });
+  return data && typeof data === 'object' ? data : {};
 }
 
 export interface UpdateScheduleOptions {
@@ -125,7 +135,7 @@ export async function updateSchedule(opts: UpdateScheduleOptions): Promise<Sched
   if (Object.keys(body).length === 0) {
     throw new Error('수정할 필드가 없습니다.');
   }
-  const data = await callBackend<Schedule | { schedule: Schedule }>({
+  const data = await callBackend<Schedule | { schedule: Schedule; calendarSync?: CalendarSyncResult }>({
     method: 'PATCH',
     path: `/api/teams/${encodeURIComponent(teamId)}/schedules/${encodeURIComponent(scheduleId)}`,
     jwt,
@@ -133,7 +143,8 @@ export async function updateSchedule(opts: UpdateScheduleOptions): Promise<Sched
   });
   if (data && typeof data === 'object' && 'id' in data) return data as Schedule;
   if (data && typeof data === 'object' && 'schedule' in data) {
-    return (data as { schedule: Schedule }).schedule;
+    const wrapped = data as { schedule: Schedule; calendarSync?: CalendarSyncResult };
+    return { ...wrapped.schedule, calendarSync: wrapped.calendarSync };
   }
   throw new Error('updateSchedule: 예상치 못한 응답 형식');
 }

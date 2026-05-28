@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware/withAuth'
-import { withTeamRole, requireLeader } from '@/lib/middleware/withTeamRole'
+import { withTeamRole } from '@/lib/middleware/withTeamRole'
 import {
   getScheduleById,
-  updateSchedule,
-  deleteSchedule,
 } from '@/lib/db/queries/scheduleQueries'
+import {
+  deleteExternalGoogleEvent,
+  deleteScheduleWithGoogleSync,
+  updateExternalGoogleEvent,
+  updateScheduleWithGoogleSync,
+} from '@/lib/google/scheduleCalendarService'
 
 interface UpdateScheduleBody {
   title?: string
@@ -14,6 +18,39 @@ interface UpdateScheduleBody {
   startAt?: string
   // 종료시각 선택. null 명시 시 기존 endAt 그대로 유지(현재 COALESCE 동작) — 명시 변경 안 함.
   endAt?: string | null
+}
+
+function extractGoogleEventId(scheduleId: string): string | null {
+  return scheduleId.startsWith('google:') ? scheduleId.slice('google:'.length) : null
+}
+
+function validateUpdateDates(args: {
+  startAt?: string
+  endAt?: string | null
+  existingStartAt?: Date
+  existingEndAt?: Date | null
+}): NextResponse | null {
+  const { startAt, endAt, existingStartAt, existingEndAt } = args
+  if (!startAt && !endAt) return null
+
+  const startDate = startAt ? new Date(startAt) : existingStartAt
+  const endDate = endAt ? new Date(endAt) : existingEndAt
+
+  if (!startDate || Number.isNaN(startDate.getTime()) || (endDate !== null && endDate !== undefined && Number.isNaN(endDate.getTime()))) {
+    return NextResponse.json(
+      { error: '날짜 형식이 올바르지 않습니다.' },
+      { status: 400 }
+    )
+  }
+
+  if (endDate !== null && endDate !== undefined && endDate <= startDate) {
+    return NextResponse.json(
+      { error: '종료일은 시작일보다 늦어야 합니다.' },
+      { status: 400 }
+    )
+  }
+
+  return null
 }
 
 /**
@@ -89,6 +126,46 @@ export async function PATCH(
     if (!roleResult.success) return roleResult.response
 
     // 2. 기존 일정 존재 확인 및 생성자 확인
+    const googleEventId = extractGoogleEventId(scheduleId)
+    const body: UpdateScheduleBody = await request.json()
+    const { title, description, color, startAt, endAt } = body
+
+    if (googleEventId) {
+      if (roleResult.context.role !== 'LEADER') {
+        return NextResponse.json(
+          { error: '팀장만 Google Calendar 일정을 수정할 수 있습니다.' },
+          { status: 403 }
+        )
+      }
+
+      const dateError = validateUpdateDates({ startAt, endAt })
+      if (dateError) return dateError
+
+      const result = await updateExternalGoogleEvent({
+        teamId,
+        googleEventId,
+        update: {
+          title,
+          description: description ?? undefined,
+          color,
+          startAt: startAt ? new Date(startAt) : undefined,
+          endAt: endAt === null ? null : endAt ? new Date(endAt) : undefined,
+        },
+      })
+
+      if (!result) {
+        return NextResponse.json(
+          { error: 'Google Calendar 연결 정보를 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json({
+        ...result.schedule,
+        calendarSync: result.calendarSync,
+      })
+    }
+
     const existingSchedule = await getScheduleById(teamId, scheduleId)
     if (!existingSchedule) {
       return NextResponse.json(
@@ -105,45 +182,35 @@ export async function PATCH(
       )
     }
 
-    // 3. 요청 본문 파싱
-    const body: UpdateScheduleBody = await request.json()
-    const { title, description, color, startAt, endAt } = body
-
     // 날짜 유효성 검증 (제공된 경우에만)
-    if (startAt || endAt) {
-      const startDate = startAt ? new Date(startAt) : existingSchedule.start_at
-      const endDate = endAt ? new Date(endAt) : existingSchedule.end_at  // 기존 endAt 가 null 일 수 있음
+    const dateError = validateUpdateDates({
+      startAt,
+      endAt,
+      existingStartAt: existingSchedule.start_at,
+      existingEndAt: existingSchedule.end_at,
+    })
+    if (dateError) return dateError
 
-      if (isNaN(startDate.getTime()) || (endDate !== null && isNaN(endDate.getTime()))) {
-        return NextResponse.json(
-          { error: '날짜 형식이 올바르지 않습니다.' },
-          { status: 400 }
-        )
-      }
-
-      if (endDate !== null && endDate <= startDate) {
-        return NextResponse.json(
-          { error: '종료일은 시작일보다 늦어야 합니다.' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // 4. 일정 수정
-    const updatedSchedule = await updateSchedule(teamId, scheduleId, {
+    // 4. 일정 수정 + Google Calendar 연결 일정이면 event 수정
+    const result = await updateScheduleWithGoogleSync({
+      teamId,
+      scheduleId,
+      update: {
       title,
       description: description ?? undefined,
       color,
       startAt: startAt ? new Date(startAt) : undefined,
-      endAt: endAt ? new Date(endAt) : undefined,
+      endAt: endAt === null ? null : endAt ? new Date(endAt) : undefined,
+      },
     })
 
-    if (!updatedSchedule) {
+    if (!result) {
       return NextResponse.json(
         { error: '일정 수정에 실패했습니다.' },
         { status: 500 }
       )
     }
+    const { schedule: updatedSchedule, calendarSync } = result
 
     return NextResponse.json({
       id: updatedSchedule.id,
@@ -156,6 +223,10 @@ export async function PATCH(
       createdBy: updatedSchedule.created_by,
       createdAt: updatedSchedule.created_at,
       updatedAt: updatedSchedule.updated_at,
+      source: 'local',
+      editable: true,
+      googleEventId: calendarSync.googleEventId,
+      calendarSync,
     })
   } catch (err) {
     console.error('Update schedule error:', err)
@@ -186,6 +257,29 @@ export async function DELETE(
     if (!roleResult.success) return roleResult.response
 
     // 2. 일정 존재 확인 및 생성자 확인
+    const googleEventId = extractGoogleEventId(scheduleId)
+    if (googleEventId) {
+      if (roleResult.context.role !== 'LEADER') {
+        return NextResponse.json(
+          { error: '팀장만 Google Calendar 일정을 삭제할 수 있습니다.' },
+          { status: 403 }
+        )
+      }
+
+      const result = await deleteExternalGoogleEvent({ teamId, googleEventId })
+      if (!result.deleted) {
+        return NextResponse.json(
+          { error: 'Google Calendar 연결 정보를 찾을 수 없습니다.' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json({
+        message: '일정이 삭제되었습니다.',
+        calendarSync: result.calendarSync,
+      })
+    }
+
     const existingSchedule = await getScheduleById(teamId, scheduleId)
     if (!existingSchedule) {
       return NextResponse.json(
@@ -202,17 +296,20 @@ export async function DELETE(
       )
     }
 
-    // 3. 일정 삭제
-    const deleted = await deleteSchedule(teamId, scheduleId)
+    // 3. 일정 삭제 + Google Calendar 연결 일정이면 event 삭제
+    const result = await deleteScheduleWithGoogleSync({ teamId, scheduleId })
 
-    if (!deleted) {
+    if (!result.deleted) {
       return NextResponse.json(
         { error: '일정을 찾을 수 없습니다.' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({ message: '일정이 삭제되었습니다.' })
+    return NextResponse.json({
+      message: '일정이 삭제되었습니다.',
+      calendarSync: result.calendarSync,
+    })
   } catch (err) {
     console.error('Delete schedule error:', err)
     return NextResponse.json(

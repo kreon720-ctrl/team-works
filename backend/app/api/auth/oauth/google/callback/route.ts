@@ -3,6 +3,7 @@ import { popState } from '@/lib/auth/oauth/state'
 import { exchangeGoogleCode, fetchGoogleUserInfo } from '@/lib/auth/oauth/google'
 import { linkOrCreateUser } from '@/lib/auth/oauth/linking'
 import { generateTokenPair } from '@/lib/auth/jwt'
+import { resolvePublicBaseUrl } from '@/lib/api/baseUrl'
 
 function frontRedirect(args: {
   baseUrl: string
@@ -23,32 +24,13 @@ function frontRedirect(args: {
   return NextResponse.redirect(target.toString())
 }
 
-function resolveBaseUrl(request: NextRequest): string {
-  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, '')
-
-  const fwdHost = request.headers.get('x-forwarded-host')
-  if (fwdHost) {
-    const fwdProto = request.headers.get('x-forwarded-proto') ?? 'https'
-    return `${fwdProto}://${fwdHost}`
-  }
-
-  const host = request.headers.get('host')
-  if (host && !host.startsWith('backend') && !host.startsWith('localhost:3000')) {
-    const proto = request.headers.get('x-forwarded-proto')
-      ?? (host.startsWith('localhost') ? 'http' : 'https')
-    return `${proto}://${host}`
-  }
-
-  return request.nextUrl.origin
-}
-
 /**
  * GET /api/auth/oauth/google/callback
  *
  * Google → 우리 서버 콜백.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const baseUrl = resolveBaseUrl(request)
+  const baseUrl = resolvePublicBaseUrl(request)
 
   try {
     const code = request.nextUrl.searchParams.get('code')

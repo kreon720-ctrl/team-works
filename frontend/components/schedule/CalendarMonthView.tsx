@@ -30,6 +30,23 @@ const COLOR_CLASSES: Record<NonNullable<Schedule['color']>, { bg: string; text: 
   rose: { bg: 'bg-rose-100 dark:bg-[#EF4444]', text: 'text-rose-800 dark:text-white' },
 };
 
+function scheduleClassName(schedule: Schedule): string {
+  if (schedule.source === 'google') {
+    return 'bg-sky-50 text-sky-800 border border-sky-300 dark:bg-sky-950/40 dark:text-sky-100 dark:border-sky-700';
+  }
+  return `${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`;
+}
+
+function scheduleLabel(schedule: Schedule, text: string): React.ReactNode {
+  if (schedule.source !== 'google') return text;
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <span className="inline-flex h-3 w-3 flex-none items-center justify-center rounded-sm bg-white/80 text-[8px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-100">G</span>
+      <span className="min-w-0 break-words">{text}</span>
+    </span>
+  );
+}
+
 const AVG_CHAR_WIDTH_PX = 13;
 const AVG_CHAR_WIDTH_PX_MOBILE = 11; // text-[10px] 한국어 한 글자 ≈ 11px
 const BAR_LINE_HEIGHT_PX = 16;
@@ -335,13 +352,13 @@ export function CalendarMonthView({
                       {sameDaySchedules.map(schedule => (
                         <div
                           key={schedule.id}
-                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 -mx-0.5 md:mx-0 break-words overflow-hidden rounded-none md:rounded mb-0 md:mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 -mx-0.5 md:mx-0 break-words overflow-hidden rounded-none md:rounded mb-0 md:mb-0.5 cursor-pointer hover:opacity-75 transition-opacity flex-shrink-0 ${scheduleClassName(schedule)}`}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                           onMouseLeave={() => setTooltip(null)}
                         >
-                          {formatTime(new Date(schedule.startAt))} {schedule.title}
+                          {scheduleLabel(schedule, `${formatTime(new Date(schedule.startAt))} ${schedule.title}`)}
                         </div>
                       ))}
 
@@ -379,13 +396,13 @@ export function CalendarMonthView({
                         style={{ left: leftPct, width: widthPct, top: `${topPx}px`, height: `${barH}px`, pointerEvents: 'auto' }}
                       >
                         <div
-                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded-none md:rounded h-full text-center ${COLOR_CLASSES[schedule.color ?? 'indigo'].bg} ${COLOR_CLASSES[schedule.color ?? 'indigo'].text}`}
+                          className={`text-[10px] md:text-xs leading-[1.1] md:leading-4 px-0 md:px-1 py-0 md:py-0.5 break-words overflow-hidden cursor-pointer hover:opacity-75 transition-opacity rounded-none md:rounded h-full text-center ${scheduleClassName(schedule)}`}
                           onClick={e => { e.stopPropagation(); onScheduleClick?.(schedule); }}
                           onMouseEnter={e => setTooltip({ schedule, x: e.clientX, y: e.clientY })}
                           onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                           onMouseLeave={() => setTooltip(null)}
                         >
-                          {displayText}
+                          {scheduleLabel(schedule, displayText)}
                         </div>
                       </div>
                     );
