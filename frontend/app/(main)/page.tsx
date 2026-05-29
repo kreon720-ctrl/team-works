@@ -12,6 +12,45 @@ import { Button } from '@/components/common/Button';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { LandingMenu } from '@/components/common/LandingMenu';
 
+function HelpLinks({ compact = false }: { compact?: boolean }) {
+  return (
+    <nav
+      aria-label="TEAM WORKS 도움말"
+      className={[
+        'flex items-center',
+        compact ? 'gap-1 text-[10px]' : 'gap-2 text-xs',
+      ].join(' ')}
+    >
+      <a
+        href="/landing/index.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-gray-500 underline-offset-2 hover:text-primary-600 hover:underline dark:text-dark-text-muted dark:hover:text-dark-accent"
+      >
+        About TEAM WORKS
+      </a>
+      <span className="text-gray-300 dark:text-dark-border" aria-hidden="true">|</span>
+      <a
+        href="/landing/quickstart.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-gray-500 underline-offset-2 hover:text-primary-600 hover:underline dark:text-dark-text-muted dark:hover:text-dark-accent"
+      >
+        {compact ? 'Guide' : 'Quick Start Guide'}
+      </a>
+      <span className="text-gray-300 dark:text-dark-border" aria-hidden="true">|</span>
+      <a
+        href="/landing/faq.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-gray-500 underline-offset-2 hover:text-primary-600 hover:underline dark:text-dark-text-muted dark:hover:text-dark-accent"
+      >
+        FAQ
+      </a>
+    </nav>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { data, isLoading, isError, refetch } = useMyTeams();
@@ -179,7 +218,12 @@ export default function HomePage() {
 
       {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 py-6">
-        <h2 className="hidden md:block text-xl font-semibold text-gray-900 mb-4 dark:text-dark-text">내 팀 목록</h2>
+        <div className="hidden md:block mb-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">내 팀 목록</h2>
+        </div>
+        <div className="flex justify-end mb-3">
+          <HelpLinks />
+        </div>
 
         {/* Toast 메시지 */}
         {toast && (
