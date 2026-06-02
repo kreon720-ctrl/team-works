@@ -18,6 +18,7 @@
 | 2.1 | 2026-05-12 | AI 버틀러 확장 — `schedule_update`·`schedule_delete` 의도 지원 (4-way → 6-way 분류). BR-19 거절 범위 축소(채팅/공지/포스트잇/프로젝트/자료실 CRUD 만), BR-21/22 신설(일정 수정·삭제 다중 턴 confirm), UC-26/27 추가. 음성 입력(STT) 도메인화 — VI 항목·BR-23·UC-28 추가, Web Speech API + 자체 Whisper hybrid 자동 분기(Galaxy/Samsung 디바이스 quirk 회피). 모바일 UX 최적화 — VII 항목 신설(좌우 swipe 네비게이션, 모바일 전용 컴팩트 모달·포스트잇). RAG 자연어 처리 보강 — "X시 반" 정규화, 식사 단어(아침/점심/저녁/야식) 시간대 band → 키워드 매치로 전환 |
 | 2.2 | 2026-05-16 | 카카오 소셜 인증 도입 — User.password nullable, OAuthAccount(4.1b)·OAuthState(4.1c) 엔티티 신설, BR-24(카카오 OAuth+PKCE+state·계정매칭·email_required) 추가, UC-29 신규+수락조건. 간트차트 SVG 저장 — BR-25·UC-30 추가 |
 | 2.3 | 2026-05-26 | frontend/backend/DB 구현 기준 정합성 보정 — Schedule.color/endAt nullable, WorkPerformancePermission 빈 배열 의미, ProjectSchedule.phaseId 타입, STT 미지원 UI 동작, UC-04/UC-06 주체·명칭 정정 |
+| 2.4 | 2026-06-02 | 코드 ↔ 문서 일치성 점검(frontend/backend/DB 기준) 결과 반영: ① 구글 소셜 로그인 도입 — BR-24 를 카카오·구글 공통으로 일반화, UC-29 표제·수락조건 확장. ② 약관/개인정보 동의 플로우 도메인화 — User 에 `terms_accepted_at`·`privacy_accepted_at`·`terms_version`·`privacy_version` 추가, OAuthState 에 동의·user_id 임시 보관 컬럼 추가, BR-26·UC-31 신설. ③ 구글 캘린더 연동 도메인화 — TeamCalendarIntegration(4.15)·CalendarEventMapping(4.16) 엔티티 신설, 비공개 팀 한정·팀장 전용 규칙(BR-27), UC-32 신설, §1-1 II 기능 서술·역할/권한·CRUD 매핑·비기능·관련 문서 갱신 |
 
 ---
 
@@ -40,6 +41,8 @@
 **팀 캘린더**: "다음 주 수요일 회의 몇 시였지?" 단톡방 스크롤 끝까지 내려본 적 있으시죠. 팀 캘린더에 일정을 딱 올려두면 월·주·일 단위로 보고 싶은 대로 볼 수 있어요. 팀원 누구나 일정을 추가할 수 있고, 내가 올린 일정만 내가 수정·삭제할 수 있으니 누가 마음대로 지워버릴 걱정도 없습니다. 물론 우리 팀 일정은 우리 팀에만 보여요.
 
 **포스트잇**: "내일 거래처 미팅 전에 이거 꼭 챙기기!" 같은 메모, 포스트잇처럼 날짜에 붙여둘 수 있어요. 색깔도 골라서 중요한 건 빨갛게, 참고사항은 파랗게 구분해두면 딱 봐도 뭐가 급한지 보입니다. 내 메모는 언제든 수정하거나 떼버릴 수 있어요.
+
+**구글 캘린더 연동**: 이미 쓰던 구글 캘린더를 버릴 필요 없어요. 팀장이 캘린더 화면 상단에서 [구글 캘린더 연결] 한 번이면, 팀 일정을 내 구글 캘린더와 묶어서 한쪽에서 등록한 일정을 다른 쪽에서도 볼 수 있어요. 단, 외부로 일정이 새어나가면 곤란하니 **비공개 팀에서만** 연결할 수 있고, 연결을 시작·해제하는 건 팀장만 가능합니다.
 
 #### III. 프로젝트 관리 기능 — "엑셀 간트차트, 이제 그만 수정해도 돼요"
 `프로젝트_일정_v7_최종_진짜최종.xlsx` 이런 파일 만들어 본 적 있으시죠. 팀웍스는 프로젝트를 3단계로 정리해서 누가 봐도 한눈에 들어오게 만들어줘요. 진행률은 %로 바로 보이고, 일정이 밀린 업무는 색이 바뀌어서 팀장도 팀원도 "이거 빨리 처리해야겠다" 바로 알아챌 수 있습니다.
@@ -183,8 +186,14 @@
 | email | String | unique, not null, 이메일 형식 |
 | name | String | not null, 최대 50자 |
 | password | String | **nullable**, 암호화 저장 — OAuth 전용 사용자는 비밀번호 없음 |
+| termsAcceptedAt | Timestamp | nullable — 서비스 이용약관 동의 일시 |
+| privacyAcceptedAt | Timestamp | nullable — 개인정보 수집·이용 동의 일시 |
+| termsVersion | String | nullable, 최대 20자 — 동의한 이용약관 버전 |
+| privacyVersion | String | nullable, 최대 20자 — 동의한 개인정보 정책 버전 |
 
-> **소셜 인증 도입(2026-05):** 카카오 OAuth 로그인이 추가되면서 `password`(= `password_hash`)의 NOT NULL 제약이 해제됨. 이메일/비밀번호 가입 사용자는 기존대로 해싱된 비밀번호를 보유하고, 카카오로만 가입한 사용자는 `password = NULL` + OAuthAccount 연결로 식별. `email` 은 NOT NULL 유지(이메일 동의 미허락 시 가입 거절 — BR-24).
+> **소셜 인증 도입(2026-05~06):** 카카오·구글 OAuth 로그인이 추가되면서 `password`(= `password_hash`)의 NOT NULL 제약이 해제됨. 이메일/비밀번호 가입 사용자는 기존대로 해싱된 비밀번호를 보유하고, 소셜로만 가입한 사용자는 `password = NULL` + OAuthAccount 연결로 식별. `email` 은 NOT NULL 유지(이메일 동의 미허락 시 가입 거절 — BR-24).
+>
+> **약관 동의 기록(2026-06):** 회원가입·소셜 최초 가입 시 이용약관·개인정보 수집·이용 동의를 받아 동의 일시(`terms_accepted_at`/`privacy_accepted_at`)와 동의 버전(`terms_version`/`privacy_version`)을 저장(BR-26). 버전 문자열은 frontend 상수(예: 이용약관 `2026-06-02`, 개인정보 `2026-05-29`)로 관리되어 약관 개정 시 재동의 추적에 활용.
 
 ### 4.1b OAuthAccount (소셜 연결 계정)
 | 속성 | 타입 | 제약 |
@@ -207,9 +216,16 @@
 | state | String(64) | PK — CSRF 방지용 난수 |
 | codeVerifier | String(128) | not null — PKCE code_verifier |
 | redirectAfter | String | nullable — 로그인 후 복귀 경로(open-redirect 검증 후 사용) |
+| userId | UUID | nullable, FK → User.id, ON DELETE CASCADE — 구글 캘린더 연동처럼 이미 로그인한 사용자가 시작한 흐름에서 연동 주체 식별 |
+| termsAccepted | Boolean | not null, default false — 소셜 최초 가입 흐름에서 임시 보관할 이용약관 동의 여부 |
+| privacyAccepted | Boolean | not null, default false — 개인정보 수집·이용 동의 여부 |
+| termsVersion | String | nullable, 최대 20자 — 동의한 이용약관 버전 |
+| privacyVersion | String | nullable, 최대 20자 — 동의한 개인정보 정책 버전 |
 | createdAt | Timestamp | not null, default now() — TTL 5분, 주기적 청소 |
 
 > **규칙:** 인증 시작(`/start`)에서 생성 → 콜백(`/callback`)에서 1회 소비 후 즉시 삭제. Redis 미보유 인프라라 DB 로 대체, `created_at < now() - interval '1 hour'` 주기 청소.
+>
+> **동의·연동 주체 임시 보관:** 소셜 최초 가입 시 동의 정보를 콜백 이후 User 에 반영하기 위해, 구글 캘린더 연동 시 이미 로그인한 사용자를 콜백에서 식별하기 위해 각각 동의 컬럼과 `userId` 를 state 에 함께 저장한다.
 
 ### 4.2 Team (팀)
 | 속성 | 타입 | 제약 |
@@ -388,12 +404,50 @@
 >
 > **다운로드:** `GET /api/files/:id` — 호출자가 첨부의 team_id 멤버여야 허용. 응답에 `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` 강제로 인라인 렌더 차단.
 
+### 4.15 TeamCalendarIntegration (구글 캘린더 연동 설정)
+| 속성 | 타입 | 제약 |
+|------|------|------|
+| id | UUID | PK, not null |
+| teamId | UUID | FK → Team.id, not null, ON DELETE CASCADE |
+| userId | UUID | FK → User.id, not null, ON DELETE CASCADE — 연동을 수행한 사용자(팀장) |
+| provider | String | not null, default 'google' — `provider = 'google'` 고정(CHECK) |
+| googleCalendarId | String | not null, default 'primary' |
+| googleAccountEmail | String | not null — 연동된 구글 계정 이메일 |
+| encryptedRefreshToken | Text | not null — 암호화 저장된 구글 refresh token |
+| scope | Text | not null — 부여받은 OAuth scope |
+| connectedAt | Timestamp | not null, default now() |
+| disconnectedAt | Timestamp | nullable — 연동 해제 일시 |
+| status | Enum | not null, default 'connected' — `connected` \| `disabled` \| `error` |
+| createdAt | Timestamp | not null, default now() |
+| updatedAt | Timestamp | not null, default now() |
+
+> **규칙(BR-27):** Google 캘린더 연동은 **비공개 팀(`isPublic = false`)에만** 허용(DB 트리거 `assert_team_calendar_private_team` 으로 강제). 활성 연동(`disconnected_at IS NULL AND status <> 'disabled'`)이 있는 팀은 공개로 전환 불가(트리거 `prevent_public_team_with_calendar_integration`). 팀당 활성 연동은 1건(부분 UNIQUE 인덱스). 연동 시작·해제는 팀장(LEADER)만 가능.
+
+### 4.16 CalendarEventMapping (일정 동기화 매핑)
+| 속성 | 타입 | 제약 |
+|------|------|------|
+| id | UUID | PK, not null |
+| teamId | UUID | FK → Team.id, not null, ON DELETE CASCADE |
+| localScheduleId | UUID | FK → Schedule.id, **nullable**, ON DELETE SET NULL — 팀 일정 삭제 시 매핑은 보존 |
+| googleEventId | String | not null — 구글 캘린더 이벤트 ID |
+| googleCalendarId | String | not null, default 'primary' |
+| syncDirection | Enum | not null, default 'teamworks_to_google' — `teamworks_to_google` \| `google_to_teamworks` \| `bidirectional` |
+| lastSyncedAt | Timestamp | nullable — 마지막 동기화 일시 |
+| lastGoogleUpdated | Timestamp | nullable — 구글 측 마지막 수정 일시 |
+| syncStatus | Enum | not null, default 'synced' — `pending` \| `synced` \| `failed` \| `deleted` |
+| lastError | Text | nullable — 동기화 실패 사유 |
+| createdAt | Timestamp | not null, default now() |
+| updatedAt | Timestamp | not null, default now() |
+
+> **규칙:** `(teamId, googleCalendarId, googleEventId)` UNIQUE + `localScheduleId` UNIQUE 로 동일 이벤트·동일 일정의 중복 매핑 방지. 팀 일정 조회 시 backend 가 연동된 구글 이벤트를 병합해 함께 반환.
+
 ---
 
 ## 5. 역할 및 권한
 
 | 기능 | 팀장 (LEADER) | 팀원 (MEMBER) | 관련 규칙 |
 |------|:---:|:---:|-----------|
+| 회원가입 시 약관·개인정보 동의 | 본인만 | 본인만 | BR-26 |
 | 내 프로필(이름) 수정 | 본인만 | 본인만 | BR-01 |
 | 팀 공개 목록 조회 | O | O | BR-07 |
 | 팀 가입 신청 | O (타 팀에 대해) | O | BR-07 |
@@ -405,6 +459,8 @@
 | 팀 일정 조회 | O | O | BR-01 |
 | 팀 일정 생성 | O | O | BR-02 |
 | 팀 일정 수정/삭제 | 생성자 본인만 | 생성자 본인만 | BR-02 |
+| 구글 캘린더 연동 시작/해제 | O (자기 팀, 비공개 팀만) | X | BR-27 |
+| 구글 캘린더 연동 상태 조회 | O | O | BR-27 |
 | 채팅 송수신 (팀 일자별) | O | O | BR-01, BR-15 |
 | 채팅 송수신 (프로젝트 전용) | O | O | BR-01, BR-15 |
 | 업무보고 전송 | O | O | BR-04 |
@@ -456,8 +512,10 @@
 | BR-21 | `schedule_update` 는 (1) 대상 일정 식별 — `/parse-schedule-query` 로 키워드·날짜 후보 좁히기, 다중이면 `awaiting-input(needs:'target')` 후속 질문 → (2) 새 일시·제목 수집 — 다중 턴 (`updateState.needs: 'new-datetime'` / `'new-title'`), `tryParseDirectDatetime` + Open WebUI LLM fallback, "그대로/유지" 패턴(`KEEP_AS_IS_RE`)은 기존값 유지 → (3) confirm 카드 → (4) ✓ 클릭 후 PATCH. 일정 생성자 본인만 가능 (BR-02 와 동일), backend `withAuth`/`withTeamRole` 와 `created_by === userId` 검증. multi-turn 상태(`updateState`) 는 클라이언트가 turn 마다 carry — 서버는 stateless |
 | BR-22 | `schedule_delete` 는 (1) 대상 일정 식별 (BR-21 과 동일 메커니즘 — `parse-schedule-query` 재활용) → (2) confirm 카드 → (3) ✓ 클릭 후 DELETE. 일정 생성자 본인만 가능. 한국어 "취소"·"삭제"·"제거"·"지워"·"지운" 모두 동일 처리 (예: "회의 취소해" = "회의 일정 지워"). bulk 삭제("전체/모두/다 삭제") 는 `BULK_INTENT_RE` 로 감지해 1건씩만 가능함을 안내 |
 | BR-23 | 음성 입력(STT) 은 입력창 옆 마이크 버튼으로 토글. **AI 찰떡이 탭과 팀채팅 탭 둘 다 동일 hook(`useSpeechRecognition`) 으로 일관 적용**. 브라우저·디바이스 자동 분기: Samsung Galaxy / SM-XXXX UA / Samsung Internet / Web Speech API 미지원 환경 → 자체 호스팅 Whisper(`POST /api/stt`), 그 외 → 브라우저 내장 Web Speech API. 인식 텍스트는 입력창에 채워지고 사용자 검토 후 [전송]. 마이크 권한 거부 시 안내 토스트. 비지원 환경에서는 팀채팅 마이크 아이콘은 숨기고, AI 찰떡이 마이크 버튼은 노출 후 클릭 시 미지원 안내를 표시. 모바일 캘린더 분할 화면 시 입력창 자동 포커스 억제(키보드 가림 방지) |
-| BR-24 | 카카오 소셜 로그인은 OAuth 2.0(OIDC) Authorization Code + PKCE + state 흐름. `POST /api/auth/oauth/kakao/start` 가 인증 URL 발급(state·code_verifier 를 OAuthState 에 저장), `GET /api/auth/oauth/kakao/callback` 이 code→token 교환·사용자 조회·계정 매칭/생성 후 우리 JWT 를 **URL fragment(#)** 로 `/auth/oauth/success` 에 전달. 매칭 규칙: ① providerUserId 매칭 → 기존 계정 로그인, ② 미매칭 + 동일 이메일 User 존재 → 자동 연결, ③ 미매칭 + 이메일 신규 → 신규 User(`password=NULL`) 생성, ④ **카카오 이메일 동의 미허락 → 가입 거절(`email_required`)**. redirectAfter 는 자도메인 절대경로만 허용(open-redirect 차단) |
+| BR-24 | 소셜 로그인(**카카오·구글 공통**)은 OAuth 2.0(OIDC) Authorization Code + PKCE + state 흐름. `POST /api/auth/oauth/{kakao\|google}/start` 가 인증 URL 발급(state·code_verifier 를 OAuthState 에 저장), `GET /api/auth/oauth/{kakao\|google}/callback` 이 code→token 교환·사용자 조회·계정 매칭/생성 후 우리 JWT 를 **URL fragment(#)** 로 `/auth/oauth/success` 에 전달. 매칭 규칙: ① providerUserId 매칭 → 기존 계정 로그인, ② 미매칭 + 동일 이메일 User 존재 → 자동 연결, ③ 미매칭 + 이메일 신규 → 신규 User(`password=NULL`) 생성, ④ **이메일 동의 미허락 → 가입 거절(`email_required`)**. provider 는 OAuthAccount.provider(`kakao`\|`google`)로 구분, 한 User 가 두 provider 를 동시 연결 가능. redirectAfter 는 자도메인 절대경로만 허용(open-redirect 차단) |
 | BR-25 | 프로젝트 간트차트는 `[저장]` 버튼으로 현재 화면을 SVG 파일로 내려받기 가능(`html-to-image` 의 `toSvg`). 파일명 `{프로젝트명}_{연도}.svg`, 다크모드 배경색 명시 적용(투명 배경 방지). 클라이언트 전용 기능 — 서버/DB 변경 없음 |
+| BR-26 | 회원가입(이메일·비밀번호) 및 소셜 최초 가입 시 **서비스 이용약관·개인정보 수집·이용 동의**를 필수로 받는다. 동의 시 User 에 동의 일시(`terms_accepted_at`/`privacy_accepted_at`)와 동의 버전(`terms_version`/`privacy_version`)을 기록. 소셜 가입은 OAuth 콜백 이전에 동의를 받아 OAuthState 에 임시 보관 후 신규 User 생성 시 반영. 동의 버전 문자열은 frontend 상수로 관리되어 약관 개정 시 재동의 판단 근거가 됨 |
+| BR-27 | 구글 캘린더 연동은 **비공개 팀에만** 허용하며 **연동 시작·해제는 팀장(LEADER)만** 가능(상태 조회는 팀원도 가능). `POST /api/teams/:teamId/calendar/google/start` → 구글 OAuth(캘린더 scope) → `GET /api/auth/oauth/google/calendar/callback` 에서 refresh token 을 **암호화 저장**(TeamCalendarIntegration). 팀당 활성 연동 1건. 활성 연동이 있는 팀은 공개로 전환 불가(DB 트리거 강제). 연동 시 팀 일정과 구글 이벤트를 CalendarEventMapping 으로 매핑해 양방향 동기화하며, 팀 일정 조회 시 구글 이벤트를 병합 반환. `DELETE …/disconnect` 로 연동 해제 |
 
 ---
 
@@ -495,8 +553,10 @@
 | UC-26 | AI 어시스턴트로 일정 수정 (대상 식별 + confirm) | 일정 생성자 | BR-01, BR-02, BR-21 |
 | UC-27 | AI 어시스턴트로 일정 삭제 (대상 식별 + confirm) | 일정 생성자 | BR-01, BR-02, BR-22 |
 | UC-28 | AI 어시스턴트 음성 입력 (마이크 → 텍스트) | 로그인 사용자 | BR-01, BR-23 |
-| UC-29 | 카카오 계정으로 로그인 / 회원가입 | 비인증 사용자 | BR-24 |
+| UC-29 | 소셜 계정(카카오·구글)으로 로그인 / 회원가입 | 비인증 사용자 | BR-24, BR-26 |
 | UC-30 | 프로젝트 간트차트 SVG 파일 저장 | 팀장, 팀원 | BR-01, BR-25 |
+| UC-31 | 회원가입 시 약관·개인정보 동의 | 비인증 사용자 | BR-26 |
+| UC-32 | 구글 캘린더 연동 시작·해제·상태 조회 | 팀장(시작·해제), 팀원(상태 조회) | BR-01, BR-27 |
 
 ### 수락 조건 (Acceptance Criteria)
 
@@ -514,16 +574,38 @@
 - When: 갱신 요청
 - Then: 401 Unauthorized, 클라이언트는 재로그인으로 유도
 
-**UC-29 카카오 계정으로 로그인 / 회원가입**
-- Given: 비인증 사용자가 로그인·회원가입 화면에서 [카카오로 시작하기] 클릭
-- When: `POST /api/auth/oauth/kakao/start` → 응답 url 로 카카오 인증 페이지 이동, 동의 완료
-- Then: 카카오가 `GET /api/auth/oauth/kakao/callback` 호출 → state 검증 → 계정 매칭/생성 → 우리 JWT 발급 → `/auth/oauth/success#accessToken=…` 로 302, 프론트가 토큰 저장 후 앱 진입
-- Given: 카카오 동의 화면에서 이메일 제공에 동의하지 않음
+**UC-29 소셜 계정(카카오·구글)으로 로그인 / 회원가입**
+- Given: 비인증 사용자가 로그인·회원가입 화면에서 [카카오로 시작하기] 또는 [구글로 시작하기] 클릭
+- When: `POST /api/auth/oauth/{kakao|google}/start` → 응답 url 로 해당 provider 인증 페이지 이동, 동의 완료
+- Then: provider 가 `GET /api/auth/oauth/{kakao|google}/callback` 호출 → state 검증 → 계정 매칭/생성 → 우리 JWT 발급 → `/auth/oauth/success#accessToken=…` 로 302, 프론트가 토큰 저장 후 앱 진입
+- Given: provider 동의 화면에서 이메일 제공에 동의하지 않음
 - When: 콜백 처리
-- Then: 가입 거절(`email_required`) — "카카오 계정 이메일 동의가 필요합니다" 안내 후 로그인 화면 복귀
-- Given: 이미 동일 이메일로 가입한 사용자가 카카오로 첫 로그인
+- Then: 가입 거절(`email_required`) — "계정 이메일 동의가 필요합니다" 안내 후 로그인 화면 복귀
+- Given: 이미 동일 이메일로 가입한 사용자가 소셜로 첫 로그인
 - When: 콜백 처리
-- Then: 기존 User 에 OAuthAccount 자동 연결, 같은 계정으로 로그인
+- Then: 기존 User 에 OAuthAccount(provider 별) 자동 연결, 같은 계정으로 로그인
+
+**UC-31 회원가입 시 약관·개인정보 동의**
+- Given: 비인증 사용자가 회원가입(이메일·비밀번호 또는 소셜 최초 가입) 진행
+- When: 이용약관·개인정보 수집·이용에 모두 동의 후 가입
+- Then: User 생성 시 `terms_accepted_at`/`privacy_accepted_at` 와 동의 버전이 기록됨. 소셜 가입은 동의가 OAuthState 에 임시 저장됐다가 콜백 후 User 에 반영
+- Given: 필수 동의 항목 중 하나라도 미동의
+- When: 가입 시도
+- Then: 가입 진행 불가(동의 요구)
+
+**UC-32 구글 캘린더 연동 시작·해제·상태 조회**
+- Given: 비공개 팀의 팀장(LEADER)
+- When: 캘린더 화면 상단에서 [구글 캘린더 연결] → `POST /api/teams/:teamId/calendar/google/start` → 구글 OAuth(캘린더 scope) 동의 → `GET /api/auth/oauth/google/calendar/callback`
+- Then: refresh token 을 암호화 저장(TeamCalendarIntegration `status=connected`), 이후 팀 일정 조회 시 구글 이벤트가 병합 반환
+- Given: 공개 팀(`isPublic=true`)에서 연동 시도, 또는 활성 연동이 있는 팀을 공개로 전환 시도
+- When: 연동/공개 전환 요청
+- Then: 거부(비공개 팀만 허용 — DB 트리거)
+- Given: MEMBER 권한 사용자
+- When: 연동 시작·해제 시도
+- Then: 403 Forbidden (상태 조회 `GET …/status` 는 허용)
+- Given: 팀장이 연동 해제
+- When: `DELETE /api/teams/:teamId/calendar/google/disconnect`
+- Then: 연동 비활성화(`disconnected_at` 기록 / `status` 갱신), 이후 공개 전환 가능
 
 **UC-30 프로젝트 간트차트 SVG 파일 저장**
 - Given: 팀 구성원이 프로젝트(간트차트) 화면 진입
@@ -852,7 +934,7 @@
 
 | 엔티티 | 생성 | 조회 | 수정 | 삭제 |
 |--------|------|------|------|------|
-| User | UC-01 | UC-01 | UC-16 | - |
+| User | UC-01, UC-29, UC-31 | UC-01 | UC-16, UC-31 | - |
 | Team | UC-02 | UC-02B, UC-03, UC-07 | UC-14 | UC-14 |
 | TeamMember | UC-02, UC-02C | UC-03 | - | UC-15 |
 | TeamJoinRequest | UC-02B | UC-02C | UC-02C | - |
@@ -866,6 +948,8 @@
 | Notice | UC-12, UC-18 | UC-12, UC-18 | - | UC-12, UC-18 |
 | BoardPost | UC-19 | UC-19 | UC-19 | UC-19 |
 | BoardAttachment | UC-19 | UC-20 | - | UC-19 (CASCADE) |
+| TeamCalendarIntegration | UC-32 | UC-32 | UC-32 | UC-32 |
+| CalendarEventMapping | UC-32 (동기화) | UC-03, UC-07 (일정 병합) | UC-32 | UC-32 |
 
 ---
 
@@ -878,6 +962,9 @@
 | 자료실 첨부파일 크기 | 단일 파일 ≤ 10MB. 글당 첨부 1개(1단계) |
 | 자료실 storage backend | env `STORAGE_BACKEND` 토글 — `local`(1단계, 호스트 mount) / `s3`(운영 전환). 호출처 코드 변경 0건으로 swap |
 | 동시 접속 팀원 | 팀당 최소 50명 지원 |
+| 소셜 로그인 | 카카오·구글 OAuth 2.0 + PKCE + state. provider 별 start/callback 라우트, JWT 는 URL fragment 로 전달 |
+| 구글 캘린더 연동 | 구글 refresh token 은 **암호화 저장**(TeamCalendarIntegration.encrypted_refresh_token). 비공개 팀 한정·팀당 활성 1건은 DB 트리거/부분 UNIQUE 인덱스로 강제. 팀 일정 조회 시 구글 이벤트 병합 |
+| 약관 동의 | 회원가입·소셜 최초 가입 시 이용약관·개인정보 동의 필수. 동의 일시·버전을 User 에 기록(버전 상수는 frontend 관리) |
 | 인증 토큰 방식 | JWT — Access Token + Refresh Token (`Bearer` 헤더) |
 | JWT 만료 정책 | Access 15분 (`JWT_ACCESS_EXPIRES_IN`) / Refresh 7일 (`JWT_REFRESH_EXPIRES_IN`). 만료 시 `POST /api/auth/refresh` 로 Access 갱신 |
 | 비밀번호 저장 | bcrypt 해싱 필수 (`bcryptjs`) |
@@ -910,5 +997,7 @@
 | AI 모델의 DB 접근 흐름 | docs/17-ai-db-guide.md |
 | 자료실(게시판) 가이드 | docs/18-board-guide.md |
 | 음성 입력(STT) 가이드 | docs/22-voice-input.md |
+| 카카오·구글 소셜 인증 가이드 | docs/25-kakao-and-google-auth.md |
+| 구글 캘린더 연동 가이드 | docs/google-calendar.md |
 | 임베딩 모델 CPU 분리 가이드 | docs/embeding-cpu.md |
 | 배포 가이드 (STT 챕터 포함) | docs/20-easy-deploy.md |

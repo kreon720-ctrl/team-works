@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#141313">
   <title>TEAM WORKS.MY — Quick Start Guide</title>
-  <meta name="description" content="처음 사용자를 위한 5분 가이드. 로그인부터 팀 가입, 일정 등록, AI 비서 찰떡이 활용까지.">
+  <meta name="description" content="처음 사용자를 위한 5분 가이드. Google·카카오·이메일 로그인부터 팀 가입, Google Calendar 연동, 일정 등록, AI 비서 찰떡이 활용까지.">
   <style>
     :root {
       --bg: #141313;
@@ -278,7 +278,7 @@
 
     <nav class="chapters">
       <a href="#ch1"><span class="num">1</span>팀 만들기·가입</a>
-      <a href="#ch2"><span class="num">2</span>캘린더 일정 등록</a>
+      <a href="#ch2"><span class="num">2</span>캘린더·Google 연동</a>
       <a href="#ch3"><span class="num">3</span>찰떡이로 등록</a>
     </nav>
 
@@ -288,7 +288,7 @@
       <p class="lead">새 계정을 만들고, 팀을 꾸리거나 기존 팀에 가입하는 전 과정.</p>
 
       <div class="flow">
-        <span class="flow-step">회원가입 (이메일·카카오)</span>
+        <span class="flow-step">회원가입 (이메일·카카오·Google)</span>
         <span class="flow-arrow">→</span>
         <span class="flow-step">팀 만들기</span>
         <span class="flow-arrow">→</span>
@@ -298,8 +298,8 @@
       </div>
 
       <div class="step">
-        <div class="step-header"><span class="step-num">1</span><h3>회원가입 · 로그인 (방법 2가지)</h3></div>
-        <p>웹브라우저로 <strong class="domain" style="color: var(--gold);">https://teamworks.my</strong> 접속. <strong>이메일·비밀번호</strong> 또는 <strong style="color: #FEE500;">카카오 계정</strong> 둘 중 편한 방법으로 시작할 수 있습니다.</p>
+        <div class="step-header"><span class="step-num">1</span><h3>회원가입 · 로그인 (방법 3가지)</h3></div>
+        <p>웹브라우저로 <strong class="domain" style="color: var(--gold);">https://teamworks.my</strong> 접속. <strong>이메일·비밀번호</strong>, <strong style="color: #FEE500;">카카오 계정</strong>, <strong style="color: #4285F4;">Google 계정</strong> 중 편한 방법으로 시작할 수 있습니다.</p>
         <div class="img-wrap"><img src="imgs/quickstart/ch1-00-login.png" alt="로그인 화면"></div>
 
         <h4 style="margin-top: 20px; margin-bottom: 8px; font-size: 14px; color: var(--text);">방법 ① 이메일 · 비밀번호</h4>
@@ -322,6 +322,24 @@
         </ul>
         <div class="tip"><strong>TIP</strong> · 모바일에서는 키보드로 비밀번호 입력하기 번거로워 카카오 로그인이 훨씬 빠릅니다.</div>
         <div class="tip" style="margin-top: 8px; border-left-color: var(--indigo); background: rgba(129,140,248,0.08);"><strong style="color: var(--indigo);">개인정보</strong> · 카카오로 가입 시 받는 정보는 <strong>닉네임 + 이메일</strong> 2가지뿐입니다. 카카오톡 친구 목록·전화번호 등은 가져가지 않아요.</div>
+
+        <h4 style="margin-top: 24px; margin-bottom: 8px; font-size: 14px; color: var(--text);">방법 ③ Google로 시작하기 <span style="color: var(--text-muted); font-weight: 400; font-size: 12px;">(Calendar 연동 준비)</span></h4>
+        <p>로그인 또는 회원가입 화면의 <strong style="background: #fff; color: #1f2937; padding: 1px 8px; border-radius: 4px; font-weight: 700;">Google로 시작하기</strong> 버튼 클릭.</p>
+        <div class="flow" style="margin-top: 12px;">
+          <span class="flow-step">Google 버튼 클릭</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step">Google 인증</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step">약관·개인정보 동의</span>
+          <span class="flow-arrow">→</span>
+          <span class="flow-step">자동 가입·로그인</span>
+        </div>
+        <ul style="margin-top: 12px;">
+          <li><strong>최초 사용</strong> — 새 Google ID라면 TEAM WORKS 이용약관과 개인정보 제공 동의 후 가입됩니다.</li>
+          <li><strong>재방문</strong> — 같은 Google ID는 Google 버튼만 누르면 즉시 로그인.</li>
+          <li><strong>Calendar 연동</strong> — 로그인 후 비공개 팀 캘린더에서 Google Calendar 연결을 진행할 수 있습니다.</li>
+        </ul>
+        <div class="tip" style="margin-top: 8px; border-left-color: #4285F4; background: rgba(66,133,244,0.08);"><strong style="color: #4285F4;">Google</strong> · 같은 이메일로 기존 계정이 있으면 별도 계정을 만들지 않고 해당 계정에 연결됩니다.</div>
       </div>
 
       <div class="step">
@@ -361,11 +379,13 @@
 
     <!-- Chapter 2 -->
     <section class="chapter" id="ch2">
-      <h2><span class="chapter-num">2</span>캘린더에서 일정 등록</h2>
-      <p class="lead">팀 화면 → 캘린더에서 직접 입력하는 기본 방법.</p>
+      <h2><span class="chapter-num">2</span>캘린더에서 일정 등록·Google Calendar 연동</h2>
+      <p class="lead">팀 화면 → 캘린더에서 직접 입력하고, Google 계정은 비공개 팀에서 Google Calendar를 연결합니다.</p>
 
       <div class="flow">
         <span class="flow-step">팀 진입</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">Google Calendar 연결</span>
         <span class="flow-arrow">→</span>
         <span class="flow-step">+ 일정 등록</span>
         <span class="flow-arrow">→</span>
@@ -376,7 +396,7 @@
 
       <div class="step">
         <div class="step-header"><span class="step-num">1</span><h3>팀 진입 → 캘린더</h3></div>
-        <p>내 팀 목록에서 팀 카드를 누르면 팀 화면이 열립니다. 모바일에서는 상단 탭으로 <strong>캘린더 / 팀채팅 / AI 찰떡이</strong>를 전환합니다.</p>
+        <p>내 팀 목록에서 팀 카드를 누르면 팀 화면이 열립니다. 모바일에서는 상단 탭으로 <strong>캘린더 / 팀채팅 / AI 찰떡이</strong>를 전환합니다. Google 계정으로 로그인했고 비공개 팀이라면 캘린더 화면에서 Google Calendar 연결 상태를 확인할 수 있습니다.</p>
         <ul>
           <li><strong>월·주·일</strong> 뷰 전환</li>
           <li><strong>이전·다음</strong> 화살표로 월 이동</li>
@@ -386,7 +406,18 @@
       </div>
 
       <div class="step">
-        <div class="step-header"><span class="step-num">2</span><h3>+ 일정 등록 모달</h3></div>
+        <div class="step-header"><span class="step-num">2</span><h3>Google Calendar 연결 (선택)</h3></div>
+        <p>비공개 팀을 개인 일정 관리용으로 쓸 때는 <strong>Google Calendar 연결</strong> 버튼을 눌러 1회 권한을 승인합니다.</p>
+        <ul>
+          <li><strong>대상</strong> — Google 계정으로 로그인한 사용자 + 비공개 팀</li>
+          <li><strong>조회</strong> — Google Calendar 일정이 TEAM WORKS 캘린더에 함께 표시</li>
+          <li><strong>동기화</strong> — TEAM WORKS에서 만든 일정의 생성·수정·삭제가 Google Calendar에도 반영</li>
+        </ul>
+        <div class="tip"><strong>TIP</strong> · 공개 팀, 카카오 로그인, 이메일 로그인 계정은 TEAM WORKS 내부 캘린더만 사용합니다.</div>
+      </div>
+
+      <div class="step">
+        <div class="step-header"><span class="step-num">3</span><h3>+ 일정 등록 모달</h3></div>
         <p>캘린더 상단의 노란색 <strong>+ 일정 등록</strong> 버튼을 누르면 모달이 열립니다. 필수 항목:</p>
         <ul>
           <li><strong>제목</strong> (필수, 최대 200자)</li>
@@ -398,8 +429,8 @@
       </div>
 
       <div class="step">
-        <div class="step-header"><span class="step-num">3</span><h3>생성 → 캘린더 반영</h3></div>
-        <p>하단 <strong>생성</strong> 버튼을 누르면 캘린더에 즉시 표시되고, 팀원 모두에게 보입니다. <strong>내가 만든 일정만 내가 수정·삭제</strong> 가능합니다.</p>
+        <div class="step-header"><span class="step-num">4</span><h3>생성 → 캘린더 반영</h3></div>
+        <p>하단 <strong>생성</strong> 버튼을 누르면 캘린더에 즉시 표시되고, 팀원 모두에게 보입니다. Google Calendar가 연결된 비공개 팀에서는 Google Calendar에도 함께 등록됩니다. <strong>내가 만든 일정만 내가 수정·삭제</strong> 가능합니다.</p>
         <div class="tip"><strong>TIP</strong> · 캘린더 빈 날짜 셀을 직접 클릭해도 그 날짜로 등록 모달이 열립니다.</div>
       </div>
     </section>
