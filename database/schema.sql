@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
     email         VARCHAR(255) NOT NULL,
     name          VARCHAR(50)  NOT NULL,
     password_hash VARCHAR(255) NULL,
+    terms_accepted_at   TIMESTAMP NULL,
+    privacy_accepted_at TIMESTAMP NULL,
+    terms_version       VARCHAR(20) NULL,
+    privacy_version     VARCHAR(20) NULL,
     created_at    TIMESTAMP    NOT NULL DEFAULT now(),
     CONSTRAINT uq_users_email UNIQUE (email)
 );
@@ -45,9 +49,15 @@ CREATE TABLE IF NOT EXISTS oauth_state (
     state          VARCHAR(64)  PRIMARY KEY,
     code_verifier  VARCHAR(128) NOT NULL,
     redirect_after VARCHAR(255) NULL,
+    user_id        UUID         NULL REFERENCES users(id) ON DELETE CASCADE,
+    terms_accepted BOOLEAN      NOT NULL DEFAULT false,
+    privacy_accepted BOOLEAN    NOT NULL DEFAULT false,
+    terms_version  VARCHAR(20)  NULL,
+    privacy_version VARCHAR(20) NULL,
     created_at     TIMESTAMP    NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_state_created ON oauth_state(created_at);
+CREATE INDEX IF NOT EXISTS idx_oauth_state_user_id ON oauth_state(user_id);
 
 -- 2. teams
 CREATE TABLE IF NOT EXISTS teams (

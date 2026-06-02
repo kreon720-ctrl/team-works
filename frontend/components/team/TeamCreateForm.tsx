@@ -157,7 +157,7 @@ export function TeamCreateForm({ onSuccess, onCancel }: TeamCreateFormProps = {}
         </div>
         {!isPublic && (
           <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-100">
-            Google 계정으로 로그인한 경우 팀 생성 후 일정관리 화면에서 Google Calendar를 연결할 수 있습니다.
+            팀 생성 후 일정관리 화면에서 Google Calendar를 연결할 수 있습니다.
           </div>
         )}
       </div>

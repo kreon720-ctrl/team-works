@@ -45,9 +45,15 @@ CREATE TABLE oauth_state (
     state          VARCHAR(64)  PRIMARY KEY,
     code_verifier  VARCHAR(128) NOT NULL,         -- PKCE code_verifier
     redirect_after VARCHAR(255) NULL,             -- 로그인 후 돌아갈 페이지 (안전 검증 후 사용)
+    user_id        UUID         NULL REFERENCES users(id) ON DELETE CASCADE,
+    terms_accepted BOOLEAN      NOT NULL DEFAULT false,
+    privacy_accepted BOOLEAN    NOT NULL DEFAULT false,
+    terms_version  VARCHAR(20)  NULL,
+    privacy_version VARCHAR(20) NULL,
     created_at     TIMESTAMP    NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_oauth_state_created ON oauth_state(created_at);
+CREATE INDEX idx_oauth_state_user_id ON oauth_state(user_id);
 
 COMMIT;

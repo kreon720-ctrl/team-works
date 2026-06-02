@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { popState } from '@/lib/auth/oauth/state'
 import { exchangeGoogleCalendarCode } from '@/lib/auth/oauth/googleCalendar'
 import { fetchGoogleUserInfo } from '@/lib/auth/oauth/google'
-import { getOAuthAccountByProvider } from '@/lib/db/queries/oauthQueries'
 import { createTeamCalendarIntegration } from '@/lib/db/queries/calendarIntegrationQueries'
 import { getTeamById, getUserTeamRole } from '@/lib/db/queries/teamQueries'
 import { encryptToken } from '@/lib/crypto/tokenEncryption'
@@ -52,6 +51,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!teamId) {
       return redirectToFrontend({ baseUrl, error: 'Calendar 연동 대상 팀을 확인할 수 없습니다.' })
     }
+    if (!popped.userId) {
+      return redirectToFrontend({
+        baseUrl,
+        redirectAfter: popped.redirectAfter,
+        error: 'Calendar 연동을 시작한 Team Works 사용자를 확인할 수 없습니다. 다시 시도해주세요.',
+      })
+    }
 
     const tokenRes = await exchangeGoogleCalendarCode({ code, codeVerifier: popped.codeVerifier })
     if (!tokenRes.refresh_token) {
@@ -63,16 +69,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const userInfo = await fetchGoogleUserInfo(tokenRes.access_token)
-    const googleAccount = await getOAuthAccountByProvider('google', userInfo.providerUserId)
-    if (!googleAccount) {
-      return redirectToFrontend({
-        baseUrl,
-        redirectAfter: popped.redirectAfter,
-        error: '현재 서비스에 연결된 Google 계정만 Calendar 연동을 완료할 수 있습니다.',
-      })
-    }
-    const googleAccountEmail = userInfo.email ?? googleAccount.provider_email
-    if (!googleAccountEmail) {
+    if (!userInfo.email) {
       return redirectToFrontend({
         baseUrl,
         redirectAfter: popped.redirectAfter,
@@ -89,7 +86,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       })
     }
 
-    const role = await getUserTeamRole(teamId, googleAccount.user_id)
+    const role = await getUserTeamRole(teamId, popped.userId)
     if (role !== 'LEADER') {
       return redirectToFrontend({
         baseUrl,
@@ -100,9 +97,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     await createTeamCalendarIntegration({
       teamId,
-      userId: googleAccount.user_id,
+      userId: popped.userId,
       googleCalendarId: process.env.GOOGLE_CALENDAR_DEFAULT_ID || 'primary',
-      googleAccountEmail,
+      googleAccountEmail: userInfo.email,
       encryptedRefreshToken: encryptToken(tokenRes.refresh_token),
       scope: tokenRes.scope ?? 'https://www.googleapis.com/auth/calendar.events',
     })

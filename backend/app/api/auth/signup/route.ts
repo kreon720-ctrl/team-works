@@ -8,7 +8,14 @@ interface SignupRequestBody {
   email?: string
   name?: string
   password?: string
+  termsAccepted?: boolean
+  privacyAccepted?: boolean
+  termsVersion?: string
+  privacyVersion?: string
 }
+
+const CURRENT_TERMS_VERSION = '2026-06-02'
+const CURRENT_PRIVACY_VERSION = '2026-05-29'
 
 /**
  * POST /api/auth/signup
@@ -28,6 +35,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!email || !name || !password) {
       return NextResponse.json(
         { error: '필수 입력 항목이 누락되었습니다.' },
+        { status: 400 }
+      )
+    }
+
+    if (!body.termsAccepted || !body.privacyAccepted) {
+      return NextResponse.json(
+        { error: '서비스 이용약관과 개인정보 수집 및 이용에 동의해야 회원가입할 수 있습니다.' },
         { status: 400 }
       )
     }
@@ -78,6 +92,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         email,
         name,
         password_hash,
+        terms_accepted: true,
+        privacy_accepted: true,
+        terms_version: body.termsVersion || CURRENT_TERMS_VERSION,
+        privacy_version: body.privacyVersion || CURRENT_PRIVACY_VERSION,
       })
     })
 

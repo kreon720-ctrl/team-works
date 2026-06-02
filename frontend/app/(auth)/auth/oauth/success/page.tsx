@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { TermsConsentDialog, getTermsConsentPayload } from '@/components/auth/TermsConsentDialog';
+
+type OAuthProvider = 'google' | 'kakao';
 
 /**
  * OAuth 콜백 success 페이지.
@@ -16,6 +19,9 @@ export default function OAuthSuccessPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
   const [error, setError] = useState<string | null>(null);
+  const [termsRequiredProvider, setTermsRequiredProvider] = useState<OAuthProvider | null>(null);
+  const [redirectAfter, setRedirectAfter] = useState<string | null>(null);
+  const [restartingOAuth, setRestartingOAuth] = useState(false);
 
   useEffect(() => {
     const hash = window.location.hash.slice(1); // '#' 제거
@@ -24,6 +30,11 @@ export default function OAuthSuccessPage() {
     const errMsg = params.get('error');
     if (errMsg) {
       setError(errMsg);
+      const provider = params.get('termsRequiredProvider');
+      if (provider === 'google' || provider === 'kakao') {
+        setTermsRequiredProvider(provider);
+        setRedirectAfter(params.get('redirectAfter'));
+      }
       return;
     }
 
@@ -56,6 +67,32 @@ export default function OAuthSuccessPage() {
     router.replace(redirectAfter);
   }, [router, setUser]);
 
+  const restartOAuthWithConsent = async () => {
+    if (!termsRequiredProvider || restartingOAuth) return;
+
+    setRestartingOAuth(true);
+    try {
+      const res = await fetch(`/api/auth/oauth/${termsRequiredProvider}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          redirectAfter,
+          ...getTermsConsentPayload(),
+        }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setError(data.error ?? '소셜 로그인을 다시 시작할 수 없습니다. 잠시 후 다시 시도해주세요.');
+        setRestartingOAuth(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError('네트워크 오류로 소셜 로그인을 다시 시작할 수 없습니다.');
+      setRestartingOAuth(false);
+    }
+  };
+
   return (
     <div className="min-h-[40vh] flex items-center justify-center px-4">
       {error ? (
@@ -68,6 +105,19 @@ export default function OAuthSuccessPage() {
           >
             로그인 화면으로
           </button>
+          <TermsConsentDialog
+            open={termsRequiredProvider !== null}
+            submitLabel={
+              restartingOAuth
+                ? '소셜 로그인 재시작 중...'
+                : `동의하고 ${termsRequiredProvider === 'google' ? 'Google' : 'Kakao'}로 가입하기`
+            }
+            onCancel={() => {
+              setTermsRequiredProvider(null);
+              router.replace('/login');
+            }}
+            onAgree={restartOAuthWithConsent}
+          />
         </div>
       ) : (
         <p className="text-sm text-gray-500 dark:text-dark-text-muted">로그인 처리 중...</p>

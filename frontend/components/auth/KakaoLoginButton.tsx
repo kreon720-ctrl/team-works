@@ -15,14 +15,16 @@ interface KakaoLoginButtonProps {
 export function KakaoLoginButton({ redirectAfter, disabled }: KakaoLoginButtonProps) {
   const [loading, setLoading] = useState(false);
 
-  const handleClick = async () => {
+  const startKakaoLogin = async () => {
     if (loading || disabled) return;
     setLoading(true);
     try {
       const res = await fetch('/api/auth/oauth/kakao/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ redirectAfter: redirectAfter ?? null }),
+        body: JSON.stringify({
+          redirectAfter: redirectAfter ?? null,
+        }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
@@ -35,6 +37,11 @@ export function KakaoLoginButton({ redirectAfter, disabled }: KakaoLoginButtonPr
       alert('네트워크 오류로 카카오 로그인을 시작할 수 없습니다.');
       setLoading(false);
     }
+  };
+
+  const handleClick = () => {
+    if (loading || disabled) return;
+    startKakaoLogin();
   };
 
   return (

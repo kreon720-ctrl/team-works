@@ -9,7 +9,7 @@
  */
 
 import { pool } from '@/lib/db/pool'
-import { createUser, getUserByEmail, type User } from '@/lib/db/queries/userQueries'
+import { createUser, getUserByEmail, updateUserConsent, type User } from '@/lib/db/queries/userQueries'
 import {
   createOAuthAccount,
   getOAuthAccountByProvider,
@@ -18,7 +18,7 @@ import {
 
 export type LinkResult =
   | { ok: true; user: User; isNewUser: boolean; isNewLink: boolean }
-  | { ok: false; reason: 'email_required' }
+  | { ok: false; reason: 'email_required' | 'terms_required' }
 
 export interface LinkInput {
   provider: 'kakao' | 'google'
@@ -26,6 +26,10 @@ export interface LinkInput {
   email: string | null
   nickname: string | null
   picture: string | null
+  termsAccepted?: boolean
+  privacyAccepted?: boolean
+  termsVersion?: string | null
+  privacyVersion?: string | null
 }
 
 export async function linkOrCreateUser(input: LinkInput): Promise<LinkResult> {
@@ -57,12 +61,33 @@ export async function linkOrCreateUser(input: LinkInput): Promise<LinkResult> {
       provider_name: input.nickname,
       provider_picture: input.picture,
     })
-    return { ok: true, user: sameEmailUser, isNewUser: false, isNewLink: true }
+    const user = await recordConsentIfProvided(sameEmailUser, input)
+    return { ok: true, user, isNewUser: false, isNewLink: true }
   }
 
   // 4) 신규 user + oauth 동시 생성 (트랜잭션)
+  if (!hasRequiredConsent(input)) {
+    return { ok: false, reason: 'terms_required' }
+  }
   const user = await createNewUserWithOAuth({ ...input, email })
   return { ok: true, user, isNewUser: true, isNewLink: true }
+}
+
+function hasRequiredConsent(input: LinkInput): boolean {
+  return input.termsAccepted === true && input.privacyAccepted === true
+}
+
+async function recordConsentIfProvided(user: User, input: LinkInput): Promise<User> {
+  if (!hasRequiredConsent(input)) return user
+
+  const updated = await updateUserConsent({
+    userId: user.id,
+    termsAccepted: true,
+    privacyAccepted: true,
+    termsVersion: input.termsVersion || '2026-06-02',
+    privacyVersion: input.privacyVersion || '2026-05-29',
+  })
+  return updated ?? user
 }
 
 async function createNewUserWithOAuth(input: LinkInput & { email: string }): Promise<User> {
@@ -77,6 +102,10 @@ async function createNewUserWithOAuth(input: LinkInput & { email: string }): Pro
       email: input.email,
       name,
       password_hash: null, // OAuth 전용 사용자
+      terms_accepted: true,
+      privacy_accepted: true,
+      terms_version: input.termsVersion || '2026-06-02',
+      privacy_version: input.privacyVersion || '2026-05-29',
     })
 
     await createOAuthAccount({
@@ -102,7 +131,7 @@ async function createNewUserWithOAuth(input: LinkInput & { email: string }): Pro
 // 위에서 동시 import 충돌 피하려고 inline.
 async function getUserById(id: string): Promise<User | null> {
   const result = await pool.query<User>(
-    `SELECT id, email, name, password_hash, created_at FROM users WHERE id = $1`,
+    `SELECT id, email, name, password_hash, terms_accepted_at, privacy_accepted_at, terms_version, privacy_version, created_at FROM users WHERE id = $1`,
     [id]
   )
   return result.rows[0] ?? null

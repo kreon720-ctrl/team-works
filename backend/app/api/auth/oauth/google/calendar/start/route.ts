@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware/withAuth'
 import { requireLeader } from '@/lib/middleware/withTeamRole'
-import { getOAuthAccountByUserProvider } from '@/lib/db/queries/oauthQueries'
 import { getTeamById } from '@/lib/db/queries/teamQueries'
 import { getActiveTeamCalendarIntegration } from '@/lib/db/queries/calendarIntegrationQueries'
 import { createGoogleCalendarConsentUrl } from '@/lib/google/calendarIntegrationService'
@@ -40,14 +39,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const leaderResult = await requireLeader(authResult.user.userId, body.teamId)
     if (!leaderResult.success) return leaderResult.response
 
-    const googleAccount = await getOAuthAccountByUserProvider(authResult.user.userId, 'google')
-    if (!googleAccount) {
-      return NextResponse.json(
-        { error: 'Google 계정으로 로그인한 사용자만 Calendar 연동을 시작할 수 있습니다.' },
-        { status: 403 }
-      )
-    }
-
     const active = await getActiveTeamCalendarIntegration(body.teamId)
     if (active) {
       return NextResponse.json({
@@ -59,6 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const url = await createGoogleCalendarConsentUrl({
       teamId: body.teamId,
+      userId: authResult.user.userId,
       redirectAfter: sanitizeRedirect(body.redirectAfter, body.teamId),
     })
 

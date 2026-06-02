@@ -42,10 +42,17 @@ describe('BE-07: Auth API Endpoints', () => {
     const signupEndpoint = async (body: any) => {
       vi.resetModules()
       const { POST } = await import('@/app/api/auth/signup/route')
+      const requestBody = {
+        termsAccepted: true,
+        privacyAccepted: true,
+        termsVersion: '2026-06-02',
+        privacyVersion: '2026-05-29',
+        ...body,
+      }
       const request = new NextRequest('http://localhost/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(requestBody),
       })
       return POST(request)
     }
@@ -465,6 +472,10 @@ describe('BE-07: Auth API Endpoints', () => {
           email: 'test@example.com',
           name: 'Test User',
           password: 'password123',
+          termsAccepted: true,
+          privacyAccepted: true,
+          termsVersion: '2026-06-02',
+          privacyVersion: '2026-05-29',
         }),
       })
       const signupResponse = await signupPOST(signupRequest)

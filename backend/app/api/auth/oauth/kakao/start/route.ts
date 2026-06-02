@@ -4,6 +4,10 @@ import { buildKakaoAuthUrl } from '@/lib/auth/oauth/kakao'
 
 interface StartRequestBody {
   redirectAfter?: string
+  termsAccepted?: boolean
+  privacyAccepted?: boolean
+  termsVersion?: string
+  privacyVersion?: string
 }
 
 /**
@@ -28,7 +32,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const redirectAfter = sanitizeRedirect(body.redirectAfter)
 
     const { state, codeVerifier, codeChallenge } = generateStateBundle()
-    await saveState(state, codeVerifier, redirectAfter)
+    await saveState(state, codeVerifier, redirectAfter, null, {
+      termsAccepted: body.termsAccepted,
+      privacyAccepted: body.privacyAccepted,
+      termsVersion: body.termsVersion,
+      privacyVersion: body.privacyVersion,
+    })
 
     const url = buildKakaoAuthUrl({ state, codeChallenge })
     return NextResponse.json({ url }, { status: 200 })

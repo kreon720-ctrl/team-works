@@ -19,6 +19,10 @@ export interface SignupInput {
   email: string;
   name: string;
   password: string;
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+  termsVersion: string;
+  privacyVersion: string;
 }
 
 export interface LoginInput {

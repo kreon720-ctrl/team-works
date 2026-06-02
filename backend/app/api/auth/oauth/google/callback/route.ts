@@ -12,6 +12,7 @@ function frontRedirect(args: {
   user?: { id: string; email: string; name: string }
   redirectAfter?: string | null
   error?: string
+  termsRequiredProvider?: 'google' | 'kakao'
 }): NextResponse {
   const target = new URL('/auth/oauth/success', args.baseUrl)
   const fragment = new URLSearchParams()
@@ -20,6 +21,7 @@ function frontRedirect(args: {
   if (args.user) fragment.set('user', JSON.stringify(args.user))
   if (args.redirectAfter) fragment.set('redirectAfter', args.redirectAfter)
   if (args.error) fragment.set('error', args.error)
+  if (args.termsRequiredProvider) fragment.set('termsRequiredProvider', args.termsRequiredProvider)
   target.hash = fragment.toString()
   return NextResponse.redirect(target.toString())
 }
@@ -58,6 +60,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       email: userInfo.email,
       nickname: userInfo.nickname,
       picture: userInfo.picture,
+      termsAccepted: popped.termsAccepted,
+      privacyAccepted: popped.privacyAccepted,
+      termsVersion: popped.termsVersion,
+      privacyVersion: popped.privacyVersion,
     })
 
     if (!link.ok) {
@@ -65,6 +71,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         return frontRedirect({
           baseUrl,
           error: 'Google 계정 이메일 권한이 필요합니다. Google 동의 화면에서 이메일 권한에 동의 후 다시 시도해주세요.',
+        })
+      }
+      if (link.reason === 'terms_required') {
+        return frontRedirect({
+          baseUrl,
+          error: 'Team Works 이용약관과 개인정보 수집 및 이용에 동의해야 가입할 수 있습니다.',
+          termsRequiredProvider: 'google',
+          redirectAfter: popped.redirectAfter,
         })
       }
       return frontRedirect({ baseUrl, error: '로그인 처리 중 오류가 발생했습니다.' })

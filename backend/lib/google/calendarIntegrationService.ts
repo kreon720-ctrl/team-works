@@ -1,6 +1,5 @@
 import { generateStateBundle, saveState } from '@/lib/auth/oauth/state'
 import { buildGoogleCalendarAuthUrl } from '@/lib/auth/oauth/googleCalendar'
-import { getOAuthAccountByUserProvider } from '@/lib/db/queries/oauthQueries'
 import { getTeamById } from '@/lib/db/queries/teamQueries'
 import {
   getActiveTeamCalendarIntegration,
@@ -26,9 +25,6 @@ export async function getGoogleCalendarIntegrationStatus(params: {
 }> {
   const team = await getTeamById(params.teamId)
   if (!team || team.is_public) return { status: 'not_applicable' }
-
-  const googleAccount = await getOAuthAccountByUserProvider(params.userId, 'google')
-  if (!googleAccount) return { status: 'not_applicable' }
 
   const active = await getActiveTeamCalendarIntegration(params.teamId)
   if (active) {
@@ -63,10 +59,11 @@ export async function getGoogleCalendarIntegrationStatus(params: {
 
 export async function createGoogleCalendarConsentUrl(params: {
   teamId: string
+  userId: string
   redirectAfter?: string | null
 }): Promise<string> {
   const { state, codeVerifier, codeChallenge } = generateStateBundle()
   const redirectAfter = params.redirectAfter ?? `/teams/${params.teamId}`
-  await saveState(state, codeVerifier, redirectAfter)
+  await saveState(state, codeVerifier, redirectAfter, params.userId)
   return buildGoogleCalendarAuthUrl({ state, codeChallenge })
 }

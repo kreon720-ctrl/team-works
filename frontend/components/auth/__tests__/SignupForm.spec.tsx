@@ -23,6 +23,18 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+function fillValidSignupForm() {
+  fireEvent.change(screen.getByLabelText(/이름/i), { target: { value: '홍길동' } });
+  fireEvent.change(screen.getByLabelText(/이메일/i), { target: { value: 'test@example.com' } });
+  fireEvent.change(screen.getByLabelText(/비밀번호/i), { target: { value: 'password123' } });
+}
+
+function agreeToTermsAndPrivacy() {
+  fireEvent.click(screen.getByLabelText(/\[필수\] Team Works 이용약관에 동의합니다/i));
+  fireEvent.click(screen.getByLabelText(/\[필수\] 개인정보 수집 및 이용에 동의합니다/i));
+  fireEvent.click(screen.getByRole('button', { name: /동의하고 회원가입/i }));
+}
+
 describe('SignupForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -166,21 +178,23 @@ describe('SignupForm', () => {
 
     render(<SignupForm />);
 
-    const nameInput = screen.getByLabelText(/이름/i);
-    const emailInput = screen.getByLabelText(/이메일/i);
-    const passwordInput = screen.getByLabelText(/비밀번호/i);
     const submitButton = screen.getByRole('button', { name: /회원가입/i });
 
-    fireEvent.change(nameInput, { target: { value: '홍길동' } });
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    fillValidSignupForm();
     fireEvent.click(submitButton);
+    expect(screen.getByRole('dialog', { name: /약관 및 개인정보 동의/i })).toBeInTheDocument();
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    agreeToTermsAndPrivacy();
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledWith({
         name: '홍길동',
         email: 'test@example.com',
         password: 'password123',
+        termsAccepted: true,
+        privacyAccepted: true,
+        termsVersion: '2026-06-02',
+        privacyVersion: '2026-05-29',
       });
     });
 
@@ -194,15 +208,11 @@ describe('SignupForm', () => {
 
     render(<SignupForm />);
 
-    const nameInput = screen.getByLabelText(/이름/i);
-    const emailInput = screen.getByLabelText(/이메일/i);
-    const passwordInput = screen.getByLabelText(/비밀번호/i);
     const submitButton = screen.getByRole('button', { name: /회원가입/i });
 
-    fireEvent.change(nameInput, { target: { value: '홍길동' } });
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    fillValidSignupForm();
     fireEvent.click(submitButton);
+    agreeToTermsAndPrivacy();
 
     await waitFor(() => {
       expect(screen.getByText(/이미 사용 중인 이메일입니다/i)).toBeInTheDocument();
@@ -214,15 +224,11 @@ describe('SignupForm', () => {
 
     render(<SignupForm />);
 
-    const nameInput = screen.getByLabelText(/이름/i);
-    const emailInput = screen.getByLabelText(/이메일/i);
-    const passwordInput = screen.getByLabelText(/비밀번호/i);
     const submitButton = screen.getByRole('button', { name: /회원가입/i });
 
-    fireEvent.change(nameInput, { target: { value: '홍길동' } });
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    fillValidSignupForm();
     fireEvent.click(submitButton);
+    agreeToTermsAndPrivacy();
 
     await waitFor(() => {
       expect(screen.getByText(/서버 오류가 발생했습니다/i)).toBeInTheDocument();
@@ -245,15 +251,11 @@ describe('SignupForm', () => {
     const onSuccess = vi.fn();
     render(<SignupForm onSuccess={onSuccess} />);
 
-    const nameInput = screen.getByLabelText(/이름/i);
-    const emailInput = screen.getByLabelText(/이메일/i);
-    const passwordInput = screen.getByLabelText(/비밀번호/i);
     const submitButton = screen.getByRole('button', { name: /회원가입/i });
 
-    fireEvent.change(nameInput, { target: { value: '홍길동' } });
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    fillValidSignupForm();
     fireEvent.click(submitButton);
+    agreeToTermsAndPrivacy();
 
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalled();
@@ -275,15 +277,11 @@ describe('SignupForm', () => {
 
     render(<SignupForm />);
 
-    const nameInput = screen.getByLabelText(/이름/i);
-    const emailInput = screen.getByLabelText(/이메일/i);
-    const passwordInput = screen.getByLabelText(/비밀번호/i);
     const submitButton = screen.getByRole('button', { name: /회원가입/i });
 
-    fireEvent.change(nameInput, { target: { value: '홍길동' } });
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    fillValidSignupForm();
     fireEvent.click(submitButton);
+    agreeToTermsAndPrivacy();
 
     await waitFor(() => {
       expect(document.cookie).toContain('auth-initialized=true');
@@ -324,15 +322,12 @@ describe('SignupForm', () => {
     render(<SignupForm />);
 
     // Submit to trigger error
-    const nameInput = screen.getByLabelText(/이름/i);
     const emailInput = screen.getByLabelText(/이메일/i);
-    const passwordInput = screen.getByLabelText(/비밀번호/i);
     const submitButton = screen.getByRole('button', { name: /회원가입/i });
 
-    fireEvent.change(nameInput, { target: { value: '홍길동' } });
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    fillValidSignupForm();
     fireEvent.click(submitButton);
+    agreeToTermsAndPrivacy();
 
     await waitFor(() => {
       expect(screen.getByText(/이미 사용 중인 이메일입니다/i)).toBeInTheDocument();

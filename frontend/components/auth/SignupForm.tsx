@@ -8,6 +8,7 @@ import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { KakaoLoginButton } from './KakaoLoginButton';
 import { GoogleLoginButton } from './GoogleLoginButton';
+import { TermsConsentDialog, getTermsConsentPayload } from './TermsConsentDialog';
 
 interface SignupFormProps {
   onSuccess?: () => void;
@@ -22,6 +23,8 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; general?: string }>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showConsent, setShowConsent] = useState(false);
+  const [hasAgreedToTerms, setHasAgreedToTerms] = useState(false);
 
   const isFormValid = name.trim() !== '' && email.trim() !== '' && password.trim() !== '';
 
@@ -33,7 +36,7 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
     if (successMessage) {
       setSuccessMessage(null);
     }
-  }, [name, email, password]);
+  }, [name, email, password, errors.general, successMessage]);
 
   const validateName = (value: string): boolean => {
     if (!value.trim()) {
@@ -81,23 +84,20 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate all fields
+  const validateForm = (): boolean => {
     const isNameValid = validateName(name);
     const isEmailValid = validateEmail(email);
     const isPasswordValid = validatePassword(password);
+    return isNameValid && isEmailValid && isPasswordValid;
+  };
 
-    if (!isNameValid || !isEmailValid || !isPasswordValid) {
-      return;
-    }
-
+  const submitSignup = async () => {
     try {
       await signup.mutateAsync({
         name: name.trim(),
         email: email.trim(),
         password,
+        ...getTermsConsentPayload(),
       });
 
       // Set auth cookie for middleware detection
@@ -106,7 +106,7 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
       }
 
       onSuccess?.();
-      router.push('/login');
+      router.push('/');
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 409) {
         setErrors((prev) => ({
@@ -134,6 +134,21 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
         }
       }
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    if (!hasAgreedToTerms) {
+      setShowConsent(true);
+      return;
+    }
+
+    await submitSignup();
   };
 
   return (
@@ -214,6 +229,17 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
       >
         {signup.isPending ? '회원가입 중...' : '회원가입'}
       </Button>
+
+      <TermsConsentDialog
+        open={showConsent}
+        submitLabel="동의하고 회원가입"
+        onCancel={() => setShowConsent(false)}
+        onAgree={() => {
+          setHasAgreedToTerms(true);
+          setShowConsent(false);
+          submitSignup();
+        }}
+      />
 
       {/* 소셜 가입 */}
       <div className="relative my-2">
