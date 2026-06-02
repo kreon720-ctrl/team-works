@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { formatDate } from '@/lib/utils/formatDate'
 import { withAuth } from '@/lib/middleware/withAuth'
 import { withTeamRole } from '@/lib/middleware/withTeamRole'
 import { getProjectScheduleById } from '@/lib/db/queries/projectScheduleQueries'
@@ -20,11 +21,6 @@ interface CreateSubScheduleBody {
   leader?: string
   progress?: number
   isDelayed?: boolean
-}
-
-function formatDate(value: unknown): string {
-  if (value instanceof Date) return value.toISOString().split('T')[0]
-  return value as string
 }
 
 function toSubScheduleResponse(row: SubScheduleRow) {

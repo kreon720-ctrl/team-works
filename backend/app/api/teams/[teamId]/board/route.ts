@@ -7,8 +7,8 @@ import {
   createPost,
   addAttachment,
 } from '@/lib/db/queries/boardQueries'
-import { createStorageAdapter } from '@/lib/files/storage'
-import { validateUpload, ValidationError, MAX_FILE_SIZE } from '@/lib/files/validate'
+import { attachFileToPost } from '@/lib/board/attachmentService'
+import { ValidationError, MAX_FILE_SIZE } from '@/lib/files/validate'
 
 /**
  * GET /api/teams/:teamId/board?projectId=...
@@ -114,29 +114,10 @@ export async function POST(
       content,
     })
 
-    // 첨부 처리 (있을 때만)
+    // 첨부 처리 (있을 때만) — 검증·저장·연결·보상은 서비스에 위임.
     let attachmentRow = null
     if (file && file instanceof File && file.size > 0) {
-      const buffer = Buffer.from(await file.arrayBuffer())
-      const validated = validateUpload(buffer, file.type, file.name)
-      const storage = createStorageAdapter()
-      const saved = await storage.save(buffer, {
-        mimeType: validated.mimeType,
-        originalName: file.name,
-      })
-      try {
-        attachmentRow = await addAttachment({
-          postId: post.id,
-          originalName: file.name,
-          storedName: saved.storedName,
-          mimeType: validated.mimeType,
-          sizeBytes: saved.sizeBytes,
-        })
-      } catch (err) {
-        // DB INSERT 실패 시 디스크 파일 정리 — best effort.
-        await storage.delete(saved.storedName).catch(() => {})
-        throw err
-      }
+      attachmentRow = await attachFileToPost(post.id, file)
     }
 
     return NextResponse.json(

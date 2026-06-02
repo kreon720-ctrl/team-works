@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { formatDate } from '@/lib/utils/formatDate'
 import { withAuth } from '@/lib/middleware/withAuth'
 import { withTeamRole } from '@/lib/middleware/withTeamRole'
 import {
@@ -21,11 +22,6 @@ interface UpdateProjectScheduleBody {
   progress?: number
   isDelayed?: boolean
   phaseId?: string | null
-}
-
-function formatDate(value: unknown): string {
-  if (value instanceof Date) return value.toISOString().split('T')[0]
-  return value as string
 }
 
 function toScheduleResponse(row: ProjectScheduleRow) {

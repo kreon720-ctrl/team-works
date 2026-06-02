@@ -5,11 +5,10 @@ import {
   getPostById,
   updatePost,
   deletePost,
-  addAttachment,
-  removeAttachmentsByPost,
 } from '@/lib/db/queries/boardQueries'
+import { replacePostAttachment } from '@/lib/board/attachmentService'
 import { createStorageAdapter } from '@/lib/files/storage'
-import { validateUpload, ValidationError, MAX_FILE_SIZE } from '@/lib/files/validate'
+import { ValidationError, MAX_FILE_SIZE } from '@/lib/files/validate'
 
 /**
  * GET /api/teams/:teamId/board/:postId
@@ -110,35 +109,10 @@ export async function PATCH(
       )
     }
 
-    // 첨부파일 교체 — file 이 명시되면 기존 첨부 모두 제거 후 신규 추가.
+    // 첨부파일 교체 — file 이 명시되면 기존 첨부 모두 제거 후 신규 추가(서비스에 위임).
     // (1단계는 단일 첨부만 지원.)
     if (file !== null && file !== undefined && file instanceof File && file.size > 0) {
-      const buffer = Buffer.from(await file.arrayBuffer())
-      const validated = validateUpload(buffer, file.type, file.name)
-      const storage = createStorageAdapter()
-
-      const oldStoredNames = await removeAttachmentsByPost(postId)
-      // 기존 디스크 파일 unlink (best effort).
-      for (const name of oldStoredNames) {
-        await storage.delete(name).catch(() => {})
-      }
-
-      const saved = await storage.save(buffer, {
-        mimeType: validated.mimeType,
-        originalName: file.name,
-      })
-      try {
-        await addAttachment({
-          postId,
-          originalName: file.name,
-          storedName: saved.storedName,
-          mimeType: validated.mimeType,
-          sizeBytes: saved.sizeBytes,
-        })
-      } catch (err) {
-        await storage.delete(saved.storedName).catch(() => {})
-        throw err
-      }
+      await replacePostAttachment(postId, file)
     }
 
     const fresh = await getPostById(teamId, postId)
