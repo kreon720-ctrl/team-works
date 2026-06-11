@@ -54,6 +54,92 @@ export interface MonthGroup {
 }
 
 /**
+ * 간트 한 칸(컬럼) — "한 주(週) ∩ 한 달(月)" 세그먼트.
+ * 월 경계를 가로지르는 주는 달별로 쪼개져 두 컬럼이 된다.
+ * 예: 6/28(일)~7/4(토) 주 → [6월 5주: 6/28~30], [7월 1주: 7/1~4] 두 컬럼.
+ */
+export interface GanttColumn {
+  year: number;
+  month: number; // 1-12
+  weekOfMonth: number; // 그 달의 달력 주차(행 번호) 1~5
+  start: string; // 'YYYY-MM-DD' 세그먼트 시작(포함)
+  end: string; // 'YYYY-MM-DD' 세그먼트 끝(포함)
+}
+
+// 그 달 1일이 속한 주(일요일 시작)를 1주차로 본, weekSunday 의 달력 주차(행 번호).
+function weekRowInMonth(weekSunday: Date, year: number, month0: number): number {
+  const first = new Date(Date.UTC(year, month0, 1));
+  const anchor = new Date(first);
+  anchor.setUTCDate(first.getUTCDate() - first.getUTCDay());
+  const diff = Math.round((weekSunday.getTime() - anchor.getTime()) / (24 * 60 * 60 * 1000));
+  return Math.floor(diff / 7) + 1;
+}
+
+/**
+ * 프로젝트 기간을 "주 ∩ 월" 세그먼트 컬럼 배열로 만든다.
+ * 순수 달력 기준 — 각 날짜가 달력에서 몇 번째 줄(주)에 있는지로 주차를 매기고,
+ * 월이 바뀌는 주는 두 컬럼으로 분리한다 (6/28~30 = 6월 5주, 7/1~4 = 7월 1주).
+ */
+export function getProjectColumns(startDate: string, endDate: string): GanttColumn[] {
+  const weeks = getProjectWeeks(startDate, endDate); // 일요일 시작 주들
+  const [sY, sM] = startDate.split('-').map(Number);
+  const [eY, eM] = endDate.split('-').map(Number);
+  const startKey = sY * 12 + (sM - 1);
+  const endKey = eY * 12 + (eM - 1);
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+  const cols: GanttColumn[] = [];
+  for (const sun of weeks) {
+    const sat = new Date(sun);
+    sat.setUTCDate(sun.getUTCDate() + 6);
+    const firstKey = sun.getUTCFullYear() * 12 + sun.getUTCMonth();
+    const lastKey = sat.getUTCFullYear() * 12 + sat.getUTCMonth();
+    for (let key = firstKey; key <= lastKey; key++) {
+      if (key < startKey || key > endKey) continue; // 프로젝트 범위 밖 달은 제외
+      const y = Math.floor(key / 12);
+      const m0 = key % 12;
+      const monthStart = new Date(Date.UTC(y, m0, 1));
+      const monthEnd = new Date(Date.UTC(y, m0 + 1, 0)); // 그 달 말일
+      const segStart = sun > monthStart ? sun : monthStart;
+      const segEnd = sat < monthEnd ? sat : monthEnd;
+      cols.push({
+        year: y,
+        month: m0 + 1,
+        weekOfMonth: weekRowInMonth(sun, y, m0),
+        start: ymd(segStart),
+        end: ymd(segEnd),
+      });
+    }
+  }
+  return cols;
+}
+
+/** 날짜가 포함되는 컬럼 인덱스. 범위 밖이면 처음/끝 컬럼으로 clamp. */
+export function getColumnIndex(columns: GanttColumn[], dateStr: string): number {
+  if (columns.length === 0) return 0;
+  for (let i = 0; i < columns.length; i++) {
+    if (dateStr >= columns[i].start && dateStr <= columns[i].end) return i;
+  }
+  return dateStr < columns[0].start ? 0 : columns.length - 1;
+}
+
+/** 컬럼들을 (연,월) 단위로 묶는다 (월 헤더 span 용). */
+export function groupColumnsByMonth(columns: GanttColumn[]): MonthGroup[] {
+  const groups: MonthGroup[] = [];
+  columns.forEach((c, idx) => {
+    const existing = groups.find((g) => g.year === c.year && g.month === c.month);
+    const segStart = new Date(c.start + 'T00:00:00Z');
+    if (existing) {
+      existing.weeks.push(segStart);
+      existing.weekIndices.push(idx);
+    } else {
+      groups.push({ year: c.year, month: c.month, weeks: [segStart], weekIndices: [idx] });
+    }
+  });
+  return groups;
+}
+
+/**
  * Groups an array of week start dates by calendar month.
  * A week is assigned to the month that contains its Thursday (ISO convention),
  * or simply the month of the Sunday start — we use the month of the majority day

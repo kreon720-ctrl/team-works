@@ -216,6 +216,83 @@ CREATE TABLE IF NOT EXISTS postits (
     CONSTRAINT chk_postits_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 
+-- =====================
+-- 9. projects
+-- =====================
+CREATE TABLE IF NOT EXISTS projects (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    name        VARCHAR(200) NOT NULL,
+    description TEXT         NULL,
+    start_date  DATE         NOT NULL,
+    end_date    DATE         NOT NULL,
+    progress    INTEGER      NOT NULL DEFAULT 0,
+    manager     VARCHAR(100) NOT NULL DEFAULT '',
+    phases      JSONB        NOT NULL DEFAULT '[]',
+    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_projects_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_projects_progress CHECK (progress BETWEEN 0 AND 100)
+);
+
+-- 10. project_schedules
+CREATE TABLE IF NOT EXISTS project_schedules (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT         NULL,
+    color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
+    start_date  DATE         NOT NULL,
+    end_date    DATE         NOT NULL,
+    leader      VARCHAR(100) NOT NULL DEFAULT '',
+    progress    INTEGER      NOT NULL DEFAULT 0,
+    is_delayed  BOOLEAN      NOT NULL DEFAULT false,
+    -- phase_id 는 projects.phases (JSONB) 의 id 를 참조 — UUID 일 수도, 시드의 짧은
+    -- id ("p1","p2","리서치") 일 수도 있음. backend PHASE_ID_RE 로 형식 검증.
+    phase_id    VARCHAR(64)  NULL,
+    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_project_schedules_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_project_schedules_progress CHECK (progress BETWEEN 0 AND 100),
+    CONSTRAINT chk_project_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
+);
+
+-- 11. sub_schedules
+CREATE TABLE IF NOT EXISTS sub_schedules (
+    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_schedule_id UUID         NOT NULL REFERENCES project_schedules(id) ON DELETE CASCADE,
+    project_id          UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    team_id             UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    created_by          UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    title               VARCHAR(200) NOT NULL,
+    description         TEXT         NULL,
+    color               VARCHAR(20)  NOT NULL DEFAULT 'indigo',
+    start_date          DATE         NOT NULL,
+    end_date            DATE         NOT NULL,
+    leader              VARCHAR(100) NOT NULL DEFAULT '',
+    progress            INTEGER      NOT NULL DEFAULT 0,
+    is_delayed          BOOLEAN      NOT NULL DEFAULT false,
+    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    CONSTRAINT chk_sub_schedules_end_after_start CHECK (end_date >= start_date),
+    CONSTRAINT chk_sub_schedules_progress CHECK (progress BETWEEN 0 AND 100),
+    CONSTRAINT chk_sub_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
+);
+
+-- projects indexes
+CREATE INDEX IF NOT EXISTS idx_projects_team_id ON projects(team_id);
+
+-- project_schedules indexes
+CREATE INDEX IF NOT EXISTS idx_project_schedules_project_id ON project_schedules(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_schedules_team_id ON project_schedules(team_id);
+
+-- sub_schedules indexes
+CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_schedule_id ON sub_schedules(project_schedule_id);
+CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_id ON sub_schedules(project_id);
+
 -- 7. chat_messages
 -- project_id: NULL → 팀 일자별 채팅 (sent_at 기준 그룹), NOT NULL → 프로젝트 전용 채팅.
 -- 같은 테이블에 두 종류를 보관해 동일 코드·인덱스 패턴 재사용.
@@ -305,83 +382,6 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_project_id_sent_at
 -- work_performance_permissions
 CREATE INDEX IF NOT EXISTS idx_wpp_team
     ON work_performance_permissions(team_id);
-
--- =====================
--- 9. projects
--- =====================
-CREATE TABLE IF NOT EXISTS projects (
-    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    name        VARCHAR(200) NOT NULL,
-    description TEXT         NULL,
-    start_date  DATE         NOT NULL,
-    end_date    DATE         NOT NULL,
-    progress    INTEGER      NOT NULL DEFAULT 0,
-    manager     VARCHAR(100) NOT NULL DEFAULT '',
-    phases      JSONB        NOT NULL DEFAULT '[]',
-    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_projects_end_after_start CHECK (end_date >= start_date),
-    CONSTRAINT chk_projects_progress CHECK (progress BETWEEN 0 AND 100)
-);
-
--- 10. project_schedules
-CREATE TABLE IF NOT EXISTS project_schedules (
-    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id  UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    team_id     UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    created_by  UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    title       VARCHAR(200) NOT NULL,
-    description TEXT         NULL,
-    color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
-    start_date  DATE         NOT NULL,
-    end_date    DATE         NOT NULL,
-    leader      VARCHAR(100) NOT NULL DEFAULT '',
-    progress    INTEGER      NOT NULL DEFAULT 0,
-    is_delayed  BOOLEAN      NOT NULL DEFAULT false,
-    -- phase_id 는 projects.phases (JSONB) 의 id 를 참조 — UUID 일 수도, 시드의 짧은
-    -- id ("p1","p2","리서치") 일 수도 있음. backend PHASE_ID_RE 로 형식 검증.
-    phase_id    VARCHAR(64)  NULL,
-    created_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_project_schedules_end_after_start CHECK (end_date >= start_date),
-    CONSTRAINT chk_project_schedules_progress CHECK (progress BETWEEN 0 AND 100),
-    CONSTRAINT chk_project_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
-);
-
--- 11. sub_schedules
-CREATE TABLE IF NOT EXISTS sub_schedules (
-    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_schedule_id UUID         NOT NULL REFERENCES project_schedules(id) ON DELETE CASCADE,
-    project_id          UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    team_id             UUID         NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    created_by          UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    title               VARCHAR(200) NOT NULL,
-    description         TEXT         NULL,
-    color               VARCHAR(20)  NOT NULL DEFAULT 'indigo',
-    start_date          DATE         NOT NULL,
-    end_date            DATE         NOT NULL,
-    leader              VARCHAR(100) NOT NULL DEFAULT '',
-    progress            INTEGER      NOT NULL DEFAULT 0,
-    is_delayed          BOOLEAN      NOT NULL DEFAULT false,
-    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_sub_schedules_end_after_start CHECK (end_date >= start_date),
-    CONSTRAINT chk_sub_schedules_progress CHECK (progress BETWEEN 0 AND 100),
-    CONSTRAINT chk_sub_schedules_color CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
-);
-
--- projects indexes
-CREATE INDEX IF NOT EXISTS idx_projects_team_id ON projects(team_id);
-
--- project_schedules indexes
-CREATE INDEX IF NOT EXISTS idx_project_schedules_project_id ON project_schedules(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_schedules_team_id ON project_schedules(team_id);
-
--- sub_schedules indexes
-CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_schedule_id ON sub_schedules(project_schedule_id);
-CREATE INDEX IF NOT EXISTS idx_sub_schedules_project_id ON sub_schedules(project_id);
 
 -- 12. notices
 -- project_id: NULL → 팀 일자별 채팅 공지, NOT NULL → 프로젝트 전용 공지.

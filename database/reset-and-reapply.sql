@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS users (
     id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     email         VARCHAR(255) NOT NULL,
     name          VARCHAR(50)  NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NULL,  -- OAuth(카카오·구글) 전용 사용자는 NULL 허용
     terms_accepted_at   TIMESTAMP NULL,
     privacy_accepted_at TIMESTAMP NULL,
     terms_version       VARCHAR(20) NULL,
@@ -163,7 +163,8 @@ CREATE TABLE IF NOT EXISTS project_schedules (
     leader      VARCHAR(100) NOT NULL DEFAULT '',
     progress    INTEGER      NOT NULL DEFAULT 0,
     is_delayed  BOOLEAN      NOT NULL DEFAULT false,
-    phase_id    UUID         NULL,
+    -- phase_id 는 projects.phases(JSONB) 의 id 참조 — "p1"·"리서치" 같은 짧은 문자열도 허용
+    phase_id    VARCHAR(64)  NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
     CONSTRAINT chk_project_schedules_end_after_start CHECK (end_date >= start_date),
@@ -202,10 +203,10 @@ CREATE TABLE IF NOT EXISTS schedules (
     description TEXT         NULL,
     color       VARCHAR(20)  NOT NULL DEFAULT 'indigo',
     start_at    TIMESTAMP    NOT NULL,
-    end_at      TIMESTAMP    NOT NULL,
+    end_at      TIMESTAMP    NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT now(),
     updated_at  TIMESTAMP    NOT NULL DEFAULT now(),
-    CONSTRAINT chk_schedules_end_after_start CHECK (end_at > start_at),
+    CONSTRAINT chk_schedules_end_after_start CHECK (end_at IS NULL OR end_at > start_at),
     CONSTRAINT chk_schedules_color           CHECK (color IN ('indigo', 'blue', 'emerald', 'amber', 'rose'))
 );
 

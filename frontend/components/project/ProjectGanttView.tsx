@@ -12,7 +12,7 @@ import {
   Presentation,
 } from 'lucide-react';
 import { toSvg } from 'html-to-image';
-import { getProjectWeeks, groupWeeksByMonth, getWeekIndex } from './ganttUtils';
+import { getProjectColumns, groupColumnsByMonth, getColumnIndex } from './ganttUtils';
 import { useProjectStore } from '@/store/projectStore';
 import type { Project } from '@/types/project';
 import { GanttChart } from './GanttChart';
@@ -197,9 +197,9 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
     setSaving(true);
     try {
       const project = selectedProject;
-      const weeks = getProjectWeeks(project.startDate, project.endDate);
-      const totalWeeks = Math.max(1, weeks.length);
-      const monthGroups = groupWeeksByMonth(weeks);
+      const columns = getProjectColumns(project.startDate, project.endDate);
+      const totalCols = Math.max(1, columns.length);
+      const monthGroups = groupColumnsByMonth(columns);
       const phases = [...project.phases].sort((a, b) => a.order - b.order);
 
       // 화면 다크모드 막대색과 동일 계열(단색). amber 만 어두운 글자.
@@ -228,7 +228,7 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
       const chartW = SLIDE_W - M * 2 - LABEL_W;
       const gridTop = M + titleH + headerH;
       const availH = SLIDE_H - M - gridTop;
-      const xForWeek = (i: number) => chartX0 + (i / totalWeeks) * chartW;
+      const xForCol = (i: number) => chartX0 + (i / totalCols) * chartW;
 
       // 제목 (편집 가능 텍스트)
       slide.addText(
@@ -246,7 +246,7 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
         const i0 = g.weekIndices[0];
         const i1 = g.weekIndices[g.weekIndices.length - 1] + 1;
         slide.addText(`${g.month}월`, {
-          x: xForWeek(i0), y: M + titleH, w: xForWeek(i1) - xForWeek(i0), h: headerH,
+          x: xForCol(i0), y: M + titleH, w: xForCol(i1) - xForCol(i0), h: headerH,
           fontSize: 10, bold: true, align: 'center', valign: 'middle', color: '374151',
           fill: { color: 'F3F4F6' }, line: { color: 'D1D5DB', width: 0.5 },
         });
@@ -281,10 +281,10 @@ export function ProjectGanttView({ teamId, currentUserId, onSwitchToChat }: Proj
         });
         // 일정 막대 — 각각 개별 도형(이동·색변경 가능) + 진행률 오버레이 + 라벨 텍스트
         list.forEach((s, bi) => {
-          const startIdx = getWeekIndex(weeks, s.startDate, 'start');
-          const endIdx = getWeekIndex(weeks, s.endDate, 'end');
-          const bx = xForWeek(startIdx);
-          const bw = Math.max(0.15, xForWeek(endIdx + 1) - bx);
+          const startIdx = getColumnIndex(columns, s.startDate);
+          const endIdx = getColumnIndex(columns, s.endDate);
+          const bx = xForCol(startIdx);
+          const bw = Math.max(0.15, xForCol(endIdx + 1) - bx);
           const by = y + gap + bi * (barH + gap);
           const fill = s.isDelayed ? DELAYED : COLOR[s.color] ?? COLOR.indigo;
           slide.addShape(pptx.ShapeType.roundRect, {

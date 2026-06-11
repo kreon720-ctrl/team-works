@@ -29,11 +29,21 @@ err()     { echo "${C_ERR}[ERROR]${C_END} $*" >&2; exit 1; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$ROOT_DIR/backend/.env.local"
-SQL_FILE="$ROOT_DIR/database/reset-and-reapply.sql"
 CONTAINER="postgres-db"
 
+# 적용할 SQL 파일 — 순서대로. reset-and-reapply.sql 는 코어 테이블만 만들고,
+# add-postits.sql / add-board.sql 가 포스트잇·자료실 테이블을 추가한다.
+# (이 셋을 다 돌려야 실제 DB 구조(18 테이블)와 일치)
+SQL_FILES=(
+  "$ROOT_DIR/database/reset-and-reapply.sql"
+  "$ROOT_DIR/database/add-postits.sql"
+  "$ROOT_DIR/database/add-board.sql"
+)
+
 [[ -f "$ENV_FILE" ]] || err ".env.local 파일을 찾을 수 없습니다: $ENV_FILE"
-[[ -f "$SQL_FILE" ]] || err "SQL 파일을 찾을 수 없습니다: $SQL_FILE"
+for f in "${SQL_FILES[@]}"; do
+  [[ -f "$f" ]] || err "SQL 파일을 찾을 수 없습니다: $f"
+done
 
 # ── DATABASE_URL 파싱 ───────────────────────────────────────────────────────
 DATABASE_URL="$(grep -E '^DATABASE_URL=' "$ENV_FILE" | head -n 1 | sed 's/^DATABASE_URL=//')"
@@ -71,8 +81,11 @@ echo ""
 
 # ── Step 1: DB 초기화 ───────────────────────────────────────────────────────
 info "Step 1/2 — 데이터베이스 초기화 중..."
-docker exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -q < "$SQL_FILE"
-success "데이터베이스 초기화 완료"
+for f in "${SQL_FILES[@]}"; do
+  info "  적용: $(basename "$f")"
+  docker exec -i "$CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -q -v ON_ERROR_STOP=1 < "$f"
+done
+success "데이터베이스 초기화 완료 (코어 + 포스트잇 + 자료실)"
 
 # ── Step 2: JWT 시크릿 재생성 ───────────────────────────────────────────────
 info "Step 2/2 — JWT 시크릿 재생성 중..."

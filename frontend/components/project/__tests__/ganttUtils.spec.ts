@@ -3,6 +3,9 @@ import {
   getWeekStart,
   getProjectWeeks,
   groupWeeksByMonth,
+  getProjectColumns,
+  getColumnIndex,
+  groupColumnsByMonth,
   getWeekOfMonth,
   getWeekIndex,
   isMonthBoundary,
@@ -141,6 +144,39 @@ describe('ganttUtils', () => {
     it('returns empty array for empty weeks', () => {
       const groups = groupWeeksByMonth([]);
       expect(groups).toEqual([]);
+    });
+  });
+
+  describe('getProjectColumns', () => {
+    it('경계 주(6/28~7/4)를 6월 5주 / 7월 1주 두 컬럼으로 분리한다', () => {
+      // 프로젝트 2026-06-11 ~ 2026-07-11
+      const cols = getProjectColumns('2026-06-11', '2026-07-11');
+      const labels = cols.map((c) => `${c.month}월 ${c.weekOfMonth}주`);
+      expect(labels).toEqual(['6월 2주', '6월 3주', '6월 4주', '6월 5주', '7월 1주', '7월 2주']);
+      // 6월 5주 = 6/28~30, 7월 1주 = 7/1~4
+      const june5 = cols.find((c) => c.month === 6 && c.weekOfMonth === 5)!;
+      expect([june5.start, june5.end]).toEqual(['2026-06-28', '2026-06-30']);
+      const july1 = cols.find((c) => c.month === 7 && c.weekOfMonth === 1)!;
+      expect([july1.start, july1.end]).toEqual(['2026-07-01', '2026-07-04']);
+    });
+
+    it('월초 시작 프로젝트는 1주부터 표시한다 (선행 주 clamp)', () => {
+      const cols = getProjectColumns('2026-06-01', '2026-06-30');
+      expect(cols.map((c) => `${c.month}월 ${c.weekOfMonth}주`)).toEqual([
+        '6월 1주', '6월 2주', '6월 3주', '6월 4주', '6월 5주',
+      ]);
+    });
+
+    it('getColumnIndex 는 날짜가 든 컬럼을 찾는다', () => {
+      const cols = getProjectColumns('2026-06-11', '2026-07-11');
+      expect(getColumnIndex(cols, '2026-06-29')).toBe(3); // 6월 5주
+      expect(getColumnIndex(cols, '2026-07-02')).toBe(4); // 7월 1주
+    });
+
+    it('groupColumnsByMonth 는 6월(4칸)·7월(2칸)으로 묶는다', () => {
+      const cols = getProjectColumns('2026-06-11', '2026-07-11');
+      const groups = groupColumnsByMonth(cols);
+      expect(groups.map((g) => `${g.month}:${g.weekIndices.length}`)).toEqual(['6:4', '7:2']);
     });
   });
 

@@ -122,11 +122,13 @@ export function TeamCard({ team, pendingCount = 0, onClick, onApprove, onUpdate,
                 {roleLabel}
               </span>
               <span className="text-xs font-normal whitespace-nowrap text-gray-500 dark:text-dark-text-muted">{formattedDate}</span>
-              {team.isPublic && (
-                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap bg-green-100 text-green-800 dark:bg-white dark:text-gray-900">
-                  공개
-                </span>
-              )}
+              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                team.isPublic
+                  ? 'bg-green-100 text-green-800 dark:bg-white dark:text-gray-900'
+                  : 'bg-gray-100 text-gray-600 dark:bg-dark-elevated dark:text-dark-text-muted'
+              }`}>
+                {team.isPublic ? '공개' : '비공개'}
+              </span>
             </div>
             {team.description && (
               <p className="text-sm text-gray-500 dark:text-dark-text-muted mt-1 line-clamp-1">{team.description}</p>
@@ -139,13 +141,14 @@ export function TeamCard({ team, pendingCount = 0, onClick, onApprove, onUpdate,
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setShowMembers(true); }}
-              className="p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+              className="flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
               aria-label="팀원 조회"
               title="팀원 조회"
             >
               <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
+              <span className="text-[10px] leading-none text-gray-500 dark:text-dark-text-muted">팀원</span>
             </button>
 
             {/* 팀장 전용 승인/수정/삭제 버튼 */}
@@ -155,13 +158,14 @@ export function TeamCard({ team, pendingCount = 0, onClick, onApprove, onUpdate,
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onApprove?.(team.id); }}
-                    className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors"
+                    className="flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg hover:bg-amber-50 transition-colors"
                     aria-label="가입 승인"
                     title="가입 승인"
                   >
                     <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
+                    <span className="text-[10px] leading-none text-gray-500 dark:text-dark-text-muted">승인</span>
                   </button>
                   {pendingCount > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5 pointer-events-none">
@@ -172,24 +176,26 @@ export function TeamCard({ team, pendingCount = 0, onClick, onApprove, onUpdate,
                 <button
                   type="button"
                   onClick={() => setIsEditing(true)}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-elevated transition-colors"
+                  className="flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-elevated transition-colors"
                   aria-label="수정"
                   title="팀 수정"
                 >
                   <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
+                  <span className="text-[10px] leading-none text-gray-500 dark:text-dark-text-muted">수정</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="p-1.5 rounded-lg hover:bg-error-50 transition-colors"
+                  className="flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg hover:bg-error-50 transition-colors"
                   aria-label="삭제"
                   title="팀 삭제"
                 >
                   <svg className="w-4 h-4 text-error-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
+                  <span className="text-[10px] leading-none text-error-500">삭제</span>
                 </button>
               </>
             )}

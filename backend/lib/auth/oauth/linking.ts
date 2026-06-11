@@ -10,6 +10,7 @@
 
 import { pool } from '@/lib/db/pool'
 import { createUser, getUserByEmail, updateUserConsent, type User } from '@/lib/db/queries/userQueries'
+import { createOnboardingTestTeam } from '@/lib/onboarding/createTestTeam'
 import {
   createOAuthAccount,
   getOAuthAccountByProvider,
@@ -70,6 +71,13 @@ export async function linkOrCreateUser(input: LinkInput): Promise<LinkResult> {
     return { ok: false, reason: 'terms_required' }
   }
   const user = await createNewUserWithOAuth({ ...input, email })
+  // 가입 직후 둘러볼 수 있는 테스트팀 + 샘플 일정/프로젝트 생성.
+  // 실패해도 로그인은 정상 완료되어야 하므로 에러를 삼키고 로그만 남긴다.
+  try {
+    await createOnboardingTestTeam(user.id, user.name)
+  } catch (seedErr) {
+    console.error('테스트팀 생성 실패(OAuth 가입은 계속):', seedErr)
+  }
   return { ok: true, user, isNewUser: true, isNewLink: true }
 }
 

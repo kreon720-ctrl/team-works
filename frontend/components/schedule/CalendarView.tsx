@@ -195,8 +195,8 @@ export function CalendarView({
           )}
 
           {/* PC only — 일정/프로젝트 뷰 토글 버튼.
-              일정 뷰: [프로젝트 관리] 클릭 → 프로젝트 뷰
-              프로젝트 뷰: [일정 관리] 클릭 → 월간 뷰로 복귀 */}
+              일정 뷰: [프로젝트 워크벤치] 클릭 → 프로젝트 뷰
+              프로젝트 뷰: [팀캘린더] 클릭 → 월간 뷰로 복귀 */}
           {!compact && (
             <button
               type="button"
@@ -212,7 +212,7 @@ export function CalendarView({
                     <path d="M8 3v4" />
                     <path d="M16 3v4" />
                   </svg>
-                  일정 관리
+                  팀캘린더
                 </>
               ) : (
                 <>
@@ -225,7 +225,7 @@ export function CalendarView({
                       d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
                     />
                   </svg>
-                  프로젝트 관리
+                  프로젝트 워크벤치
                 </>
               )}
             </button>

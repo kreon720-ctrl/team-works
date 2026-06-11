@@ -110,7 +110,7 @@ export function ChatPanel({ teamId, date, projectId, isLeader = false }: ChatPan
               : 'text-gray-500 border-transparent hover:text-gray-700 dark:text-dark-text-muted dark:hover:text-dark-text'
           }`}
         >
-          자료실
+          라이브러리
         </button>
         {/* 팀 일자별 채팅 — 현재 채팅창의 날짜 표시. 프로젝트 채팅(projectId 있는 경우)엔 표시 안 함. */}
         {date && !projectId && (

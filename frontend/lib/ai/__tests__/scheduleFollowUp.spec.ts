@@ -34,6 +34,22 @@ describe('rebuildFollowUpQuestion', () => {
     it('보충에 시각만 + prev 에 시각 없음 → 끝에 추가', () => {
       expect(rebuildFollowUpQuestion('내일 회의 등록', 'time', '3시')).toBe('내일 회의 등록 3시');
     });
+
+    it('보충에 AM/PM+"시반" → 분("반") 보존', () => {
+      expect(rebuildFollowUpQuestion('다음주 월요일 회의일정 등록해줘', 'time', '오전 9시반')).toBe(
+        '다음주 월요일 회의일정 등록해줘 오전 9시반',
+      );
+    });
+
+    it('보충에 AM/PM+"N분" → 분 보존', () => {
+      expect(rebuildFollowUpQuestion('다음주 월요일 회의일정 등록해줘', 'time', '오전 9시 30분')).toBe(
+        '다음주 월요일 회의일정 등록해줘 오전 9시 30분',
+      );
+    });
+
+    it('보충에 "시반"만(AM/PM 없음) → 분("반") 보존', () => {
+      expect(rebuildFollowUpQuestion('내일 회의 등록', 'time', '9시반')).toBe('내일 회의 등록 9시반');
+    });
   });
 
   describe("needs='date'", () => {

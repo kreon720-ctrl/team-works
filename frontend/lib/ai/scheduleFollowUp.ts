@@ -64,14 +64,16 @@ export function rebuildFollowUpQuestion(
     // 거절 응답 후 사용자가 시각만 보충하는 게 아니라 새 일시를 통째로 알려주는 흐름 보호.
     if (DATE_HINT_RE.test(supplement) && HOUR_RE.test(supplement)) return supplement;
     const ampm = supplement.match(AMPM_RE)?.[1];
-    const hourInSupplement = supplement.match(/(\d+)\s*시/)?.[1];
+    // 시각을 분 단서("반"/"N분")까지 통째로 추출 — "9시반"/"9시 30분" 의 분 정보를
+    // 버리고 정시로 등록되던 버그 방지. 서버 normalizeKoreanDate 가 "반"→"30분" 변환.
+    const timeInSupplement = supplement.match(/(\d+)\s*시(?:\s*반|\s*\d+\s*분)?/)?.[0]?.replace(/\s+/g, ' ').trim();
     const ampmInPrev = prev.match(AMPM_RE)?.[1];
     const AMPM_GLOBAL_RE = new RegExp(AMPM_RE.source, 'g');
-    // 보충에 시각 전체 ("오후 3시") → prev 의 시각 부분을 통째 교체
-    if (ampm && hourInSupplement) {
-      if (HOUR_RE.test(prev)) return prev.replace(HOUR_RE, `${ampm} ${hourInSupplement}시`);
+    // 보충에 시각 전체 ("오후 3시", "9시반") → prev 의 시각 부분을 통째 교체
+    if (ampm && timeInSupplement) {
+      if (HOUR_RE.test(prev)) return prev.replace(HOUR_RE, `${ampm} ${timeInSupplement}`);
       // prev 에 시각 없으면 끝에 추가
-      return `${prev} ${ampm} ${hourInSupplement}시`;
+      return `${prev} ${ampm} ${timeInSupplement}`;
     }
     // 보충에 AM/PM 만 ("오전"/"오후") — prev 의 기존 AM/PM 정정 의도로 보고 모두 교체 +
     // prev 에 시각이 있으면 시각 바로 앞에 ampm 이 인접하도록 보강 (detectTimeBand 매칭 보장).
@@ -87,12 +89,12 @@ export function rebuildFollowUpQuestion(
     }
     // 보충에 "N시" 만 ("3시", "13시") — prev 에 AM/PM 시그널이 있으면 "${ampmInPrev} ${hour}시"
     // 로 직접 인접 결합 (detectTimeBand 가 ampm 을 정확히 잡도록). 없으면 단순 추가.
-    if (hourInSupplement && !HOUR_RE.test(prev)) {
+    if (timeInSupplement && !HOUR_RE.test(prev)) {
       if (ampmInPrev) {
         const cleaned = prev.replace(AMPM_GLOBAL_RE, '').replace(/\s+/g, ' ').trim();
-        return `${cleaned} ${ampmInPrev} ${hourInSupplement}시`;
+        return `${cleaned} ${ampmInPrev} ${timeInSupplement}`;
       }
-      return `${prev} ${hourInSupplement}시`;
+      return `${prev} ${timeInSupplement}`;
     }
   }
   if (needs === 'date') {

@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useBreakpoint } from '@/hooks/useBreakpoint';
 
 export function LandingMenu() {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const { isMobile } = useBreakpoint();
 
   useEffect(() => {
     if (!open) return;
@@ -26,7 +24,8 @@ export function LandingMenu() {
     };
   }, [open]);
 
-  const aboutHref = isMobile ? '/landing/mobile.html' : '/landing/index.html';
+  // PC·모바일 통합: 모바일 디자인 랜딩 하나로 운영
+  const aboutHref = '/landing/index.html';
 
   return (
     <div ref={wrapperRef} className="relative">

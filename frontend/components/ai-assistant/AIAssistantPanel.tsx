@@ -863,17 +863,30 @@ function MessageBubble({
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%] space-y-2">
-        <div className={`rounded-2xl rounded-bl-sm bg-white border border-gray-200 dark:border-dark-border px-3.5 py-2.5 text-sm text-gray-800 dark:text-dark-text whitespace-pre-wrap break-words shadow-sm dark:shadow-none ${message.id === 'welcome' ? 'dark:bg-[#101214]' : 'dark:bg-dark-surface'}`}>
+        <div className={`rounded-2xl rounded-bl-sm border border-gray-200 dark:border-dark-border px-3.5 py-2.5 text-sm text-gray-800 dark:text-dark-text whitespace-pre-wrap break-words shadow-sm dark:shadow-none ${message.id === 'welcome' ? 'bg-[#CFD0CF] dark:bg-[#101214]' : 'bg-white dark:bg-dark-surface'}`}>
           {message.id === 'welcome' && (
-            <video
-              src="/imgs/ai_robot.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              aria-hidden="true"
-              className="hidden dark:block float-left w-[32.5%] max-h-[57px] object-contain rounded-lg mr-2 mb-1 mt-1 -ml-3.5 bg-white dark:bg-[#101214]"
-            />
+            <>
+              {/* 라이트 모드용 찰떡이 애니메이션 (배경색은 버블·영상 배경 회색과 일치) */}
+              <video
+                src="/imgs/ai_robot_white.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                aria-hidden="true"
+                className="block dark:hidden float-left w-[32.5%] max-h-[57px] object-contain rounded-lg mr-2 mb-1 mt-1 -ml-3.5 bg-[#CFD0CF]"
+              />
+              {/* 다크 모드용 찰떡이 애니메이션 */}
+              <video
+                src="/imgs/ai_robot.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                aria-hidden="true"
+                className="hidden dark:block float-left w-[32.5%] max-h-[57px] object-contain rounded-lg mr-2 mb-1 mt-1 -ml-3.5 bg-[#101214]"
+              />
+            </>
           )}
           {message.content || '(빈 응답)'}
         </div>

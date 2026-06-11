@@ -76,3 +76,6 @@ coverage/
 
 # DB 백업 덤프 — 사용자 해시 포함, git 추적 제외.
 backups/
+backup-*.sql
+files-backup-*.tar.gz
+tmp-*.webp

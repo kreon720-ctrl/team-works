@@ -3,6 +3,7 @@ import { createUser, getUserByEmail } from '@/lib/db/queries/userQueries'
 import { hashPassword, validatePasswordStrength } from '@/lib/auth/password'
 import { generateTokenPair } from '@/lib/auth/jwt'
 import { DatabaseError, withDbErrorHandling } from '@/lib/errors/databaseError'
+import { createOnboardingTestTeam } from '@/lib/onboarding/createTestTeam'
 
 interface SignupRequestBody {
   email?: string
@@ -98,6 +99,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         privacy_version: body.privacyVersion || CURRENT_PRIVACY_VERSION,
       })
     })
+
+    // 6-1. 가입 직후 둘러볼 수 있는 테스트팀 + 샘플 일정/프로젝트 생성.
+    //      실패해도 회원가입은 정상 완료되어야 하므로 에러를 삼키고 로그만 남긴다.
+    try {
+      await createOnboardingTestTeam(user.id, user.name)
+    } catch (seedErr) {
+      console.error('테스트팀 생성 실패(회원가입은 계속):', seedErr)
+    }
 
     // 7. 토큰 발급
     const { accessToken, refreshToken } = generateTokenPair(user)
