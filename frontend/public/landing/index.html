@@ -257,6 +257,11 @@ body.menu-open .menu{ transform:translateY(0); }
 /* ---------------- hero ---------------- */
 .hero{ padding:18px var(--pad) 40px; }
 .hero .chap{ margin-bottom:14px; }
+    /* 좁은 폭(예: 갤럭시 플립): 01 숫자와 가로폭 안 나누게 세로 스택 → 제목 전체폭 한 줄 */
+    @media (max-width:400px){
+      .chap{ flex-direction:column; align-items:flex-start; gap:6px; }
+      .chap__ttl{ white-space:nowrap; }
+    }
 
 /* ---------------- mobile cycle stage ---------------- */
 .mstage{ position:relative; margin-top:0; min-height:330px; }
@@ -444,7 +449,7 @@ body.menu-open .menu{ transform:translateY(0); }
       <span class="chap__no">01</span>
       <div>
         <span class="chap__eb">Part One</span>
-        <h2 class="chap__ttl" style="font-size: 26px">WHY <span class="accent">TEAM WORKS?</span></h2>
+        <h2 class="chap__ttl">WHY <span class="accent">TEAM WORKS?</span></h2>
       </div>
     </div>
 
@@ -460,13 +465,13 @@ body.menu-open .menu{ transform:translateY(0); }
       </div>
 
       <!-- 2) 01~05 리스트 -->
-      <div class="mlayer" data-k="painList" style="font-size: 6px">
+      <div class="mlayer" data-k="painList">
         <ol class="pain__list" style="margin:0; width:100%">
-          <li class="pain__row"><span class="n">01</span><p style="font-size: 6px">"다음 주 수요일 회의 몇 시였?" — 단톡방을 스크롤한다.</p></li>
+          <li class="pain__row"><span class="n">01</span><p style="font-size: 13px">"다음 주 수요일 회의 몇 시였지?" — 단톡방을 스크롤한다.</p></li>
           <li class="pain__row"><span class="n">02</span><p><code>프로젝트_일정_v7_최종_진짜최종.xlsx</code> 를 또 연다.</p></li>
           <li class="pain__row"><span class="n">03</span><p style="font-size: 13px">회의 자료를 채팅에 올렸는데, 스크롤 속으로 사라졌다.</p></li>
           <li class="pain__row"><span class="n">04</span><p>업무 얘기와 점심 메뉴 얘기가 한 방에 뒤섞인다.</p></li>
-          <li class="pain__row" style="font-size: 6px"><span class="n">05</span><p>새 업무지시가 내려왔다, 팀원 전부 배우게 할 자신이 없다.</p></li>
+          <li class="pain__row"><span class="n">05</span><p>업무지시가 내려왔다, 팀원 전부 배우게 할 자신이 없다.</p></li>
         </ol>
       </div>
 
@@ -509,7 +514,7 @@ body.menu-open .menu{ transform:translateY(0); }
       <span class="chap__no">02</span>
       <div>
         <span class="chap__eb">Part Two</span>
-        <h2 class="chap__ttl" style="font-size: 26px">WHAT'S <span class="accent">INSIDE?</span></h2>
+        <h2 class="chap__ttl">WHAT'S <span class="accent">INSIDE?</span></h2>
       </div>
     </div>
     <div class="toc__video reveal">
@@ -573,7 +578,7 @@ body.menu-open .menu{ transform:translateY(0); }
     <table class="aitable reveal">
       <thead><tr><th>이렇게 말하면</th><th>찰떡이가</th></tr></thead>
       <tbody>
-        <tr><td>"오늘 일정 알려줘"</td><td>일정을 찾아 바로 보여줘요</td></tr>
+        <tr><td>"오늘 일정 알려줘"</td><td>일정을 찾아 보여줘요</td></tr>
         <tr><td>"내일 3시 주간회의 등록"</td><td>미리보기로 확인받고 등록해요</td></tr>
         <tr><td>"내일 회의 4시로 옮겨줘"</td><td>대상을 확인하고 수정·삭제해요</td></tr>
         <tr><td>"포스트잇 색깔 몇 종류?"</td><td>공식 안내를 찾아 답해요</td></tr>
@@ -600,19 +605,19 @@ body.menu-open .menu{ transform:translateY(0); }
       <span class="chap__no">03</span>
       <div>
         <span class="chap__eb">Part Three</span>
-        <h2 class="chap__ttl" style="font-size: 6px">JUST <span class="accent">START IT!</span></h2>
+        <h2 class="chap__ttl">JUST <span class="accent">START IT!</span></h2>
       </div>
     </div>
     <div class="steps">
-      <div class="step reveal"><div class="sn">1</div><div><h4><a class="lk" href="https://teamworks.my">teamworks.my</a> 에 접속</h4><p>주소창에 한 줄이면 끝. 설치도, 다운로드도 없습니다.</p></div></div>
+      <div class="step reveal"><div class="sn">1</div><div><h4><a class="lk" href="https://teamworks.my">teamworks.my</a> 에 접속</h4><p>주소창에 한 줄 끝. 설치도, 다운로드도 없어요</p></div></div>
       <div class="step reveal"><div class="sn">2</div><div><h4>카카오·구글로 3초 로그인</h4><p>계정 버튼 하나로 바로 들어옵니다.</p></div></div>
-      <div class="step reveal"><div class="sn">3</div><div><h4>팀 만들기 또는 가입 신청</h4><p>내가 만들면 내가 팀장, 관심 팀엔 신청만 하면 끝.</p></div></div>
+      <div class="step reveal"><div class="sn">3</div><div><h4>팀 만들기 또는 가입 신청</h4><p>내가 만들면 내가 팀장, 관심 팀엔 신청 끝.</p></div></div>
     </div>
   </section>
 
   <!-- FINAL CTA -->
   <section class="final bg-yellow">
-    <h2 class="reveal" style="font-size: 6px">다음 프로젝트는<br>TEAM WORKS로 시작하세요</h2>
+    <h2 class="reveal">다음 프로젝트는<br>TEAM WORKS로 시작하세요</h2>
     <p class="reveal">무료로 시작하세요 👉 <span class="addr" id="typeUrlBottom" data-text="https://teamworks.my"></span></p>
     <a class="btn btn--ink reveal" href="https://teamworks.my">Just Start It!</a>
   </section>
