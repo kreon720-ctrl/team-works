@@ -127,7 +127,7 @@
       { k:"painList",  fade:600,  hold:10000 },
       { k:"punch1",    fade:1500, hold:3000 },
       { k:"punch2",    fade:1500, hold:3000 },
-      { k:"heroMsg",   fade:600,  hold:10000 },
+      { k:"heroMsg",   fade:600,  hold:15000 },
       { k:"brand",     fade:600,  hold:7000, onShow:brandTypeStart, onHide:brandTypeStop }
     ];
 
