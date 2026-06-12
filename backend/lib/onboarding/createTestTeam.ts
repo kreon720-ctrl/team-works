@@ -3,6 +3,12 @@ import { createSchedule } from '@/lib/db/queries/scheduleQueries'
 import { createProject } from '@/lib/db/queries/projectQueries'
 import { createProjectSchedule } from '@/lib/db/queries/projectScheduleQueries'
 import { createSubSchedule } from '@/lib/db/queries/subScheduleQueries'
+import { createPostit, updatePostitContent } from '@/lib/db/queries/postitQueries'
+import { createPost, addAttachment } from '@/lib/db/queries/boardQueries'
+import { createChatMessage } from '@/lib/db/queries/chatQueries'
+import { createNotice } from '@/lib/db/queries/noticeQueries'
+import { createStorageAdapter } from '@/lib/files/storage'
+import { SAMPLE_XLSX_NAME, SAMPLE_XLSX_MIME, SAMPLE_XLSX_BASE64 } from './sampleFile'
 
 // 가입 직후, 팀웍스 기능을 바로 둘러볼 수 있도록 만들어 주는 "테스트팀".
 // - 팀명: 테스트팀 / 팀원: 가입자 1명(팀장) / 샘플 일정 6개
@@ -86,6 +92,22 @@ export async function createOnboardingTestTeam(userId: string, userName: string)
       startAt: s.start,
       endAt: s.end,
     })
+  }
+
+  // 2-1) 일정이 있는 날짜에 샘플 포스트잇 2개 — 캘린더에서 메모 기능을 바로 보여준다.
+  //   포스트잇은 색상만으로 생성된 뒤 내용을 채우는 구조라 createPostit → updatePostitContent 순으로 넣는다.
+  const postits: Array<{ offset: number; color: string; content: string }> = [
+    { offset: 1, color: 'amber', content: '킥오프 준비물 챙기기 📋' },
+    { offset: 2, color: 'rose', content: '회의 끝나고 회식 어때요? 🍻' },
+  ]
+  for (const p of postits) {
+    const postit = await createPostit({
+      teamId: team.id,
+      createdBy: userId,
+      date: dateStr(p.offset),
+      color: p.color,
+    })
+    await updatePostitContent(team.id, postit.id, p.content)
   }
 
   // 3) 프로젝트 2개 — 단계별 일정(간트 막대) + 세부일정까지 채운다.
@@ -234,5 +256,51 @@ export async function createOnboardingTestTeam(userId: string, userName: string)
         })
       }
     }
+  }
+
+  // 4) 자료실(팀 일자별) — 샘플 엑셀 파일 1건 게시.
+  //   게시글 작성 → 스토리지에 실제 파일 저장 → 첨부 메타 연결.
+  const post = await createPost({
+    teamId: team.id,
+    projectId: null,
+    authorId: userId,
+    title: '[샘플] 주간 일정표.xlsx',
+    content: '테스트팀 주요 일정을 정리한 샘플 엑셀입니다. 자료실에 파일을 올리고 내려받는 흐름을 확인해 보세요.',
+  })
+  const fileBuf = Buffer.from(SAMPLE_XLSX_BASE64, 'base64')
+  const saved = await createStorageAdapter().save(fileBuf, {
+    mimeType: SAMPLE_XLSX_MIME,
+    originalName: SAMPLE_XLSX_NAME,
+  })
+  await addAttachment({
+    postId: post.id,
+    originalName: SAMPLE_XLSX_NAME,
+    storedName: saved.storedName,
+    mimeType: SAMPLE_XLSX_MIME,
+    sizeBytes: saved.sizeBytes,
+  })
+
+  // 5) 팀 일자별 채팅방(오늘) — 공지사항 + 업무보고 + 일반 채팅 메시지.
+  //   sent_at 의 KST 날짜로 채팅방이 갈리므로 오늘 오전 시각으로 배치해 가입 첫날 바로 보이게 한다.
+  //   팀원이 가입자 1명뿐이라 sender 는 모두 본인이지만, 각 기능(공지/업무보고/채팅)을 한눈에 보여 준다.
+  await createNotice(
+    team.id,
+    userId,
+    '📢 팀웍스 테스트팀에 오신 걸 환영합니다! 상단 캘린더·프로젝트·채팅을 자유롭게 둘러보세요.'
+  )
+  const chats: Array<{ type: 'NORMAL' | 'WORK_PERFORMANCE'; content: string; h: number; m: number }> = [
+    { type: 'NORMAL', content: '안녕하세요! 오늘부터 팀웍스로 일정 공유 시작해 봐요 🙌', h: 9, m: 0 },
+    { type: 'NORMAL', content: '내일 10시 킥오프 미팅 캘린더에 등록해 뒀습니다.', h: 9, m: 2 },
+    { type: 'WORK_PERFORMANCE', content: '[업무보고] 도입 준비 기획 단계 100% 완료했습니다. 다음은 팀 환경 세팅 진행 예정입니다.', h: 9, m: 5 },
+  ]
+  for (const c of chats) {
+    await createChatMessage({
+      teamId: team.id,
+      projectId: null,
+      senderId: userId,
+      type: c.type,
+      content: c.content,
+      sentAt: at(0, c.h, c.m),
+    })
   }
 }
