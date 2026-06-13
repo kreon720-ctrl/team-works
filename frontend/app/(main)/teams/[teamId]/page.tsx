@@ -180,7 +180,6 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
           teamId={teamId}
           teamName={team.name}
           currentUserName={currentUser?.name}
-          isLeader={isLeader}
           pendingCount={pendingCount}
           isDesktop={true}
           onNavigateHome={handleNavigateHome}
@@ -351,7 +350,6 @@ export default function TeamMainPage({ params }: TeamMainPageProps) {
         teamId={teamId}
         teamName={team.name}
         currentUserName={currentUser?.name}
-        isLeader={isLeader}
         pendingCount={pendingCount}
         isDesktop={false}
         onNavigateHome={handleNavigateHome}

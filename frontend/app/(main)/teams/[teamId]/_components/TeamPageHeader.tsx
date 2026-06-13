@@ -10,7 +10,6 @@ interface TeamPageHeaderProps {
   teamId: string;
   teamName: string;
   currentUserName: string | undefined;
-  isLeader: boolean;
   pendingCount: number;
   isDesktop: boolean;
   onNavigateHome: () => void;
@@ -22,7 +21,6 @@ export function TeamPageHeader({
   teamId: _teamId,
   teamName,
   currentUserName,
-  isLeader,
   pendingCount,
   isDesktop,
   onNavigateHome,
@@ -83,7 +81,7 @@ export function TeamPageHeader({
               <img src="/user.png" alt="user" className="w-5 h-5 opacity-50 dark:invert dark:opacity-75" />
               <span className="text-sm font-normal text-gray-600 dark:text-dark-text-muted">{currentUserName}</span>
             </div>
-            {isLeader && pendingCount > 0 && (
+            {pendingCount > 0 && (
               <button
                 type="button"
                 onClick={onNavigateToTasks}
