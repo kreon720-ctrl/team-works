@@ -195,7 +195,23 @@ export default function HomePage() {
           <span className="text-xs font-bold tracking-wider text-gray-900 dark:text-dark-text">TEAM WORKS</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* 로그아웃은 About 링크 아래 사용자 영역으로 이동 (중복 제거) */}
+          {/* 로그아웃 — 테마 스위치 옆 */}
+          <div className="relative group flex items-center h-5">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center justify-center w-5 h-5 rounded-md hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
+              aria-label="로그아웃"
+            >
+              <svg className="w-4 h-4 text-gray-700 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+              로그아웃
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-800 dark:border-b-gray-700" />
+            </div>
+          </div>
           <div className="flex items-center gap-2 h-5">
             <ThemeToggle />
             <LandingMenu />
@@ -212,8 +228,8 @@ export default function HomePage() {
           <HelpLinks />
         </div>
 
-        {/* Mobile 사용자 영역 — About 링크 아래: 사용자 아이콘+이름 + 나의 할 일 카운터 + 로그아웃 */}
-        <div className="md:hidden flex items-center justify-between mb-4">
+        {/* Mobile 사용자 영역 — About 링크 아래: 사용자 아이콘+이름 + 나의 할 일 카운터 (로그아웃은 헤더로 원복) */}
+        <div className="md:hidden flex items-center mb-4">
           <div className="relative flex items-center gap-1.5">
             <img src="/user.png" alt="user" className="w-5 h-5 opacity-50 dark:invert dark:opacity-75" />
             <span className="text-sm font-normal text-gray-600 dark:text-dark-text-muted">{currentUser?.name}</span>
@@ -228,16 +244,6 @@ export default function HomePage() {
               </button>
             )}
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            aria-label="로그아웃"
-            className="flex items-center justify-center w-6 h-6 rounded-md hover:bg-gray-100 transition-colors duration-150 dark:hover:bg-dark-elevated"
-          >
-            <svg className="w-4 h-4 text-gray-700 dark:text-dark-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </button>
         </div>
 
         {/* Toast 메시지 */}
