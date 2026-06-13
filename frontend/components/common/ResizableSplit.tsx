@@ -118,8 +118,16 @@ export function ResizableSplit({
             aria-orientation="horizontal"
             aria-label="상하 비율 조절 핸들"
             title="끌어서 상하 비율 조절"
-            className="absolute right-2 top-full -translate-y-1/2 w-6 h-3 bg-primary-400 dark:bg-dark-accent drop-shadow cursor-row-resize touch-none z-20 [clip-path:polygon(0%_0%,100%_0%,80%_100%,20%_100%)]"
-          />
+            className="absolute right-2 top-full -translate-y-1/2 w-12 h-6 cursor-row-resize touch-none z-20"
+          >
+            {/* 역사다리꼴 배경 — 라인 색상과 동일 */}
+            <div className="absolute inset-0 bg-gray-200 dark:bg-dark-border drop-shadow [clip-path:polygon(0%_0%,100%_0%,80%_100%,20%_100%)]" />
+            {/* 상하 이동 표시 — 삼각형(▲) + 역삼각형(▼) */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 pointer-events-none">
+              <span className="w-0 h-0 border-x-[5px] border-x-transparent border-b-[7px] border-b-gray-500 dark:border-b-dark-text-muted" />
+              <span className="w-0 h-0 border-x-[5px] border-x-transparent border-t-[7px] border-t-gray-500 dark:border-t-dark-text-muted" />
+            </div>
+          </div>
         )}
       </div>
 
