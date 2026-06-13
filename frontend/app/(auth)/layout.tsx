@@ -1,6 +1,6 @@
 // 인증 레이아웃 — 로그인·회원가입 공용
 // 라이트/다크 모드 구분 없이 항상 다크 톤으로 통일.
-// 배경: /imgs/login.mp4 (기존 8MB GIF → 398KB MP4 로 경량화). 가독성은 카드 자체의 frosted glass 로 확보.
+// 배경: /imgs/login_back.jpg (모바일·PC 공용 풀스크린). 가독성은 카드 자체의 frosted glass 로 확보.
 
 export default function AuthLayout({
   children,
@@ -9,14 +9,10 @@ export default function AuthLayout({
 }) {
   return (
     <div className="dark relative min-h-screen flex items-center justify-center px-4 overflow-hidden">
-      {/* 배경 영상 — 풀스크린 cover, 오버레이 없이 그대로 노출 (자동재생·무음·반복) */}
-      <video
-        className="absolute inset-0 w-full h-full object-cover"
-        src="/imgs/login.mp4"
-        autoPlay
-        loop
-        muted
-        playsInline
+      {/* 배경 이미지 — 모바일·PC 모두 풀스크린 cover, 오버레이 없이 그대로 노출 */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: "url('/imgs/login_back.jpg')" }}
         aria-hidden="true"
       />
 
