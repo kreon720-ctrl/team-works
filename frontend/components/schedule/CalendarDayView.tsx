@@ -59,7 +59,7 @@ function scheduleClasses(schedule: Schedule): { box: string; muted: string } {
 function GoogleBadge({ schedule }: { schedule: Schedule }) {
   if (schedule.source !== 'google') return null;
   return (
-    <span className="mr-1 inline-flex h-3 w-3 align-middle items-center justify-center rounded-sm bg-white/80 text-[8px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-100">
+    <span className="mr-1 hidden md:inline-flex h-3 w-3 align-middle items-center justify-center rounded-sm bg-white/80 text-[8px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-100">
       G
     </span>
   );

@@ -107,6 +107,20 @@ export function ResizableSplit({
           <div className={`${isVertical ? 'h-0.5 w-3' : 'w-0.5 h-3'} bg-gray-500 dark:bg-dark-text-muted rounded-full`} />
           <div className={`${isVertical ? 'h-0.5 w-3' : 'w-0.5 h-3'} bg-gray-500 dark:bg-dark-text-muted rounded-full`} />
         </div>
+
+        {/* 세로(상하) 모드 — 가운데 줄 오른쪽 끝 하단 역사다리꼴 그립(위 넓고 아래 좁음).
+            얇은 줄(h-1)을 잡기 어려운 문제를 보완: 이 그립을 잡고 끌면 상하 비율이 조절된다. */}
+        {isVertical && (
+          <div
+            onMouseDown={onMouseDown}
+            onTouchStart={onTouchStart}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="상하 비율 조절 핸들"
+            title="끌어서 상하 비율 조절"
+            className="absolute right-2 top-full -translate-y-1/2 w-6 h-3 bg-primary-400 dark:bg-dark-accent drop-shadow cursor-row-resize touch-none z-20 [clip-path:polygon(0%_0%,100%_0%,80%_100%,20%_100%)]"
+          />
+        )}
       </div>
 
       {/* Second panel (right or bottom) */}

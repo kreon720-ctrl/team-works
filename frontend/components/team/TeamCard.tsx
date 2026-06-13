@@ -131,7 +131,7 @@ export function TeamCard({ team, pendingCount = 0, onClick, onApprove, onUpdate,
               </span>
             </div>
             {team.description && (
-              <p className="text-sm text-gray-500 dark:text-dark-text-muted mt-1 line-clamp-1">{team.description}</p>
+              <p className="text-sm text-gray-500 dark:text-dark-text-muted mt-1 break-words whitespace-pre-wrap">{team.description}</p>
             )}
           </button>
 

@@ -41,7 +41,7 @@ function scheduleLabel(schedule: Schedule, text: string): React.ReactNode {
   if (schedule.source !== 'google') return text;
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
-      <span className="inline-flex h-3 w-3 flex-none items-center justify-center rounded-sm bg-white/80 text-[8px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-100">G</span>
+      <span className="hidden md:inline-flex h-3 w-3 flex-none items-center justify-center rounded-sm bg-white/80 text-[8px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-100">G</span>
       <span className="min-w-0 break-words">{text}</span>
     </span>
   );

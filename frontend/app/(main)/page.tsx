@@ -228,8 +228,8 @@ export default function HomePage() {
           <HelpLinks />
         </div>
 
-        {/* Mobile 사용자 영역 — About 링크 아래: 사용자 아이콘+이름 + 나의 할 일 카운터 (로그아웃은 헤더로 원복) */}
-        <div className="md:hidden flex items-center mb-4">
+        {/* Mobile 사용자 영역 — About 링크 아래: 사용자 아이콘+이름 + 나의 할 일 카운터 (우측 정렬, 로그아웃은 헤더로 원복) */}
+        <div className="md:hidden flex items-center justify-end mb-4">
           <div className="relative flex items-center gap-1.5">
             <img src="/user.png" alt="user" className="w-5 h-5 opacity-50 dark:invert dark:opacity-75" />
             <span className="text-sm font-normal text-gray-600 dark:text-dark-text-muted">{currentUser?.name}</span>
@@ -237,7 +237,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => router.push('/me/tasks')}
-                className="absolute -top-2 -right-4 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 hover:bg-red-600 transition-colors"
+                className="absolute -top-2 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 hover:bg-red-600 transition-colors"
                 title="나의 할 일"
               >
                 {totalPending > 99 ? '99+' : totalPending}
